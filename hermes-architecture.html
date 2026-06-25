@@ -270,6 +270,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <button data-tab="bottomup"><span class="ic">🏗️</span>路徑二 · 由下而上</button>
     <button data-tab="comp-home"><span class="ic">📚</span>元件詳解</button>
     <button data-tab="selflearn" class="star"><span class="ic">★</span>自我學習迴圈</button>
+    <button data-tab="audit"><span class="ic">🔎</span>稽核</button>
   </nav>
   <nav class="subtabs" id="subtabs">
     <span class="grp">總覽</span>
@@ -937,6 +938,20 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
       </div>
     </div>
   </div>
+
+  <h2>稽核 / Audit &amp; Log 對照</h2>
+  <p>三者「留什麼 log 給人查核、存哪、給誰看」差很多。核心差異:<strong>OpenClaw / Hermes 本機優先、log 留給操作者自己查</strong>;<strong>Claude Code 除了給你的 session log,還多一層上報 Anthropic 的遙測</strong>(audit 對象包含廠商)。各框架 audit 細節見其文件的 🔎 稽核 分頁。</p>
+  <div class="scrollwrap"><table>
+    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
+    <tr><td>主要儲存</td><td>session JSONL(<code>~/.claude/projects/…</code>)</td><td><strong>SQLite</strong>(<code>state.db</code>)+ 多個 log 目錄</td><td>JSONL transcript(<code>~/.openclaw/agents/…</code>)</td></tr>
+    <tr><td>對話可全文搜尋</td><td>否(逐檔解析)</td><td><strong>FTS5(內建)</strong></td><td>memory 索引(SQLite)</td></tr>
+    <tr><td>專為人查核的匯出</td><td>session JSONL(無專用 redacted 匯出)</td><td>Kanban <code>tail/runs</code> + curator REPORT.md</td><td><strong><code>/export-trajectory</code> redacted bundle</strong></td></tr>
+    <tr><td>背景/排程的稽核</td><td>—</td><td><strong>Kanban task_runs/task_events + cron output</strong></td><td>gateway.log</td></tr>
+    <tr><td>自我學習的稽核</td><td>—</td><td><strong>curator REPORT.md + DREAMS.md + review 摘要</strong></td><td>dreaming(memory-core)</td></tr>
+    <tr><td>上報外部</td><td><strong>有(1P + Datadog,無 UI opt-out)</strong></td><td>預設無(可選 OTel)</td><td>預設無(可選 OTel/Prometheus)</td></tr>
+    <tr><td>audit 對象</td><td>使用者 <strong>+ Anthropic / 企業</strong></td><td>操作者本人</td><td>操作者本人</td></tr>
+  </table></div>
+  <div class="callout note"><span class="ct">一句話</span><strong>OpenClaw</strong> = 可攜的 redacted 稽核束;<strong>Hermes</strong> = 結構化、可回溯的稽核軌跡(Kanban/curator/FTS5);<strong>Claude Code</strong> = session log 給你 + 強制遙測上報廠商。各框架詳情 → 其文件的「🔎 稽核」分頁。</div>
 
   <h2>概念對映(來自 <code>hermes claw migrate</code>)</h2>
   <p>Hermes 內建從 OpenClaw 匯入的遷移工具,其 config key 對映正好揭示兩者的概念對應:<span class="src">來源:website/docs/guides/migrate-from-openclaw.md</span></p>
@@ -1653,6 +1668,31 @@ skill_manage(action="write_file", name="docker-deployment", file_path="reference
   <h2><span class="secnum">5</span>範例 / 設定</h2>
   <pre><code># 危險指令核准記憶在 session;allow permanently 寫入 config.yaml
 # 離線 RL: python batch_runner.py ... ; python trajectory_compressor.py ...</code></pre>
+</section>
+
+<!-- ================= 🔎 稽核 ================= -->
+<section class="pane" id="audit">
+  <div class="page-kicker gold">🔎 Audit &amp; Logs</div>
+  <h1 class="page">🔎 稽核:留什麼 log 給人查核</h1>
+  <p class="page-sub">Hermes 把大部分稽核資料放進 <strong>SQLite</strong>,再加上幾個專用 log 目錄,審計面是三框架中最完整的 ── <strong>本機優先、結構化、可回溯</strong>。</p>
+
+  <div class="callout gold"><span class="ct">定位:結構化、可回溯的稽核軌跡</span>對話/訊息進 <code>state.db</code>(可 FTS5 全文搜尋);自我學習的每一步留痕(curator <code>REPORT.md</code>、<code>DREAMS.md</code>、background review 摘要);多進程協作有企業級稽核軌跡(Kanban <code>task_runs</code>/<code>task_events</code>,每個 worker 進程都可回溯)。預設本機,不外送。</div>
+
+  <h2>審查資料存哪</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>類別</th><th>存放位置</th><th>用途</th></tr>
+    <tr><td><strong>Session / 訊息</strong></td><td><code>~/.hermes/state.db</code>(SQLite,schema v16:<code>sessions</code>/<code>messages</code>/<code>messages_fts</code>)</td><td>完整對話歷史 + FTS5 全文索引(可被搜尋查核)</td></tr>
+    <tr><td>Cron 輸出</td><td><code>~/.hermes/cron/output/&lt;job_id&gt;/&lt;timestamp&gt;.md</code></td><td>每次排程執行的逐次輸出</td></tr>
+    <tr><td><strong>Kanban 稽核軌跡</strong></td><td><code>~/.hermes/kanban.db</code> + <code>&lt;board-root&gt;/logs/&lt;task_id&gt;.log</code></td><td><code>task_runs</code>(exit code/summary/log_path)、<code>task_events</code>(claimed/heartbeat/completed/blocked/crashed…);CLI <code>hermes kanban tail/runs/diagnostics</code></td></tr>
+    <tr><td>Curator 報告</td><td><code>~/.hermes/logs/curator/&lt;timestamp&gt;/</code>(<code>run.json</code> + <code>REPORT.md</code>)</td><td>自學維護:哪些技能被 stale/archive/整併(機器可讀 + 人可讀兩份)</td></tr>
+    <tr><td>Dreaming 日誌</td><td><code>DREAMS.md</code>(workspace)+ <code>memory/.dreams/</code></td><td>背景記憶鞏固的敘事 + 機器狀態</td></tr>
+    <tr><td>背景 review 摘要</td><td>回報到主對話(💾 一行)</td><td>即時告知「剛學了什麼」,透明可控</td></tr>
+    <tr><td>成本</td><td>cost-tracker(session 內)</td><td>API 用量/成本</td></tr>
+  </table></div>
+
+  <h2>設計重點</h2>
+  <div class="callout key"><span class="ct">為何最完整</span>① 自我學習每步留痕(curator REPORT.md / DREAMS.md / review 摘要)── 見 <a onclick="go('selflearn')">★ 自我學習迴圈</a>;② Kanban 的 <code>task_runs</code>/<code>task_events</code> 是真正企業級稽核(每個 worker 進程可回溯)── 見 <a onclick="go('c-delegation')">Delegation &amp; Kanban</a>;③ FTS5 讓歷史可被全文檢索 ── 見 <a onclick="go('c-session')">Sessions/FTS5</a>。全部本機,預設不上報。</div>
+  <p class="src">三框架的 audit 對照表見 <a onclick="go('compare')">三框架比較頁</a>。路徑為 repo 2026 快照研讀整理,正式引用前建議再對 source。</p>
 </section>
 
 </main>

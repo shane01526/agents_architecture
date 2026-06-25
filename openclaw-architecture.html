@@ -237,6 +237,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <button data-tab="journey"><span class="ic">🚶</span>路徑一 · 訊息的旅程</button>
     <button data-tab="bottomup"><span class="ic">🏗️</span>路徑二 · 由下而上</button>
     <button data-tab="comp-home"><span class="ic">📚</span>元件詳解</button>
+    <button data-tab="audit"><span class="ic">🔎</span>稽核</button>
   </nav>
   <nav class="subtabs" id="subtabs">
     <span class="grp">總覽</span>
@@ -2054,6 +2055,29 @@ When the user asks to generate an image, use the `image_generate` tool...</code>
   secrets: { providers: { vault: { source: "exec", command: "/usr/bin/vault" } } },
   plugins: { allow: ["memory-core", "browser"] } }</code></pre>
   <p><span class="src">SECURITY.md, docs/security/THREAT-MODEL-ATLAS.md, gateway/authentication.md, secrets.md, auth-credential-semantics.md</span></p>
+</section>
+
+<!-- ================= 🔎 稽核 ================= -->
+<section class="pane" id="audit">
+  <div class="page-kicker">🔎 Audit &amp; Logs</div>
+  <h1 class="page">🔎 稽核:留什麼 log 給人查核</h1>
+  <p class="page-sub">OpenClaw 的 audit 是<strong>本機優先、操作者導向</strong>:所有對話與執行記錄留在本機、預設不外送,並提供一個<strong>可一鍵匯出、redacted 的稽核束</strong>專門給人查核或回報問題。</p>
+
+  <div class="callout key"><span class="ct">定位:可攜的稽核束</span>最「為人查核」的設計是 <code>/export-trajectory</code> ── 一鍵把當次執行打包成 <strong>redacted bundle</strong>(含 system prompt、工具清單、事件流),可直接附在 issue 裡。其餘 transcript / gateway log / exec 核准記錄皆<strong>本機留存</strong>,要外送才接 OTel/Prometheus plugin。</div>
+
+  <h2>審查資料存哪</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>類別</th><th>存放位置</th><th>用途</th></tr>
+    <tr><td><strong>Session transcript</strong></td><td><code>~/.openclaw/agents/&lt;agentId&gt;/sessions/&lt;sessionId&gt;.jsonl</code>(+ <code>sessions.json</code> 索引)</td><td>append-only 逐則對話(user/assistant/toolResult);崩潰可復原、可 resume</td></tr>
+    <tr><td><strong>Trajectory 匯出</strong>(查核束)</td><td><code>~/.openclaw/trajectory-exports/</code>(經 <code>/export-trajectory</code>)</td><td><strong>redacted 支援束</strong>:<code>events.jsonl</code> + <code>metadata.json</code> + <code>system-prompt.txt</code> + <code>tools.json</code>,含當下 model/plugins/skills 快照;專為交給人查核設計</td></tr>
+    <tr><td>Gateway 日誌</td><td><code>~/.openclaw/logs/gateway.log</code>(<code>openclaw logs --follow</code>)</td><td>執行/錯誤/壓縮/channel 健康</td></tr>
+    <tr><td>Exec 核准記錄</td><td><code>~/.openclaw/exec-approvals.json</code></td><td>哪些指令被允許/拒絕(host-local 守衛)</td></tr>
+    <tr><td>可選觀測性</td><td>OTel / Prometheus 端點(<code>diagnostics-otel</code> / <code>diagnostics-prometheus</code> plugin)</td><td>指標導出到外部監控(需自行啟用)</td></tr>
+  </table></div>
+
+  <h2>設計重點</h2>
+  <div class="callout note"><span class="ct">本機優先 + 可攜查核</span>對話與執行痕跡預設只在本機,呼應其「<a onclick="go('c-security')">單一可信操作者、非多租戶</a>」立場;查核時用 <code>/export-trajectory</code> 產出 redacted bundle 給人看,而非把資料外送廠商。transcript 細節見 <a onclick="go('c-session')">Session</a>。</div>
+  <p class="src">三框架的 audit 對照表見 <a href="hermes-architecture.html#compare">總比較頁(Hermes 文件)</a>。路徑為 repo 2026 快照研讀整理,正式引用前建議再對 source。</p>
 </section>
 
 </main>

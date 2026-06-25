@@ -219,7 +219,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
   <div class="top-inner">
     <div class="logo"><span class="claw">✳</span> Claude Code <small>架構詳解 · 12 Harness 機制 + 幕後揭密(逆向研究)</small></div>
     <div class="hdr-actions" style="display:flex;align-items:center;gap:12px;margin-left:auto;flex:0 0 auto;">
-      <button class="hbtn cmp" onclick="go('compare')" title="三框架逐元件對比">⚖️ 比較</button>
+      <a class="hbtn cmp" href="hermes-architecture.html#compare" title="三框架逐元件對比(總比較頁在 Hermes 文件)">⚖️ 比較</a>
       <div class="docswitch" title="切換框架介紹" style="display:flex;border:1px solid var(--line2);border-radius:20px;overflow:hidden;font-size:12.5px;font-weight:700;flex:0 0 auto;">
         <a href="openclaw-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-right:1px solid var(--line2);">🦞 OpenClaw</a>
         <a href="hermes-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-right:1px solid var(--line2);">☤ Hermes</a>
@@ -234,7 +234,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <button data-tab="comp-home"><span class="ic">📚</span>元件詳解</button>
     <button data-tab="harness" class="star"><span class="ic">★</span>12 Harness 機制</button>
     <button data-tab="expose" class="expo"><span class="ic">🔍</span>幕後揭密</button>
-    <button data-tab="compare"><span class="ic">⚖️</span>三框架比較</button>
+    <button data-tab="audit"><span class="ic">🔎</span>稽核</button>
   </nav>
   <nav class="subtabs" id="subtabs">
     <span class="grp">總覽</span>
@@ -919,31 +919,30 @@ OTEL_LOG_TOOL_DETAILS=1     # 開啟完整工具輸入捕捉
   <div class="callout warn"><span class="ct">為什麼這些「藏得住」?</span>關鍵在 <a onclick="go('c-state')">feature() 編譯期 DCE</a> + <code>USER_TYPE==='ant'</code> runtime gate ── 內部功能與卧底模式在外部 build 被整段剝除,所以一般使用者的 bundle 裡根本不存在這些碼。逆向研究是從<strong>洩漏的程式碼/字串</strong>反推這些機制的存在。</div>
 </section>
 
-<!-- ================= ⚖️ 比較 ================= -->
-<section class="pane" id="compare">
-  <div class="page-kicker">⚖️ 對照</div>
-  <h1 class="page">三框架比較:Claude Code vs Hermes vs OpenClaw</h1>
-  <p class="page-sub">三者都是「會用工具的 AI agent」,但定位差很多:<strong>Claude Code</strong> = 官方 CLI coding agent(寫程式、接 IDE);<strong>Hermes</strong> = 自我學習的個人助理(住訊息軟體);<strong>OpenClaw</strong> = gateway 控制平面 + 一切皆 plugin 的個人助理。</p>
+<!-- ================= 🔎 稽核 ================= -->
+<section class="pane" id="audit">
+  <div class="page-kicker red">🔎 Audit & Logs</div>
+  <h1 class="page">🔎 稽核:留什麼 log 給人查核</h1>
+  <p class="page-sub">Claude Code 的 audit 是<strong>雙層</strong>的:一層 session log 給<strong>你</strong>查(resume/復原),另一層遙測<strong>上報給 Anthropic</strong>。這是「官方產品」與「本機優先開源工具」在稽核哲學上的根本差別。</p>
 
+  <div class="callout danger"><span class="ct">⚠️ 雙層 audit + 逆向研究聲明</span>給使用者查核的主要是 <strong>session JSONL</strong>(與 OpenClaw/Hermes 類似);但 audit 的「另一個對象」是 <strong>Anthropic/企業</strong> ── 第一方遙測<strong>無法從 UI 關閉</strong>,企業可經 remote managed settings 推送設定(accept-or-die)。以下路徑/行為來自第三方逆向研究(v2.1.88 快照),<strong>非官方、可能過時</strong>。</div>
+
+  <h2>審查資料存哪</h2>
   <div class="scrollwrap"><table>
-    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
-    <tr><td>定位招牌</td><td><strong>官方 CLI coding agent</strong>(寫程式/接 IDE)</td><td>自我改進的個人助理</td><td>gateway 控制平面 + 一切皆 plugin</td></tr>
-    <tr><td>出品</td><td>Anthropic 官方</td><td>Nous Research</td><td>開源社群</td></tr>
-    <tr><td>Runtime 語言</td><td>TypeScript(Bun 編譯)</td><td>Python</td><td>TypeScript / Node</td></tr>
-    <tr><td>核心迴圈</td><td><code>query.ts</code> while-true(785KB)</td><td><code>run_conversation()</code> 3 API mode</td><td>embedded loop + runtime 家族</td></tr>
-    <tr><td>主要介面</td><td><strong>終端 CLI</strong> + SDK + IDE(經 bridge/SDK)</td><td>多訊息平台 + CLI/TUI + ACP</td><td>20+ 訊息平台 + WebChat/TUI/Control UI</td></tr>
-    <tr><td>自我學習</td><td>無 runtime 自學(<strong>每 session 靠 CLAUDE.md 記憶</strong>);KAIROS 自主模式規劃中</td><td><strong>一等公民</strong>:background review 自動造/改技能 + curator</td><td>memory + dreaming 鞏固(無技能自創)</td></tr>
-    <tr><td>多 agent</td><td>sub-agent(fork/worktree/remote)+ swarm(coordinator)</td><td>delegate_task + Kanban 多進程 worker</td><td>subagents + 並行 specialist lanes</td></tr>
-    <tr><td>外部互通</td><td>消費 MCP;被 IDE/Desktop 經 SDK/bridge 整合</td><td>ACP 雙向 + 消費 MCP</td><td>ACP + MCP + 一切皆 plugin</td></tr>
-    <tr><td>脈絡壓縮</td><td>autoCompact/snipCompact/contextCollapse 三策略</td><td>雙重壓縮(85%/50%)+ Anthropic caching</td><td>可插拔 context engine + compaction</td></tr>
-    <tr><td>權限/安全</td><td>permission rules + PreToolUse hooks + checkPermissions</td><td>DANGEROUS_PATTERNS 核准 + 威脅掃描</td><td>tool policy 8 層 + exec approvals + ATLAS</td></tr>
-    <tr><td>遠端管控</td><td><strong>remote managed settings + accept-or-die killswitch</strong></td><td>無(本機優先)</td><td>無(本機優先、單一可信操作者)</td></tr>
-    <tr><td>遙測</td><td><strong>兩 sink、無 UI opt-out</strong>(官方產品)</td><td>本機;可選 OTel</td><td>本機;OTel/Prometheus plugin</td></tr>
-    <tr><td>RL / 研究角度</td><td>無(產品)</td><td><strong>明確</strong>:trajectory 生成+壓縮訓練模型</td><td>無</td></tr>
+    <tr><th>類別</th><th>存放位置</th><th>給誰查</th></tr>
+    <tr><td><strong>Session transcript</strong></td><td><code>~/.claude/projects/&lt;hash&gt;/sessions/&lt;session-id&gt;.jsonl</code>(append-only)</td><td><strong>使用者</strong>:resume/continue/fork、崩潰復原</td></tr>
+    <tr><td><strong>遙測 ── 第一方</strong></td><td>送 <code>api.anthropic.com/api/event_logging/batch</code>(OTel+protobuf,200/批、10s flush);失敗事件落 <code>~/.claude/telemetry/</code></td><td><strong>Anthropic</strong>:環境指紋、process metrics、repo hash;<strong>無 UI opt-out</strong></td></tr>
+    <tr><td>遙測 ── 第三方</td><td>送 Datadog(64 種事件)</td><td>Anthropic 營運</td></tr>
+    <tr><td>完整工具輸入捕捉</td><td><code>OTEL_LOG_TOOL_DETAILS=1</code> 開啟(預設關)</td><td>開了會記工具輸入細節</td></tr>
+    <tr><td>錯誤</td><td>ring buffer(有界記憶)</td><td>長 session 的有界錯誤緩衝</td></tr>
+    <tr><td>成本</td><td>cost-tracker(session 內)</td><td>使用者</td></tr>
   </table></div>
 
-  <div class="callout cc"><span class="ct">怎麼選</span>要<strong>在終端寫程式、深度 IDE 整合、官方支援</strong> → Claude Code;要<strong>住訊息軟體、越用越懂你、可做 RL 研究</strong> → Hermes;要<strong>極廣 channel/plugin 生態、自架 gateway 控制平面</strong> → OpenClaw。三者本機優先程度不同:Claude Code 有官方遠端管控,另兩者強調本機/自架。</div>
-  <p class="src">Claude Code 欄位基於逆向研究(v2.1.88 快照),Hermes/OpenClaw 欄位基於各自開源 repo。三框架的逐元件深度對比卡見 <a href="hermes-architecture.html#compare">Hermes 文件的比較頁</a>。</p>
+  <h2>設計重點</h2>
+  <div class="callout warn"><span class="ct">audit 不只服務你</span>給使用者查的是 session JSONL(可 <code>--resume</code> 重建);但<strong>遙測上報無法關閉</strong>、且 6+ killswitch + GrowthBook 可遠端改寫行為。這是 audit 對象包含「廠商/企業」的設計 ── 與 OpenClaw/Hermes 的「純本機、log 留給操作者」不同。完整爭議見 <a onclick="go('expose')">🔍 幕後揭密</a>。</div>
+  <div class="callout key"><span class="ct">能查到什麼層級</span>session JSONL 含 user/assistant/progress/system(compact_boundary)逐則記錄 → 可完整重播一次對話。<a onclick="go('c-session')">→ Session 持久化</a>;遙測細節見 <a onclick="go('c-telemetry')">遙測/遠端控制</a>。</div>
+
+  <p class="src">三框架的 audit 對照表見 <a href="hermes-architecture.html#compare">總比較頁(Hermes 文件)</a>。本頁基於 <code>sanbuphy/learn-coding-agent</code> docs/en/01(遙測)、研讀 v2.1.88 快照,非 Anthropic 官方。</p>
 </section>
 
 </main>
