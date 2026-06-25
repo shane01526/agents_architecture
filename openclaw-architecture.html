@@ -248,6 +248,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <span class="grp">大腦</span>
     <button data-tab="c-loop">Agent Loop</button>
     <button data-tab="c-runtime">Runtime</button>
+    <button data-tab="c-concurrency">任務分配/並行</button>
     <span class="grp">記憶</span>
     <button data-tab="c-session">Session</button>
     <button data-tab="c-memory">Memory</button>
@@ -480,6 +481,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
   <div class="compgrid">
     <div class="ci" onclick="go('c-loop')"><div class="cn">L2</div><h4>Agent Loop</h4><p>編排者:執行流程;佇列/lane/寫鎖;串流;逾時;hook 點 ── <strong>在迴圈內選用 Runtime</strong></p></div>
     <div class="ci" onclick="go('c-runtime')"><div class="cn">L2</div><h4>Agent Runtime</h4><p>被迴圈選用:Provider/Model/Runtime/Channel 四層;embedded vs CLI;Codex 擁有權切分</p></div>
+    <div class="ci" onclick="go('c-concurrency')"><div class="cn">L2</div><h4>任務分配 / 並行控制</h4><p>session key 分流 + 兩層 lane(session 序列 / main 並行上限 4);queue 模式(steer/…);write lock</p></div>
   </div>
   <h2>記憶</h2>
   <div class="compgrid">
@@ -2057,6 +2059,50 @@ When the user asks to generate an image, use the `image_generate` tool...</code>
   <p><span class="src">SECURITY.md, docs/security/THREAT-MODEL-ATLAS.md, gateway/authentication.md, secrets.md, auth-credential-semantics.md</span></p>
 </section>
 
+<!-- ================= 元件:任務分配/並行 ================= -->
+<section class="pane" id="c-concurrency">
+  <div class="page-kicker">元件詳解 · 大腦</div>
+  <h1 class="page">任務分配 &amp; 並行控制(Lane 佇列)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-channels')">路由算 session key</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>session 分流 + 兩層 lane 佇列 + queue 模式</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-loop')">序列化執行</a><a onclick="go('c-session')">寫鎖</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>一個 gateway 要同時服務多 channel、多人、多群組。必須決定「誰能並行、誰要排隊」── 否則同一對話的訊息會競爭、transcript 會錯亂,或全部塞一條佇列拖垮吞吐。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">session 是並行的基本單位</span>路由先算 <strong>session key</strong>(DM→<code>agent:&lt;id&gt;:main</code>;群組→<code>agent:&lt;id&gt;:&lt;channel&gt;:group:&lt;id&gt;</code>)。<strong>不同 key = 可並行;同 key = 序列化。</strong></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>兩層 lane</strong>:<strong>session lane</strong>(<code>session:&lt;key&gt;</code>,每 session 同時僅一個活躍執行)+ <strong>全域 lane</strong>(預設 <code>main</code>,並行上限 <code>agents.defaults.maxConcurrent</code> 預設 <strong>4</strong>;subagent lane 8、cron/cron-nested 另計)。</li>
+    <li><strong>queue 模式</strong>(執行中又來新訊息):<code>steer</code>(預設,turn 邊界接入)/ <code>followup</code> / <code>collect</code>(靜默窗合併)/ <code>interrupt</code>(中止跑最新);<code>debounceMs:500</code>、<code>cap:20</code>、<code>drop:summarize</code>。</li>
+    <li><strong>session write lock</strong>:檔案層級鎖(process-aware,等待上限 60000ms)再保證 transcript 單寫者。</li>
+    <li><strong>對應系統</strong>:<span class="fp">src/agents/embedded-agent-runner/lanes.ts</span>、<span class="fp">src/process/command-queue.ts</span>(lane-aware FIFO + 並行上限)。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:很多人同時打進來</h2>
+    <p class="intro">關鍵是「先用 session key 分流,再決定並行或排隊」。</p>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>兩則訊息是同一個 session key 嗎?<span class="qmeta">routing</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">不同 key</span><span class="dres">各自進自己的 session lane → <b>可並行</b>(總數受 main lane <code>maxConcurrent</code>=4 節流;超過則於全域 lane 排隊)</span></div>
+          <div class="dbranch no"><span class="dtag">同一 key</span><span class="dres">session lane <b>序列化</b> ── 同時只有一個活躍執行</span></div>
+        </div></div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>同 session 執行進行中又來新訊息?</div>
+        <div class="dbranches">
+          <div class="dbranch cs"><span class="dtag">steer(預設)</span><span class="dres">turn 邊界把新訊息接進當前執行</span></div>
+          <div class="dbranch cs"><span class="dtag">collect/followup</span><span class="dres">合併成下一 turn / 排到下一 turn</span></div>
+          <div class="dbranch no"><span class="dtag">interrupt</span><span class="dres">中止當前、改跑最新;<code>cap</code> 滿則 <code>drop:summarize</code></span></div>
+        </div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-channels')">路由</a>算 session key 決定分流。<strong>下游:</strong>每 session 由 <a onclick="go('c-loop')">Agent Loop</a> 序列化執行、取 <a onclick="go('c-session')">write lock</a>;子代理走 subagent lane(<a onclick="go('c-tools')">Tools</a>)。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ agents: { defaults: { maxConcurrent: 4 } },
+  messages: { queue: { mode: "steer", debounceMs: 500, cap: 20, drop: "summarize",
+                       byChannel: { discord: "collect" } } } }</code></pre>
+  <p class="src">docs/concepts/queue.md, queue-steering.md;src/agents/embedded-agent-runner/lanes.ts、src/process/command-queue.ts</p>
+</section>
+
 <!-- ================= 🔎 稽核 ================= -->
 <section class="pane" id="audit">
   <div class="page-kicker">🔎 Audit &amp; Logs</div>
@@ -2088,7 +2134,7 @@ When the user asks to generate an image, use the `image_generate` tool...</code>
 </footer>
 
 <script>
-const COMP = new Set(['comp-home','c-substrate','c-identity','c-runtime','c-loop','c-session','c-memory','c-context','c-tools','c-skills','c-channels','c-automation','c-plugins','c-security']);
+const COMP = new Set(['comp-home','c-substrate','c-identity','c-runtime','c-loop','c-concurrency','c-session','c-memory','c-context','c-tools','c-skills','c-channels','c-automation','c-plugins','c-security']);
 function go(id){
   if(!document.getElementById(id)) return;
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));

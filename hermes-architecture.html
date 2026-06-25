@@ -291,6 +291,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <span class="grp">對外</span>
     <button data-tab="c-gateway">Gateway/平台</button>
     <button data-tab="c-delegation">Delegation/Kanban</button>
+    <button data-tab="c-concurrency">任務分配/並行</button>
     <span class="grp">治理</span>
     <button data-tab="c-cron">Cron/Plugins</button>
     <button data-tab="c-security">Security</button>
@@ -485,6 +486,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
   <div class="compgrid">
     <div class="ci" onclick="go('c-gateway')"><div class="cn">L5</div><h4>Gateway & 平台</h4><p>單一 GatewayRunner;多平台;授權/pairing;token lock</p></div>
     <div class="ci" onclick="go('c-delegation')"><div class="cn">L5</div><h4>Delegation & Kanban</h4><p>delegate_task 子代理;Kanban 多進程 worker lanes</p></div>
+    <div class="ci" onclick="go('c-concurrency')"><div class="cn">L5</div><h4>任務分配 / 並行控制</h4><p>gateway session 佇列 + delegate(3 並行)+ Kanban dispatcher 派工</p></div>
   </div>
   <h2>治理</h2>
   <div class="compgrid">
@@ -952,6 +954,21 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <tr><td>audit 對象</td><td>使用者 <strong>+ Anthropic / 企業</strong></td><td>操作者本人</td><td>操作者本人</td></tr>
   </table></div>
   <div class="callout note"><span class="ct">一句話</span><strong>OpenClaw</strong> = 可攜的 redacted 稽核束;<strong>Hermes</strong> = 結構化、可回溯的稽核軌跡(Kanban/curator/FTS5);<strong>Claude Code</strong> = session log 給你 + 強制遙測上報廠商。各框架詳情 → 其文件的「🔎 稽核」分頁。</div>
+
+  <h2>任務分配 / 並行控制對照</h2>
+  <p>「很多使用者同時打同一個 agent」怎麼處理?三者都以 <strong>session 為並行單位</strong>(不同 session 並行、同 session 序列化),但「任務分配」的主系統差很多。各框架詳情 → 其文件的「任務分配/並行」元件頁。</p>
+  <div class="scrollwrap"><table>
+    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
+    <tr><td>設計取向</td><td>單人 + 終端 coding</td><td>多平台助理 + 任務看板</td><td><strong>多 channel/多人服務台</strong></td></tr>
+    <tr><td>並行單位</td><td>session(多半一人一個)</td><td>session</td><td>session(key 分流)</td></tr>
+    <tr><td>同 session 序列化</td><td>單一對話迴圈</td><td>active session 佇列 + 守衛</td><td><strong>session lane + write lock</strong></td></tr>
+    <tr><td>跨 session 並行上限</td><td>通常 1(一人一終端)</td><td>gateway 並行處理</td><td><code>maxConcurrent</code>(預設 4)</td></tr>
+    <tr><td>同對話新訊息進來</td><td>串流中可中斷重導</td><td>佇列 pending + 中斷事件</td><td><strong>queue 模式</strong>(steer/followup/collect/interrupt)</td></tr>
+    <tr><td>「任務分配」主系統</td><td>StreamingToolExecutor + swarm</td><td><strong>Kanban</strong>(assignee→進程,claim/TTL)</td><td>lane 佇列(command-queue)</td></tr>
+    <tr><td>多使用者隔離</td><td>較弱(本就單人;靠多 session/profile)</td><td>session key + bindings(+ Honcho per-peer)</td><td>session key + bindings + access groups</td></tr>
+    <tr><td>大任務拆分並行</td><td>sub-agent/swarm(claim)</td><td>delegate(3)+ Kanban(多進程)</td><td>subagents(lane 8)</td></tr>
+  </table></div>
+  <div class="callout note"><span class="ct">直接回答「多人同時打同一 agent」</span><strong>OpenClaw 最直接勝任</strong>(session key 分流 + 兩層 lane,專為多人多群組設計);<strong>Hermes 類似</strong>且可用 Honcho 分使用者畫像、Kanban 分派背景工作;<strong>Claude Code 不是為此設計</strong>,需靠每人一個 session/profile 或 Bridge 各開一個 CLI。</div>
 
   <h2>概念對映(來自 <code>hermes claw migrate</code>)</h2>
   <p>Hermes 內建從 OpenClaw 匯入的遷移工具,其 config key 對映正好揭示兩者的概念對應:<span class="src">來源:website/docs/guides/migrate-from-openclaw.md</span></p>
@@ -1670,6 +1687,49 @@ skill_manage(action="write_file", name="docker-deployment", file_path="reference
 # 離線 RL: python batch_runner.py ... ; python trajectory_compressor.py ...</code></pre>
 </section>
 
+<!-- ================= 元件:任務分配/並行 ================= -->
+<section class="pane" id="c-concurrency">
+  <div class="page-kicker">元件詳解 · 對外</div>
+  <h1 class="page">任務分配 &amp; 並行(Gateway 佇列 + Kanban)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-gateway')">gateway 算 session key</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>即時對話 session 佇列 + delegate + Kanban 派工</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-loop')">run_conversation</a><a onclick="go('c-delegation')">Kanban worker</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>多平台多人即時對話要分流序列化;而「大量任務 / 多工人協作」是另一個問題 ── Hermes 把這兩件事拆成<strong>兩套系統</strong>:gateway session 佇列(即時)+ Kanban(跨進程任務分配)。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">即時 vs 批次,兩套機制</span>即時對話走 <strong>gateway session 佇列</strong>(session 為單位);重活/多工人走 <strong>Kanban dispatcher</strong>(任務看板,依 assignee 派給獨立進程)。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>① Gateway 即時層</strong>:<code>_handle_message()</code> 算 session key(<code>agent:main:{platform}:{chat_type}:{chat_id}</code>)→ 建 AIAgent。<strong>雙層訊息守衛</strong>:base adapter 檢查 active session(忙 → 佇列到 <code>_pending_messages</code> + 設中斷事件);runner 攔 <code>/stop</code> <code>/new</code> <code>/queue</code> 等 inline 派發避免 race。</li>
+    <li><strong>② delegate_task(同進程並行)</strong>:一 turn 內 spawn 子 AIAgent,<strong>預設最多 3 並行</strong>(<code>max_concurrent_children</code>),只回摘要進父 context。</li>
+    <li><strong>③ Kanban dispatcher(跨進程任務分配,招牌)</strong>:任務列帶 <code>assignee</code> → 看 <code>ready</code> 任務 → 起獨立進程 <code>hermes -p &lt;assignee&gt; chat -q</code>;<strong>claim + heartbeat</strong>;stale claim TTL 15min(確認進程已死才回收)、crash → consecutive-failure breaker、per-task max runtime;coordinator 模式下 worker 自己掃描並 claim。</li>
+    <li><strong>對應系統</strong>:<span class="fp">gateway/run.py</span>、<span class="fp">tools/async_delegation.py</span>、<span class="fp">tools/kanban_tools.py</span> + <span class="fp">plugins/kanban/</span>。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:即時對話 vs 批次任務</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>是即時對話還是大批任務?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">即時對話</span><span class="dres">各 session 並行處理;同 session 忙 → 佇列 pending + 中斷事件</span></div>
+          <div class="dbranch cs"><span class="dtag">大批任務</span><span class="dres">進 Kanban 看板 → 下方派工流程</span></div>
+        </div></div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>Kanban:任務 ready 時誰來做?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">有 assignee</span><span class="dres">dispatcher 起 <code>hermes -p &lt;assignee&gt;</code> 獨立進程 → claim → heartbeat</span></div>
+          <div class="dbranch cs"><span class="dtag">coordinator 模式</span><span class="dres">worker 自己掃描並 claim,不必逐一指派</span></div>
+          <div class="dbranch no"><span class="dtag">worker 死/逾時</span><span class="dres">stale TTL 15min 回收;consecutive-failure → auto-block</span></div>
+        </div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-gateway')">gateway</a> 算 session key。<strong>下游:</strong>即時對話交 <a onclick="go('c-loop')">run_conversation</a>;批次任務交 <a onclick="go('c-delegation')">Delegation &amp; Kanban</a>(worker 是獨立 <code>hermes</code> 進程,各自 profile)。per-user 隔離可疊 Honcho(<a onclick="go('c-memory')">Memory/Honcho</a>)。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// 即時:多人 → 各 session 並行;同 session 忙 → pending + 中斷
+// delegate: { max_concurrent_children: 3 }
+// Kanban: kanban_create(assignee="coder", ...) → dispatcher 起 hermes -p coder</code></pre>
+  <p class="src">gateway/run.py、tools/async_delegation.py、tools/kanban_tools.py、plugins/kanban/(2026 快照)</p>
+</section>
+
 <!-- ================= 🔎 稽核 ================= -->
 <section class="pane" id="audit">
   <div class="page-kicker gold">🔎 Audit &amp; Logs</div>
@@ -1703,7 +1763,7 @@ skill_manage(action="write_file", name="docker-deployment", file_path="reference
 </footer>
 
 <script>
-const COMP = new Set(['comp-home','c-loop','c-prompt','c-session','c-context','c-memory','c-tools','c-skills','c-acp','c-gateway','c-substrate','c-delegation','c-cron','c-security']);
+const COMP = new Set(['comp-home','c-loop','c-prompt','c-session','c-context','c-memory','c-tools','c-skills','c-acp','c-gateway','c-substrate','c-delegation','c-concurrency','c-cron','c-security']);
 function go(id){
   if(!document.getElementById(id)) return;
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));

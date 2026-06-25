@@ -243,6 +243,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <button data-tab="c-loop">Agent Loop</button>
     <button data-tab="c-tools">Tools</button>
     <button data-tab="c-perms">權限系統</button>
+    <button data-tab="c-concurrency">任務分配/並行</button>
     <span class="grp">記憶</span>
     <button data-tab="c-context">脈絡壓縮</button>
     <button data-tab="c-session">Session 持久化</button>
@@ -442,6 +443,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <div class="ci" onclick="go('c-loop')"><div class="cn">L2</div><h4>Agent Loop & Query Engine</h4><p>while-true loop;stop_reason;AsyncGenerator 串流;3 入口</p></div>
     <div class="ci" onclick="go('c-tools')"><div class="cn">L4</div><h4>Tool 系統</h4><p>buildTool 工廠;Tool 介面四面向;40+ 工具;並行執行</p></div>
     <div class="ci" onclick="go('c-perms')"><div class="cn">L1</div><h4>權限系統</h4><p>hooks→rules→prompt→checkPermissions;PermissionMode</p></div>
+    <div class="ci" onclick="go('c-concurrency')"><div class="cn">L2</div><h4>任務分配 / 並行控制</h4><p>StreamingToolExecutor 工具分區並行 + 子代理/swarm;本質單人單終端</p></div>
   </div>
   <h2>記憶</h2>
   <div class="compgrid">
@@ -919,6 +921,47 @@ OTEL_LOG_TOOL_DETAILS=1     # 開啟完整工具輸入捕捉
   <div class="callout warn"><span class="ct">為什麼這些「藏得住」?</span>關鍵在 <a onclick="go('c-state')">feature() 編譯期 DCE</a> + <code>USER_TYPE==='ant'</code> runtime gate ── 內部功能與卧底模式在外部 build 被整段剝除,所以一般使用者的 bundle 裡根本不存在這些碼。逆向研究是從<strong>洩漏的程式碼/字串</strong>反推這些機制的存在。</div>
 </section>
 
+<!-- ================= 元件:任務分配/並行 ================= -->
+<section class="pane" id="c-concurrency">
+  <div class="page-kicker">元件詳解 · 大腦</div>
+  <h1 class="page">任務分配 &amp; 並行(工具層 + 子代理)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">一 turn 多 tool_use</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>工具分區並行 + 子代理/swarm;本質單人單終端</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">工具執行</a><a onclick="go('c-subagent')">子代理</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>Claude Code 本質是「<strong>一個人 + 一個終端</strong>」的 coding agent。它的「並行」不在處理「很多使用者同時打」,而在<strong>一個使用者的一次 turn 內把很多事同時做完</strong>、以及把大任務拆給子代理。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout cc"><span class="ct">並行在工具層,不在多使用者層</span>不像 OpenClaw/Hermes 的多 channel 服務台 ── Claude Code 的並行主要由 <strong>StreamingToolExecutor</strong>(工具分區並行)與 <strong>子代理/swarm</strong> 提供;多使用者要靠 Bridge 各開 CLI session 或多 profile。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>① 工具層並行</strong>:一 turn 模型一次要多個工具 → <code>StreamingToolExecutor</code> 把工具<strong>分區成 concurrency-safe(可並行)vs serial(須序列)</strong>,安全的並行跑、有副作用的序列跑,結果按原序回填。</li>
+    <li><strong>② 子代理 / swarm</strong>:拆大任務 → AgentTool spawn(fork/worktree/remote);swarm 模式(feature-gated)有 lead + teammates,各自 <strong>claim task</strong>、共享任務板與訊息 inbox、隔離 messages[]。</li>
+    <li><strong>③ 多使用者?</strong>經 Bridge:<code>bridgeMain.ts</code> 為每個來源 <strong>spawn 一個 CLI session</strong>;多來源 = 多個獨立 session 各一進程。沒有 OpenClaw 那種多 channel allowlist/群組路由的服務台設計。</li>
+    <li><strong>對應系統</strong>:<span class="fp">services/tools/StreamingToolExecutor.ts</span>、<span class="fp">tools/AgentTool/</span>、<span class="fp">utils/swarm/</span>、<span class="fp">bridge/</span>。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:同時做很多事</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>一個 turn 內模型要做的事?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">多個工具</span><span class="dres"><code>StreamingToolExecutor</code> 分區:concurrency-safe → <b>並行</b>;有副作用 → 序列;結果按原序回填</span></div>
+          <div class="dbranch cs"><span class="dtag">大任務</span><span class="dres">spawn 子代理(fork/worktree/remote);swarm 下 teammates 各自 claim</span></div>
+        </div></div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>很多使用者同時?</div>
+        <div class="dbranches">
+          <div class="dbranch no"><span class="dtag">非設計目標</span><span class="dres">本質單人單終端 ── 需靠 Bridge 各開一個 CLI session,或每人一個 session/profile</span></div>
+        </div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-loop')">迴圈</a> 在一 turn 內觸發多工具。<strong>下游:</strong>工具經 <a onclick="go('c-tools')">Tool 系統</a> 執行;大任務拆給 <a onclick="go('c-subagent')">Sub-Agent/Swarm</a>;遠端多 session 走 <a onclick="go('c-bridge')">Bridge</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// 一 turn 多工具 → StreamingToolExecutor 分區(safe 並行 / serial 序列)
+// 大任務 → AgentTool spawn(fork/worktree/remote);swarm: lead + teammates claim
+// 多使用者 → Bridge 各開 CLI session(非多租戶服務台)</code></pre>
+  <p class="src">services/tools/StreamingToolExecutor.ts、tools/AgentTool/、utils/swarm/、bridge/(逆向研究 v2.1.88 快照,非官方)</p>
+</section>
+
 <!-- ================= 🔎 稽核 ================= -->
 <section class="pane" id="audit">
   <div class="page-kicker red">🔎 Audit & Logs</div>
@@ -953,7 +996,7 @@ OTEL_LOG_TOOL_DETAILS=1     # 開啟完整工具輸入捕捉
 </footer>
 
 <script>
-const COMP = new Set(['comp-home','c-loop','c-tools','c-perms','c-context','c-session','c-subagent','c-mcp','c-bridge','c-state','c-telemetry']);
+const COMP = new Set(['comp-home','c-loop','c-tools','c-perms','c-concurrency','c-context','c-session','c-subagent','c-mcp','c-bridge','c-state','c-telemetry']);
 function go(id){
   if(!document.getElementById(id)) return;
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));
