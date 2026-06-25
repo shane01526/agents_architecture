@@ -1,0 +1,32 @@
+# Render Blueprint — static site for the three agent-architecture docs.
+# Docs: https://render.com/docs/blueprint-spec
+# These are plain self-contained HTML files (inline CSS/JS, relative links,
+# no build step, no dependencies) → deploy as a Static Site.
+services:
+  - type: web
+    name: agents-architecture
+    runtime: static
+    # No build needed; the repo root already contains the HTML files.
+    buildCommand: ""
+    staticPublishPath: .
+    # Pretty URLs: allow /openclaw, /hermes, /claude-code (and index fallback).
+    routes:
+      - type: rewrite
+        source: /openclaw
+        destination: /openclaw-architecture.html
+      - type: rewrite
+        source: /hermes
+        destination: /hermes-architecture.html
+      - type: rewrite
+        source: /claude-code
+        destination: /claude-code-architecture.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

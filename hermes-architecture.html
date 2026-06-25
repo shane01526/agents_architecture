@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes Agent 架構詳解 · 自我學習迴圈</title>
+<style>
+:root{
+  --bg:#0f1115; --bg2:#161922; --panel:#1b1f2a; --panel2:#222736;
+  --ink:#e7ecf3; --ink-dim:#a4adbe; --ink-faint:#6b7488;
+  --line:#2a3040; --line2:#363d50;
+  --accent:#ff7a45; --accent2:#ffa477; --accent-d:#c8542a;
+  --gold:#e8c468; --gold2:#f3d98a;
+  --green:#3fb98c; --blue:#4f9cf0; --purple:#a880f0; --yellow:#e8c468; --red:#e26d6d;
+  --mono:"SFMono-Regular",ui-monospace,"Cascadia Code","Consolas",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.68;font-size:15px;}
+a{color:var(--accent2);text-decoration:none;cursor:pointer;}
+a:hover{text-decoration:underline;}
+code{font-family:var(--mono);font-size:.86em;background:#0c0e13;border:1px solid var(--line);border-radius:5px;padding:.08em .4em;color:#ffcda8;}
+pre{margin:0;}
+pre code{display:block;background:#0a0c11;border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;color:#cdd6e6;line-height:1.55;font-size:13px;}
+header.top{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,#12141b 72%,rgba(18,20,27,.93));border-bottom:1px solid var(--line);backdrop-filter:blur(8px);}
+.top-inner{max-width:1180px;margin:0 auto;padding:13px 26px 4px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.logo{font-size:21px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:10px;}
+.logo .claw{color:var(--gold);}
+.logo small{font-weight:500;font-size:12px;color:var(--ink-faint);letter-spacing:0;}
+.tagline{font-size:12.5px;color:var(--ink-dim);margin-left:auto;font-style:italic;}
+nav.tabs{max-width:1180px;margin:0 auto;padding:8px 18px 0;display:flex;gap:5px;flex-wrap:wrap;}
+nav.tabs button{appearance:none;border:1px solid transparent;background:none;color:var(--ink-dim);font-family:var(--sans);font-size:14px;font-weight:700;padding:11px 17px;cursor:pointer;border-radius:9px 9px 0 0;transition:.15s;white-space:nowrap;display:flex;align-items:center;gap:7px;}
+nav.tabs button .ic{font-size:15px;}
+nav.tabs button:hover{color:var(--ink);background:var(--panel);}
+nav.tabs button.active{color:var(--accent);background:var(--bg2);border-color:var(--line);border-bottom-color:var(--bg2);position:relative;top:1px;}
+nav.tabs button.star.active{color:var(--gold);}
+nav.subtabs{max-width:1180px;margin:0 auto;padding:8px 20px 10px;display:none;gap:5px;flex-wrap:wrap;background:var(--bg2);border-bottom:1px solid var(--line);}
+nav.subtabs.show{display:flex;}
+nav.subtabs button{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink-dim);font-family:var(--sans);font-size:12.5px;font-weight:600;padding:6px 11px;cursor:pointer;border-radius:20px;transition:.13s;}
+nav.subtabs button:hover{color:var(--ink);border-color:var(--line2);}
+nav.subtabs button.active{color:#fff;background:var(--accent-d);border-color:var(--accent);}
+nav.subtabs .grp{font-size:11px;color:var(--ink-faint);align-self:center;font-weight:700;letter-spacing:.5px;margin:0 2px 0 8px;}
+main{max-width:1180px;margin:0 auto;padding:32px 26px 90px;}
+.pane{display:none;animation:fade .32s ease;}
+.pane.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+h1.page{font-size:29px;margin:0 0 4px;font-weight:800;letter-spacing:.3px;}
+.page-kicker{font-size:12.5px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:6px;}
+.page-kicker.gold{color:var(--gold);}
+.page-sub{color:var(--ink-dim);font-size:15px;margin:0 0 24px;max-width:880px;}
+h2{font-size:20px;margin:38px 0 13px;padding-top:12px;font-weight:750;border-top:1px solid var(--line);color:#fff;}
+.pane h2:first-of-type{border-top:none;padding-top:0;}
+h3{font-size:16px;margin:24px 0 9px;font-weight:700;color:var(--accent2);}
+h4{font-size:14px;margin:16px 0 7px;font-weight:700;color:var(--ink);}
+p{margin:10px 0;}
+ul,ol{margin:10px 0;padding-left:22px;}
+li{margin:5px 0;}
+.lead{font-size:16px;color:var(--ink);background:linear-gradient(90deg,rgba(255,122,69,.10),transparent);border-left:3px solid var(--accent);padding:13px 17px;border-radius:0 8px 8px 0;margin:18px 0;}
+.lead.gold{background:linear-gradient(90deg,rgba(232,196,104,.12),transparent);border-left-color:var(--gold);}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:19px 21px;margin:16px 0;}
+.card.tight{padding:14px 17px;}
+.grid{display:grid;gap:15px;}
+.grid.c2{grid-template-columns:1fr 1fr;}
+.grid.c3{grid-template-columns:repeat(3,1fr);}
+.grid.c4{grid-template-columns:repeat(4,1fr);}
+@media(max-width:860px){.grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr;}}
+.callout{border-radius:10px;padding:12px 16px;margin:15px 0;font-size:14px;border:1px solid;}
+.callout .ct{font-weight:700;display:block;margin-bottom:3px;font-size:13px;letter-spacing:.3px;}
+.callout.note{background:rgba(79,156,240,.08);border-color:rgba(79,156,240,.4);} .callout.note .ct{color:var(--blue);}
+.callout.warn{background:rgba(232,196,104,.08);border-color:rgba(232,196,104,.4);} .callout.warn .ct{color:var(--yellow);}
+.callout.key{background:rgba(63,185,140,.08);border-color:rgba(63,185,140,.4);} .callout.key .ct{color:var(--green);}
+.callout.danger{background:rgba(226,109,109,.08);border-color:rgba(226,109,109,.4);} .callout.danger .ct{color:var(--red);}
+.callout.gold{background:rgba(232,196,104,.1);border-color:rgba(232,196,104,.45);} .callout.gold .ct{color:var(--gold2);}
+table{border-collapse:collapse;width:100%;margin:15px 0;font-size:13.5px;display:block;overflow-x:auto;}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top;}
+th{background:var(--panel2);color:#fff;font-weight:700;white-space:nowrap;}
+td{color:var(--ink-dim);} td strong,td code{color:var(--ink);}
+tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.4px;vertical-align:middle;}
+.pill.built{background:rgba(63,185,140,.16);color:var(--green);border:1px solid rgba(63,185,140,.4);}
+.pill.exp{background:rgba(168,128,240,.16);color:var(--purple);border:1px solid rgba(168,128,240,.4);}
+.pill.gold{background:rgba(232,196,104,.16);color:var(--gold2);border:1px solid rgba(232,196,104,.4);}
+.fp{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);background:#0c0e13;border:1px solid var(--line);padding:1px 6px;border-radius:4px;}
+.src{font-size:12px;color:var(--ink-faint);font-style:italic;}
+.secnum{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent-d);color:#fff;font-size:13px;font-weight:800;margin-right:9px;vertical-align:middle;}
+.s-why h2{color:var(--yellow);}
+.section-why{background:rgba(232,196,104,.05);border:1px solid rgba(232,196,104,.25);border-radius:12px;padding:4px 18px 14px;margin:18px 0;}
+.section-why h2{border-top:none;padding-top:14px;}
+.relbar{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap;margin:6px 0 22px;}
+.relbar .relbox{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 14px;}
+.relbar .relbox .rl{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--ink-faint);text-transform:uppercase;margin-bottom:5px;}
+.relbar .relbox.up{border-left:3px solid var(--blue);}
+.relbar .relbox.self{border-left:3px solid var(--accent);}
+.relbar .relbox.down{border-left:3px solid var(--green);}
+.relbar a{font-size:13px;display:inline-block;margin:1px 8px 1px 0;}
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:16px 0;}
+.flow .step{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:11px 13px;}
+.flow .arrow{display:flex;align-items:center;color:var(--accent);font-size:19px;padding:0 5px;}
+.flow .step .sn{font-size:11px;color:var(--accent);font-weight:700;}
+.flow .step .sl{font-weight:700;font-size:13.5px;margin:2px 0;}
+.flow .step .sd{font-size:11.5px;color:var(--ink-dim);}
+.station{display:grid;grid-template-columns:54px 1fr;gap:0;margin:0;}
+.station .rail{position:relative;display:flex;flex-direction:column;align-items:center;}
+.station .dot{width:34px;height:34px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);color:var(--accent);font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:2;flex:0 0 auto;}
+.station .line{width:2px;flex:1;background:var(--line2);margin:2px 0;}
+.station:last-child .line{display:none;}
+.station .body{padding:0 0 26px 18px;}
+.station .body h3{margin-top:2px;color:#fff;font-size:17px;}
+.station .body .what{color:var(--ink-dim);}
+.deep{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:700;background:rgba(255,122,69,.12);border:1px solid rgba(255,122,69,.4);color:var(--accent2);padding:4px 11px;border-radius:20px;}
+.deep:hover{text-decoration:none;background:rgba(255,122,69,.22);}
+.deep.gold{background:rgba(232,196,104,.13);border-color:rgba(232,196,104,.45);color:var(--gold2);}
+.layer{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px 19px;margin:13px 0;border-left:4px solid var(--accent);}
+.layer .ltag{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);}
+.layer h3{margin:2px 0 6px;color:#fff;}
+.layer .need{font-size:13.5px;color:var(--yellow);background:rgba(232,196,104,.06);border-radius:7px;padding:7px 11px;margin:8px 0;}
+.layer.l0{border-left-color:#8a93a8;} .layer.l1{border-left-color:var(--purple);}
+.layer.l2{border-left-color:var(--accent);} .layer.l3{border-left-color:var(--blue);}
+.layer.l4{border-left-color:var(--green);} .layer.l5{border-left-color:#e08bc4;}
+.layer.l6{border-left-color:var(--gold);}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px;margin:10px 0;}
+.kv dt{font-weight:700;color:var(--accent2);font-family:var(--mono);font-size:12.5px;}
+.kv dd{margin:0;color:var(--ink-dim);}
+.spine{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;margin:16px 0;}
+.spine .row{display:flex;gap:9px;flex-wrap:wrap;margin:8px 0;}
+.spine .blk{flex:1;min-width:140px;background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:10px 12px;cursor:pointer;transition:.13s;}
+.spine .blk:hover{border-color:var(--accent);transform:translateY(-1px);}
+.spine .blk.hl{border-color:var(--gold);box-shadow:0 0 0 1px rgba(232,196,104,.35) inset;}
+.spine .blk .bt{font-weight:700;font-size:13px;}
+.spine .blk .bd{font-size:11px;color:var(--ink-faint);}
+.spine .bar{background:rgba(232,196,104,.07);border:1px dashed rgba(232,196,104,.45);border-radius:9px;padding:7px 12px;font-size:12px;color:var(--yellow);text-align:center;margin:8px 0;}
+.pathcards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:22px 0;}
+@media(max-width:860px){.pathcards{grid-template-columns:1fr;}}
+.pathcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;cursor:pointer;transition:.15s;}
+.pathcard:hover{border-color:var(--accent);transform:translateY(-2px);}
+.pathcard.gold:hover{border-color:var(--gold);}
+.pathcard .pe{font-size:30px;}
+.pathcard h3{margin:8px 0 4px;color:#fff;}
+.pathcard .who{font-size:12.5px;color:var(--green);font-weight:700;margin-bottom:6px;}
+.pathcard p{font-size:13.5px;color:var(--ink-dim);margin:6px 0 0;}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink-dim);margin:12px 0;}
+footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:12.5px;}
+.scrollwrap{overflow-x:auto;}
+.big-num{font-size:13px;color:var(--accent);font-weight:700;}
+.compgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:13px;margin:18px 0;}
+.compgrid .ci{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 15px;cursor:pointer;transition:.14s;}
+.compgrid .ci:hover{border-color:var(--accent);transform:translateY(-2px);}
+.compgrid .ci .cn{font-size:11px;color:var(--accent);font-weight:700;}
+.compgrid .ci h4{margin:3px 0 4px;color:#fff;}
+.compgrid .ci p{font-size:12.5px;color:var(--ink-dim);margin:0;}
+.s-steps h2{color:var(--blue);}
+.section-steps{background:rgba(79,156,240,.045);border:1px solid rgba(79,156,240,.25);border-radius:12px;padding:4px 18px 16px;margin:18px 0;}
+.section-steps h2{border-top:none;padding-top:14px;}
+.section-steps .intro{font-size:13.5px;color:var(--ink-dim);margin:6px 0 14px;}
+.stepcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:13px 0;overflow:hidden;}
+.stepcard>.hd{background:var(--panel2);border-bottom:1px solid var(--line2);padding:9px 14px;font-weight:750;font-size:14.5px;color:#fff;display:flex;align-items:center;gap:9px;}
+.stepcard>.hd .sidx{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:13px;background:var(--blue);color:#0a0c11;font-size:12.5px;font-weight:800;}
+.stepcard.gold>.hd .sidx{background:var(--gold);}
+.stepcard>.hd .stag{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink-faint);}
+.stepcard .fields{display:grid;grid-template-columns:repeat(5,1fr);gap:0;}
+@media(max-width:900px){.stepcard .fields{grid-template-columns:1fr;}}
+.stepcard .field{padding:10px 13px;border-right:1px solid var(--line);font-size:12.5px;line-height:1.55;}
+.stepcard .field:last-child{border-right:none;}
+@media(max-width:900px){.stepcard .field{border-right:none;border-bottom:1px solid var(--line);}.stepcard .field:last-child{border-bottom:none;}}
+.stepcard .field .fl{display:block;font-size:10.5px;font-weight:800;letter-spacing:.4px;margin-bottom:5px;text-transform:uppercase;}
+.stepcard .field.f-in{border-top:2px solid var(--blue);} .stepcard .field.f-in .fl{color:var(--blue);}
+.stepcard .field.f-basis{border-top:2px solid var(--yellow);} .stepcard .field.f-basis .fl{color:var(--yellow);}
+.stepcard .field.f-why{border-top:2px solid var(--accent);} .stepcard .field.f-why .fl{color:var(--accent2);}
+.stepcard .field.f-out{border-top:2px solid var(--green);} .stepcard .field.f-out .fl{color:var(--green);}
+.stepcard .field.f-edge{border-top:2px solid var(--red);} .stepcard .field.f-edge .fl{color:var(--red);}
+.stepcard .field code{font-size:11px;padding:0 3px;}
+.dflow{margin:16px 0;}
+.dnode{margin:0 0 10px;}
+.dq{display:flex;align-items:baseline;gap:8px;background:rgba(232,196,104,.07);border:1px solid rgba(232,196,104,.32);border-radius:9px;padding:9px 13px;font-weight:700;font-size:13px;color:#fff;}
+.dq .qi{color:var(--yellow);font-weight:800;flex:0 0 auto;}
+.dq .qmeta{font-weight:500;color:var(--ink-faint);font-size:11px;font-family:var(--mono);margin-left:auto;}
+.dq.final{background:rgba(255,122,69,.09);border-color:rgba(255,122,69,.4);}
+.dq.final .qi{color:var(--accent);}
+.dbranches{margin:7px 0 0 16px;display:flex;flex-direction:column;gap:6px;border-left:2px solid var(--line2);padding-left:14px;}
+.dbranch{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;line-height:1.5;}
+.dtag{flex:0 0 auto;font-weight:800;font-size:10.5px;letter-spacing:.2px;padding:3px 9px;border-radius:20px;margin-top:1px;white-space:nowrap;}
+.dbranch.yes .dtag{background:rgba(63,185,140,.16);color:var(--green);border:1px solid rgba(63,185,140,.4);}
+.dbranch.no  .dtag{background:rgba(255,255,255,.03);color:var(--ink-faint);border:1px solid var(--line2);}
+.dbranch.cs  .dtag{background:rgba(79,156,240,.14);color:var(--blue);border:1px solid rgba(79,156,240,.4);}
+.dres{flex:1;color:var(--ink-dim);}
+.dres b{color:var(--ink);}
+.dres code{font-size:11px;}
+.dwin{display:inline-block;background:rgba(255,122,69,.13);border:1px solid rgba(255,122,69,.4);color:var(--accent2);border-radius:6px;padding:1px 8px;font-weight:700;font-family:var(--mono);font-size:11.5px;}
+.dwin.g{background:rgba(63,185,140,.12);border-color:rgba(63,185,140,.4);color:var(--green);}
+.dwin.r{background:rgba(226,109,109,.12);border-color:rgba(226,109,109,.4);color:var(--red);}
+.dnote{font-size:11px;color:var(--ink-faint);font-style:italic;}
+.stepnote{font-size:12.5px;color:var(--ink-faint);font-style:italic;margin:8px 0 0;}
+/* ===== self-learning loop cycle visual ===== */
+.loopcycle{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:18px 0;justify-content:center;}
+.loopcycle .lc{flex:1;min-width:135px;max-width:200px;background:var(--panel2);border:1px solid var(--gold);border-radius:11px;padding:12px 14px;position:relative;}
+.loopcycle .lc .ln{font-size:11px;color:var(--gold2);font-weight:800;}
+.loopcycle .lc .lt{font-weight:700;font-size:13.5px;margin:3px 0;color:#fff;}
+.loopcycle .lc .ld{font-size:11.5px;color:var(--ink-dim);}
+.loopcycle .larr{display:flex;align-items:center;color:var(--gold);font-size:20px;padding:0 4px;}
+.loopback{text-align:center;color:var(--gold2);font-size:12.5px;font-style:italic;margin:2px 0 0;border-top:1px dashed rgba(232,196,104,.4);padding-top:8px;}
+.mechgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:18px 0;}
+.mechcard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:11px;padding:15px 16px;}
+.mechcard h4{margin:0 0 6px;color:var(--gold2);}
+.mechcard p{font-size:13px;color:var(--ink-dim);margin:5px 0;}
+/* ===== 實作架構:標題 + 解釋 列表 ===== */
+.implgroup{margin:22px 0;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:12px;padding:6px 20px 10px;}
+.implgroup>.gh{font-size:16px;font-weight:750;color:var(--gold2);padding:12px 0 10px;border-bottom:1px solid var(--line2);margin-bottom:4px;}
+.implrow{display:grid;grid-template-columns:250px 1fr;gap:8px 26px;padding:15px 4px;border-bottom:1px solid rgba(54,61,80,.45);border-radius:8px;transition:background .13s;}
+.implrow:last-child{border-bottom:none;}
+.implrow:hover{background:rgba(255,255,255,.022);}
+@media(max-width:760px){.implrow{grid-template-columns:1fr;gap:6px;}}
+.implrow .it{font-weight:700;font-size:14.5px;color:#fff;line-height:1.5;}
+.implrow .it code{font-size:12.5px;display:inline-block;margin:1px 0;color:var(--gold2);background:rgba(232,196,104,.08);border-color:rgba(232,196,104,.25);}
+.implrow .ix{font-size:14px;color:var(--ink-dim);line-height:1.68;}
+.implrow .ix code{font-size:12.5px;}
+.implrow .ix a{display:inline-block;margin-top:4px;font-size:12.5px;font-weight:700;white-space:nowrap;background:rgba(255,122,69,.1);border:1px solid rgba(255,122,69,.35);color:var(--accent2);padding:2px 10px;border-radius:20px;}
+.implrow .ix a:hover{background:rgba(255,122,69,.2);text-decoration:none;}
+.prompt-quote{background:#0a0c11;border:1px solid var(--line);border-left:3px solid var(--purple);border-radius:8px;padding:12px 15px;margin:12px 0;font-size:12.5px;color:#c9d3e3;font-style:italic;line-height:1.6;}
+.prompt-quote .pq-label{display:block;font-style:normal;font-weight:700;font-size:11px;letter-spacing:.4px;color:var(--purple);text-transform:uppercase;margin-bottom:6px;}
+.cmpcol-h{color:var(--gold2)!important;} .cmpcol-o{color:var(--accent2)!important;} .cmpcol-c{color:#e89878!important;}
+/* ===== header 跨框架動作 chip ===== */
+.hbtn{padding:6px 14px;border:1px solid var(--line2);border-radius:20px;background:var(--panel);color:var(--ink-dim);font-size:12.5px;font-weight:700;cursor:pointer;flex:0 0 auto;text-decoration:none;transition:.13s;}
+.hbtn:hover{color:#fff;border-color:var(--accent);text-decoration:none;}
+.hbtn.cmp{border-color:rgba(168,128,240,.5);color:var(--purple);}
+.hbtn.cmp:hover{background:rgba(168,128,240,.14);border-color:var(--purple);color:#fff;}
+/* ===== 逐 component 對比卡 ===== */
+.cmpcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:14px 0;overflow:hidden;}
+.cmpcard.star{border-color:rgba(232,196,104,.5);}
+.cmpcard>.ch{background:var(--panel2);border-bottom:1px solid var(--line2);padding:10px 15px;font-weight:750;font-size:15px;color:#fff;display:flex;align-items:center;gap:9px;}
+.cmpcard>.ch .cnum{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--purple);color:#0a0c11;font-size:13px;font-weight:800;}
+.cmpcard.star>.ch .cnum{background:var(--gold);}
+.cmpcard>.ch .cgo{margin-left:auto;font-size:11.5px;font-weight:600;}
+.cmpcard .cbody{padding:14px 16px;}
+.cmpcard .vs{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-bottom:12px;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+@media(max-width:760px){.cmpcard .vs{grid-template-columns:1fr;}}
+.cmpcard .vs .side{padding:11px 14px;font-size:12.5px;line-height:1.55;}
+.cmpcard .vs .side.h{background:rgba(232,196,104,.06);border-right:1px solid var(--line);}
+.cmpcard .vs .side.o{background:rgba(255,122,69,.05);}
+@media(max-width:760px){.cmpcard .vs .side.h{border-right:none;border-bottom:1px solid var(--line);}}
+.cmpcard .vs .side .sh{display:block;font-size:11px;font-weight:800;letter-spacing:.3px;margin-bottom:5px;}
+.cmpcard .vs .side.h .sh{color:var(--gold2);}
+.cmpcard .vs .side.o .sh{color:var(--accent2);}
+.cmpcard .vs .side code{font-size:11px;}
+.cmpcard .crow{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px;margin:7px 0;align-items:baseline;}
+.cmpcard .crow .clbl{font-weight:800;font-size:11px;letter-spacing:.3px;white-space:nowrap;padding-top:1px;}
+.cmpcard .crow.why .clbl{color:var(--blue);} .cmpcard .crow.pro .clbl{color:var(--green);} .cmpcard .crow.fit .clbl{color:var(--accent2);}
+.cmpcard .crow .cval{color:var(--ink-dim);}
+.cmpcard .crow .cval b{color:var(--ink);}
+.cmpcard .crow .cval .hi-h{color:var(--gold2);font-weight:700;} .cmpcard .crow .cval .hi-o{color:var(--accent2);font-weight:700;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="logo"><span class="claw">☤</span> Hermes Agent <small>架構詳解 · 自我學習迴圈 (Nous Research)</small></div>
+    <div class="hdr-actions" style="display:flex;align-items:center;gap:12px;margin-left:auto;flex:0 0 auto;">
+      <button class="hbtn cmp" onclick="go('compare')" title="三框架逐元件深度對比">⚖️ 比較</button>
+      <div class="docswitch" title="切換框架介紹" style="display:flex;border:1px solid var(--line2);border-radius:20px;overflow:hidden;font-size:12.5px;font-weight:700;flex:0 0 auto;">
+        <a href="openclaw-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-right:1px solid var(--line2);">🦞 OpenClaw</a>
+        <span style="padding:6px 12px;background:var(--gold);color:#0a0c11;">☤ Hermes</span>
+        <a href="claude-code-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-left:1px solid var(--line2);">✳ Claude Code</a>
+      </div>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="intro" class="active"><span class="ic">🧭</span>導讀</button>
+    <button data-tab="journey"><span class="ic">🚶</span>路徑一 · 訊息的旅程</button>
+    <button data-tab="bottomup"><span class="ic">🏗️</span>路徑二 · 由下而上</button>
+    <button data-tab="comp-home"><span class="ic">📚</span>元件詳解</button>
+    <button data-tab="selflearn" class="star"><span class="ic">★</span>自我學習迴圈</button>
+  </nav>
+  <nav class="subtabs" id="subtabs">
+    <span class="grp">總覽</span>
+    <button data-tab="comp-home">元件地圖</button>
+    <span class="grp">基礎</span>
+    <button data-tab="c-substrate">Substrate/Backends</button>
+    <span class="grp">大腦</span>
+    <button data-tab="c-loop">Agent Loop</button>
+    <button data-tab="c-prompt">Prompt 組裝</button>
+    <span class="grp">記憶</span>
+    <button data-tab="c-session">Sessions/FTS5</button>
+    <button data-tab="c-context">Context 壓縮</button>
+    <button data-tab="c-memory">Memory/Honcho</button>
+    <span class="grp">能力</span>
+    <button data-tab="c-tools">Tools/Toolsets</button>
+    <button data-tab="c-skills">Skills</button>
+    <button data-tab="c-acp">ACP/MCP</button>
+    <span class="grp">對外</span>
+    <button data-tab="c-gateway">Gateway/平台</button>
+    <button data-tab="c-delegation">Delegation/Kanban</button>
+    <span class="grp">治理</span>
+    <button data-tab="c-cron">Cron/Plugins</button>
+    <button data-tab="c-security">Security</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ============ 導讀 ============ -->
+<section class="pane active" id="intro">
+  <div class="page-kicker gold">START HERE · 導讀</div>
+  <h1 class="page">用三條思路理解 Hermes,自我學習是它的靈魂</h1>
+  <p class="page-sub">Hermes Agent 是 Nous Research 打造的 <strong>self-improving(自我改進)AI 助理框架</strong>(Python)。它自稱「唯一內建學習迴圈的 agent」── 從經驗中<strong>創建技能</strong>、在使用中<strong>改進技能</strong>、<strong>提醒自己持久化知識</strong>、<strong>搜尋自己過去的對話</strong>、並跨 session <strong>加深對你的認識</strong>。本文件基於 Hermes 開源 repo 的 <code>website/docs/**</code> 與真實原始碼逐一研讀整理,每個主張皆標註來源。</p>
+
+  <div class="lead gold">
+    <strong>一句話心智模型:Hermes = 一個「會自己變好」的 agent runtime。</strong>它跑在一個常駐 <strong>gateway</strong> 上、能在 6 種 terminal backend 執行(含 Daytona/Modal serverless 休眠)、從多個訊息平台接觸你,而其每一次對話都可能在背景<strong>把學到的東西寫回記憶與技能庫</strong>,讓下一次更聰明。
+  </div>
+
+  <h2>本文件的三條路徑 + 一個重點專章</h2>
+  <div class="pathcards">
+    <div class="pathcard" onclick="go('journey')"><div class="pe">🚶</div><h3>路徑一 · 訊息的旅程</h3><div class="who">想知道「執行時實際發生什麼」</div><p>跟著一則訊息,從平台進站、gateway 授權、<code>run_conversation</code>、prompt 組裝、工具迴圈、串流回覆,到<strong>每 ~10 turn 觸發的背景自我改進</strong>與持久化。</p></div>
+    <div class="pathcard" onclick="go('bottomup')"><div class="pe">🏗️</div><h3>路徑二 · 由下而上</h3><div class="who">想建立「為什麼這樣分層」的直覺</div><p>從棲身環境(6 backends)往上疊:住哪 → 它是誰 → 怎麼想 → 記得什麼 → 能做什麼 → 怎麼對外 → 怎麼自主與<strong>自我學習</strong>。</p></div>
+    <div class="pathcard gold" onclick="go('selflearn')"><div class="pe">★</div><h3>自我學習迴圈(重點)</h3><div class="who">本文件的核心</div><p>7 大機制的閉環:技能自動創建、技能使用中改進、記憶 nudge、跨 session 回憶(FTS5)、Honcho 辯證建模、curator 整併 ── 以及「這是否等於模型訓練?」的明確回答。</p></div>
+  </div>
+  <p style="text-align:center"><a class="deep" onclick="go('comp-home')">📚 或直接進入 12 個元件詳解</a> &nbsp; <a class="deep" onclick="go('compare')">⚖️ 或看 Hermes vs OpenClaw 比較</a></p>
+
+  <h2>架構脊椎(點任一塊可深入)</h2>
+  <p>Hermes 與 OpenClaw 同屬「個人 AI agent + 常駐 gateway + 多平台」家族,但 Hermes 的脊椎多了一塊<strong>金色的自我學習迴圈</strong>,且 runtime 是 Python。<span class="src">來源:README、website/docs/developer-guide/architecture.md</span></p>
+  <div class="spine">
+    <div class="bar">橫切:安全(DANGEROUS_PATTERNS 核准 · 威脅掃描 · 網路 egress 隔離) · 觀測性 · trajectory 記錄(供離線 RL)</div>
+    <div class="row">
+      <div class="blk" onclick="go('c-gateway')"><div class="bt">介面 平台</div><div class="bd">Telegram/Discord/Slack/WhatsApp/Signal/CLI/ACP</div></div>
+      <div class="blk" onclick="go('c-session')"><div class="bt">↔ Sessions</div><div class="bd">SQLite + FTS5(state.db, schema v16)</div></div>
+      <div class="blk hl" onclick="go('c-loop')"><div class="bt">大腦 run_conversation</div><div class="bd">conversation_loop.py · 3 API mode · 工具迴圈</div></div>
+      <div class="blk" onclick="go('c-prompt')"><div class="bt">Prompt 三層</div><div class="bd">stable / context / volatile</div></div>
+    </div>
+    <div class="row">
+      <div class="blk" onclick="go('c-tools')"><div class="bt">能力 Tools</div><div class="bd">28+ toolset · terminal/browser/web/code</div></div>
+      <div class="blk" onclick="go('c-skills')"><div class="bt">Skills</div><div class="bd">agentskills.io · class-level umbrella</div></div>
+      <div class="blk" onclick="go('c-memory')"><div class="bt">Memory + Honcho</div><div class="bd">MEMORY.md/USER.md + 辯證建模</div></div>
+      <div class="blk hl" onclick="go('selflearn')"><div class="bt">★ 自我學習迴圈</div><div class="bd">background review · curator</div></div>
+    </div>
+    <div class="row">
+      <div class="blk" onclick="go('c-delegation')"><div class="bt">Delegation/Kanban</div><div class="bd">subagents · 多進程 worker lanes</div></div>
+      <div class="blk" onclick="go('c-acp')"><div class="bt">ACP / MCP</div><div class="bd">雙向 ACP · 消費 MCP server</div></div>
+      <div class="blk" onclick="go('c-substrate')"><div class="bt">棲身 6 Backends</div><div class="bd">local/Docker/SSH/Singularity/Modal/Daytona</div></div>
+    </div>
+  </div>
+
+  <div class="grid c3">
+    <div class="callout gold"><span class="ct">★ 自我學習 = 狀態累積,非權重訓練</span>runtime 的「變聰明」是<strong>記憶+技能+設定</strong>累積,<em>不</em>動模型權重。repo 另有 trajectory 生成/壓縮供<strong>離線 RL 訓練</strong>下一代模型 ── 兩者分開。</div>
+    <div class="callout note"><span class="ct">不綁在筆電上</span>gateway 可跑在 $5 VPS / GPU cluster;Daytona/Modal backend 閒置時休眠、用時喚醒,幾乎零成本。你從 Telegram 對它說話,它在雲端 VM 工作。</div>
+    <div class="callout warn"><span class="ct">用任何模型</span>20+ provider(Nous Portal/OpenRouter/Anthropic/Codex/Gemini…),<code>hermes model</code> 一鍵切換,無 vendor lock-in。</div>
+  </div>
+  <div class="legend">
+    <span><span class="pill built">已實作</span></span>
+    <span><span class="pill gold">★ 自我學習</span></span>
+    <span><span class="fp">agent/x.py</span> 真實程式碼路徑</span>
+    <span><span class="deep">深入 →</span> 跳到元件/專章</span>
+  </div>
+</section>
+
+<!-- ============ 路徑一:旅程 ============ -->
+<section class="pane" id="journey">
+  <div class="page-kicker">路徑一 · 動態視角</div>
+  <h1 class="page">🚶 一則訊息的旅程</h1>
+  <p class="page-sub">跟著一則訊息走完完整生命週期,你會看到 Hermes 與一般 agent 最不同的一站:<strong>第 8 站的背景自我改進</strong>。每站附「深入 →」連到元件詳解。</p>
+
+  <div class="callout note"><span class="ct">舞台早已就緒</span>在訊息抵達前,<strong>GatewayRunner</strong>(<span class="fp">gateway/run.py</span>)已是常駐 process,連著所有平台 adapter、開著 <code>~/.hermes/state.db</code>、載入好 skills 與 cron。</div>
+
+  <div class="station"><div class="rail"><div class="dot">1</div><div class="line"></div></div><div class="body">
+    <h3>進站 · 平台 adapter 正規化事件</h3>
+    <p class="what">訊息抵達對應平台 adapter(Telegram/Discord/Slack/WhatsApp/Signal…,都繼承 <code>BasePlatformAdapter</code>)。<code>on_message()</code> 把平台原生事件正規化成 <code>MessageEvent</code>。語音備忘錄會先轉錄。</p>
+    <a class="deep" onclick="go('c-gateway')">深入 → Gateway & 平台</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">2</div><div class="line"></div></div><div class="body">
+    <h3>授權 + session key</h3>
+    <p class="what">GatewayRunner 多層授權(per-platform allow-all → allowlist → DM pairing → 全域 allow-all → 預設 deny)。通過後算出 session key:<code>agent:main:{platform}:{chat_type}:{chat_id}</code>(thread-aware)。雙層訊息守衛攔截 <code>/stop</code> <code>/new</code> 等指令。</p>
+    <a class="deep" onclick="go('c-gateway')">深入 → 授權/pairing</a> &nbsp;<a class="deep" onclick="go('c-session')">深入 → session key</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">3</div><div class="line"></div></div><div class="body">
+    <h3>建立 AIAgent · run_conversation 啟動</h3>
+    <p class="what">Gateway 以 session 歷史建立 <code>AIAgent</code>(<span class="fp">run_agent.py</span>),呼叫核心迴圈 <code>run_conversation()</code>(<span class="fp">agent/conversation_loop.py</span>,~3,900 行)。產生 task_id、append user message、決定是否需要 preflight 壓縮。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → Agent Loop</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">4</div><div class="line"></div></div><div class="body">
+    <h3>組裝 prompt(三層)+ 選 API mode</h3>
+    <p class="what">prompt 由三層組成:<strong>stable</strong>(SOUL.md 身分、工具/skills 指引)→ <strong>context</strong>(系統訊息、專案 context 檔 .hermes.md/AGENTS.md/CLAUDE.md)→ <strong>volatile</strong>(MEMORY.md/USER.md 快照、Honcho 區塊、時間戳)。依 provider 決定 3 種 API mode:<code>chat_completions</code> / <code>codex_responses</code> / <code>anthropic_messages</code>。Anthropic 路徑套 prompt caching 標記。</p>
+    <a class="deep" onclick="go('c-prompt')">深入 → Prompt 組裝</a> &nbsp;<a class="deep" onclick="go('c-memory')">深入 → Memory 注入</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">5</div><div class="line"></div></div><div class="body">
+    <h3>可中斷的模型呼叫 + 工具迴圈</h3>
+    <p class="what">API 請求在背景執行緒跑,主執行緒監看中斷與逾時(使用者可送新訊息或 <code>/stop</code> 打斷)。回應若含 <code>tool_calls</code>:單一工具直接執行,多工具經 <code>ThreadPoolExecutor</code> 並行;危險指令(DANGEROUS_PATTERNS)觸發核准。結果 append 後迴圈回到組裝步驟。預算上限 90 iterations。</p>
+    <a class="deep" onclick="go('c-tools')">深入 → Tools & 核准</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">6</div><div class="line"></div></div><div class="body">
+    <h3>串流回覆 + context 壓縮</h3>
+    <p class="what">assistant delta 經各 callback 串流到 CLI/gateway。對話增長時雙重壓縮接手:gateway session hygiene 在 85%、agent ContextCompressor 在 50% 觸發(結構化摘要,保護近期 tail)。</p>
+    <a class="deep" onclick="go('c-context')">深入 → Context 壓縮</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">7</div><div class="line"></div></div><div class="body">
+    <h3>回覆送回原平台 · 持久化</h3>
+    <p class="what">最終回應透過原 adapter 送回。訊息寫入 <code>state.db</code> 的 <code>messages</code> 表,FTS5 索引自動更新(供日後跨 session 搜尋)。</p>
+    <a class="deep" onclick="go('c-session')">深入 → Sessions/FTS5</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">★</div></div><div class="body">
+    <h3 style="color:var(--gold2)">背景自我改進 · 每 ~10 turn 的學習機會</h3>
+    <p class="what">這是 Hermes 的靈魂。turn 結束、未中斷、有回應時,若 iteration 計數器達門檻(<code>_skill_nudge_interval</code> / <code>_memory_nudge_interval</code>,預設 10),<code>_spawn_background_review()</code> 會 fork 一個隔離的 review agent(僅 memory+skills 工具),回顧對話 → 把學到的<strong>寫進 MEMORY.md/USER.md 與技能庫</strong>。下一個 session 載入時,agent 就已經更聰明。</p>
+    <a class="deep gold" onclick="go('selflearn')">★ 深入 → 自我學習迴圈專章</a>
+  </div></div>
+
+  <div class="callout gold" style="margin-top:24px"><span class="ct">下一步</span>看完旅程,<a onclick="go('selflearn')">自我學習迴圈專章</a>會把第 8 站拆解到每一個機制的判斷依據與設計思維。</div>
+</section>
+
+<!-- ============ 路徑二:由下而上 ============ -->
+<section class="pane" id="bottomup">
+  <div class="page-kicker">路徑二 · 結構視角</div>
+  <h1 class="page">🏗️ 由下而上建構心智模型</h1>
+  <p class="page-sub">從棲身環境往上疊,每層先回答「為何需要這層」。Hermes 的最頂層比一般 agent 多了金色的<strong>自我學習</strong>。</p>
+
+  <div class="layer l0"><div class="ltag">L0 · 地基</div><h3>Substrate + Gateway + 6 Terminal Backends</h3>
+    <div class="need">為何需要這層:agent 要「隨時在線、不綁筆電、可彈性算力」,需要一個常駐 gateway + 可插拔的執行環境。</div>
+    <p>GatewayRunner 常駐;工具執行可落在 6 種 backend(local/Docker/SSH/Singularity/Modal/Daytona)。Daytona/Modal 提供 serverless 休眠。</p>
+    <a class="deep" onclick="go('c-substrate')">深入 → Substrate</a> &nbsp;<a class="deep" onclick="go('c-gateway')">深入 → Gateway</a>
+  </div>
+  <div class="layer l1"><div class="ltag">L1 · 身分</div><h3>SOUL.md / persona / 專案 context</h3>
+    <div class="need">為何需要這層:模型每 session 全新,需檔案定義「它是誰」與「此專案的規矩」。</div>
+    <p><code>~/.hermes/SOUL.md</code> 定義人格(缺則用 DEFAULT_AGENT_IDENTITY);專案目錄的 <code>.hermes.md/AGENTS.md/CLAUDE.md/.cursorrules</code> 提供 context。</p>
+    <a class="deep" onclick="go('c-prompt')">深入 → Prompt 組裝</a>
+  </div>
+  <div class="layer l2"><div class="ltag">L2 · 大腦</div><h3>run_conversation 迴圈</h3>
+    <div class="need">為何需要這層:把訊息變成行動與回覆,需確定性的 turn 編排(串流、工具、壓縮、retry、fallback)。</div>
+    <p><code>conversation_loop.py</code> 的 <code>run_conversation()</code>;3 種 API mode;90 iteration 預算;fallback 模型鏈。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → Agent Loop</a>
+  </div>
+  <div class="layer l3"><div class="ltag">L3 · 記憶</div><h3>Sessions · Context · Memory + Honcho</h3>
+    <div class="need">為何需要這層:context 視窗有限但要跨 session 記得 → 持久層 + 壓縮 + 使用者建模。</div>
+    <p>SQLite <code>state.db</code>(FTS5);雙重壓縮 + Anthropic caching;MEMORY.md/USER.md + 可選 Honcho 辯證建模。</p>
+    <a class="deep" onclick="go('c-session')">Sessions</a> &nbsp;<a class="deep" onclick="go('c-context')">Context</a> &nbsp;<a class="deep" onclick="go('c-memory')">Memory/Honcho</a>
+  </div>
+  <div class="layer l4"><div class="ltag">L4 · 能力</div><h3>Tools / Skills / ACP / MCP</h3>
+    <div class="need">為何需要這層:agent 要能做事(28+ toolset)、被教會工作流(skills)、接外部工具生態(MCP)。</div>
+    <p>tools registry + toolsets;agentskills.io 相容 skills;消費 MCP server;ACP 雙向。</p>
+    <a class="deep" onclick="go('c-tools')">Tools</a> &nbsp;<a class="deep" onclick="go('c-skills')">Skills</a> &nbsp;<a class="deep" onclick="go('c-acp')">ACP/MCP</a>
+  </div>
+  <div class="layer l5"><div class="ltag">L5 · 對外</div><h3>多平台 Gateway · Delegation · Kanban</h3>
+    <div class="need">為何需要這層:在你已用的地方回應你,並能並行多工作流。</div>
+    <p>單一 gateway 接多平台;<code>delegate_task</code> 子代理;Kanban 多進程 worker lanes。</p>
+    <a class="deep" onclick="go('c-gateway')">平台</a> &nbsp;<a class="deep" onclick="go('c-delegation')">Delegation/Kanban</a>
+  </div>
+  <div class="layer l6"><div class="ltag">L6 · 自主與自我學習</div><h3>Cron · ★ 自我學習迴圈 · Security</h3>
+    <div class="need">為何需要這層:有用的 agent 要能主動、能<strong>越用越好</strong>、且被安全約束。</div>
+    <p>內建 cron 排程;<strong>★ background review + curator</strong> 構成閉環學習;DANGEROUS_PATTERNS 核准 + 威脅掃描 + egress 隔離。</p>
+    <a class="deep gold" onclick="go('selflearn')">★ 自我學習迴圈</a> &nbsp;<a class="deep" onclick="go('c-cron')">Cron</a> &nbsp;<a class="deep" onclick="go('c-security')">Security</a>
+  </div>
+</section>
+
+<!-- ============ 元件地圖 ============ -->
+<section class="pane" id="comp-home">
+  <div class="page-kicker">元件詳解 · 問題導向</div>
+  <h1 class="page">📚 元件地圖</h1>
+  <p class="page-sub">12 個元件,每頁固定 5 段:<strong>① 為什麼存在 ② 核心概念 ③ 運作機制 ③.5 逐步推演(五欄步驟卡)④ 與其他元件的關係 ⑤ 範例/設定</strong>。自我學習因為是重點,獨立成<a onclick="go('selflearn')">★ 專章</a>。</p>
+  <h2>基礎</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-substrate')"><div class="cn">L0</div><h4>Substrate & 6 Backends</h4><p>local/Docker/SSH/Singularity/Modal/Daytona;serverless 休眠;承載 gateway</p></div>
+  </div>
+  <h2>大腦</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-loop')"><div class="cn">L2</div><h4>Agent Loop & Runtime</h4><p>run_conversation;3 API mode;工具迴圈;90 iter;fallback</p></div>
+    <div class="ci" onclick="go('c-prompt')"><div class="cn">L1/L2</div><h4>Prompt 組裝</h4><p>stable/context/volatile 三層;SOUL.md;context 檔;caching</p></div>
+  </div>
+  <h2>記憶</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-session')"><div class="cn">L3</div><h4>Sessions & FTS5</h4><p>state.db schema v16;lineage;FTS5 全文索引</p></div>
+    <div class="ci" onclick="go('c-context')"><div class="cn">L3</div><h4>Context 壓縮 & 快取</h4><p>雙重壓縮(85%/50%);結構化摘要;Anthropic caching</p></div>
+    <div class="ci" onclick="go('c-memory')"><div class="cn">L3</div><h4>Memory & Honcho</h4><p>MEMORY.md/USER.md frozen snapshot;Honcho 辯證建模</p></div>
+  </div>
+  <h2>能力</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-tools')"><div class="cn">L4</div><h4>Tools & Toolsets</h4><p>28+ toolset;registry;DANGEROUS_PATTERNS 核准</p></div>
+    <div class="ci" onclick="go('c-skills')"><div class="cn">L4</div><h4>Skills</h4><p>agentskills.io;class-level umbrella;references/templates/scripts</p></div>
+    <div class="ci" onclick="go('c-acp')"><div class="cn">L4</div><h4>ACP & MCP</h4><p>雙向 ACP(server+client);消費 MCP server;OAuth/mTLS</p></div>
+  </div>
+  <h2>對外</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-gateway')"><div class="cn">L5</div><h4>Gateway & 平台</h4><p>單一 GatewayRunner;多平台;授權/pairing;token lock</p></div>
+    <div class="ci" onclick="go('c-delegation')"><div class="cn">L5</div><h4>Delegation & Kanban</h4><p>delegate_task 子代理;Kanban 多進程 worker lanes</p></div>
+  </div>
+  <h2>治理</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-cron')"><div class="cn">L6</div><h4>Cron & Plugins</h4><p>gateway 內建排程;suggestions;plugin 架構</p></div>
+    <div class="ci" onclick="go('c-security')"><div class="cn">L6</div><h4>Security</h4><p>DANGEROUS_PATTERNS;威脅掃描;egress 隔離;trajectory/RL</p></div>
+  </div>
+  <div class="callout gold"><span class="ct">★ 別錯過</span>本框架的招牌 ── <strong>自我學習迴圈</strong> ── 獨立成專章,點 <a onclick="go('selflearn')">★ 自我學習迴圈</a>。</div>
+</section>
+
+<!-- ============ ★ 自我學習迴圈專章 ============ -->
+<section class="pane" id="selflearn">
+  <div class="page-kicker gold">★ 本文件重點</div>
+  <h1 class="page">★ 自我學習迴圈(Self-Improving Loop)</h1>
+  <p class="page-sub">Hermes 的招牌:一個<strong>純 runtime 的閉環</strong>,讓 agent 從每次對話中累積記憶與技能,越用越貼合你 ── 全程<strong>不動模型權重</strong>。下面先給閉環總圖,再逐機制拆解到判斷依據與設計思維。</p>
+
+  <div class="callout gold"><span class="ct">先講結論:這不是「模型訓練」</span>runtime 自學 = <strong>記憶 + 技能 + 設定 的累積</strong>(寫磁碟/DB),<em>零</em>權重更新、零梯度。Hermes repo <em>另有</em> <code>batch_runner.py</code> / <code>trajectory_compressor.py</code> 做 trajectory 生成與壓縮,用來<strong>離線訓練下一代 tool-calling 模型</strong> ── 那是研究基礎設施,與此 runtime 閉環是<strong>兩回事</strong>(見 <a onclick="go('c-security')">Security/RL</a>)。</div>
+
+  <h2>閉環總圖</h2>
+  <div class="loopcycle">
+    <div class="lc"><div class="ln">① 對話</div><div class="lt">正常 turn</div><div class="ld">使用者互動、跑工具、產生回應</div></div>
+    <div class="larr">→</div>
+    <div class="lc"><div class="ln">② 門檻</div><div class="lt">每 ~10 turn</div><div class="ld">nudge 計數器達標 + 未中斷 + 有回應</div></div>
+    <div class="larr">→</div>
+    <div class="lc"><div class="ln">③ fork</div><div class="lt">background review</div><div class="ld">隔離 agent,僅 memory+skills 工具</div></div>
+    <div class="larr">→</div>
+    <div class="lc"><div class="ln">④ 寫回</div><div class="lt">memory / skills</div><div class="ld">寫 MEMORY.md/USER.md、patch/建 skill</div></div>
+  </div>
+  <div class="loopcycle">
+    <div class="lc"><div class="ln">⑤ 下個 session</div><div class="lt">載入快照</div><div class="ld">memory frozen snapshot 進 system prompt</div></div>
+    <div class="larr">→</div>
+    <div class="lc"><div class="ln">⑥ 跨 session</div><div class="lt">FTS5 / Honcho</div><div class="ld">搜尋過去對話、深化使用者模型</div></div>
+    <div class="larr">→</div>
+    <div class="lc"><div class="ln">⑦ 週期</div><div class="lt">curator 整併</div><div class="ld">閒置 2h+7 天 → stale/archive、可選 LLM 整併</div></div>
+    <div class="larr">↺</div>
+    <div class="lc" style="border-style:dashed"><div class="ln">回到 ①</div><div class="lt">更聰明的 agent</div><div class="ld">下一輪對話起點已提升</div></div>
+  </div>
+  <p class="loopback">迴圈的關鍵:寫回是 ④,但「變聰明」要等 ⑤ 下個 session 載入快照才生效 ── memory 是 frozen snapshot,本 session 中寫入只落磁碟、不改已組好的 system prompt。</p>
+
+  <h2>7 大機制速覽</h2>
+  <div class="mechgrid">
+    <div class="mechcard"><h4>① 技能自動創建</h4><p>複雜任務後,背景 review 從對話萃取可重用的「class-level」技能。</p></div>
+    <div class="mechcard"><h4>② 技能使用中改進</h4><p>偏好序:先 patch 已載入 skill → 既有 umbrella → 加 support 檔 → 才新建。</p></div>
+    <div class="mechcard"><h4>③ Memory + 週期 nudge</h4><p>每 ~10 turn 提醒自己存使用者偏好/人設到 MEMORY.md/USER.md。</p></div>
+    <div class="mechcard"><h4>④ 跨 session 回憶</h4><p>SQLite FTS5 全文搜尋過去對話(discovery/scroll/browse),lineage 去重。</p></div>
+    <div class="mechcard"><h4>⑤ Honcho 辯證建模</h4><p>server 端用 dialectic reasoning 自動深化「你是誰、此刻什麼重要」。</p></div>
+    <div class="mechcard"><h4>⑥ Curator 背景維護</h4><p>閒置時整理技能庫:stale/archive 轉換,可選 LLM 整併近重複。</p></div>
+    <div class="mechcard"><h4>⑦ Goals / Hooks / Suggestions</h4><p>標準目標、事件 hook、自動化建議餵迴圈。</p></div>
+  </div>
+
+  <h2>實作架構:它不是新子系統,而是「協調器 + 重用既有元件」</h2>
+  <div class="callout gold"><span class="ct">核心觀念:用 agent 跑 agent</span>Hermes <strong>沒有</strong>為 self-improving 另寫一整套獨立子系統。真正算「新增」的只有<strong>一層薄協調器</strong> <code>agent/background_review.py</code> ── 它在對話收尾時<strong>再 spawn 一個同樣的 <code>AIAgent</code></strong>(但限制成只能用 memory + skills 工具),讓它回顧對話,然後透過<strong>既有的</strong>記憶工具、技能工具、session DB 把學到的東西寫回去。寫記憶用原本的 memory 工具、改技能用原本的 skill 工具、搜尋用原本的 session DB —— self-improving 是把這些既有零件「在每次對話收尾自動再跑一輪」的編排。</div>
+
+  <p>下面把整個閉環用到的 component 分四類,標明哪些是<strong>新寫</strong>、哪些是<strong>重用</strong>。左欄是 component(檔名),右欄是它在迴圈裡負責什麼:</p>
+
+  <div class="implgroup">
+    <div class="gh">🆕 新寫:協調 / 維護(self-improving 真正的新增程式碼)</div>
+    <div class="implrow">
+      <div class="it"><code>agent/background_review.py</code></div>
+      <div class="ix">唯一的「協調器」。fork 出隔離的 review agent(<code>max_iterations=16</code>、只開 memory+skills toolset、繼承 parent memory store);內含兩段 prompt <code>_MEMORY_REVIEW_PROMPT</code> / <code>_SKILL_REVIEW_PROMPT</code>、冷快取用的 <code>_digest_history</code>、結果摘要 <code>summarize_background_review_actions</code>。</div>
+    </div>
+    <div class="implrow">
+      <div class="it"><code>agent/curator.py</code><br>(+ <code>curator_backup.py</code>)</div>
+      <div class="ix">週期「維護器」。閒置時整理技能庫:stale/archive 轉換、可選 LLM 整併近重複、備份/rollback。<a onclick="go('c-skills')">→ Skills</a></div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">🔁 觸發層(掛在主迴圈收尾)</div>
+    <div class="implrow">
+      <div class="it"><code>agent/agent_init.py</code></div>
+      <div class="ix">載入門檻設定 <code>_skill_nudge_interval</code> / <code>_memory_nudge_interval</code>(預設 10)。</div>
+    </div>
+    <div class="implrow">
+      <div class="it"><code>agent/codex_runtime.py</code><br><code>agent_runtime_helpers.py</code></div>
+      <div class="ix">每個 turn 結束檢查計數器是否達標 → 呼叫 <code>_spawn_background_review()</code>。<a onclick="go('c-loop')">→ Agent Loop</a></div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">♻️ 重用:既有元件(平常對話本來就在用)</div>
+    <div class="implrow">
+      <div class="it">Agent runtime 本身<br><code>run_agent.py</code></div>
+      <div class="ix">review agent 就是再一個 <code>AIAgent</code> 實例 —— 沒有另造引擎。<a onclick="go('c-loop')">→ Loop</a></div>
+    </div>
+    <div class="implrow">
+      <div class="it">記憶<br><code>tools/memory_tool.py</code></div>
+      <div class="ix"><code>MemoryStore</code>,把學到的偏好/人設寫進 MEMORY.md / USER.md。<a onclick="go('c-memory')">→ Memory</a></div>
+    </div>
+    <div class="implrow">
+      <div class="it">技能<br><code>agent/skill_commands.py</code> · <code>skill_utils.py</code> · <code>tools/skill_usage.py</code></div>
+      <div class="ix">創建/patch 技能;<code>mark_agent_created</code> 標記 provenance,讓 curator 只整理 agent 自創的技能。<a onclick="go('c-skills')">→ Skills</a></div>
+    </div>
+    <div class="implrow">
+      <div class="it">跨 session 回憶<br><code>tools/session_search_tool.py</code> + <code>hermes_state.py</code></div>
+      <div class="ix">SQLite + FTS5 全文搜尋過去對話(discovery/scroll/browse)。<a onclick="go('c-session')">→ Sessions</a></div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">🧩 選用 / 週邊</div>
+    <div class="implrow">
+      <div class="it"><code>plugins/memory/honcho/</code></div>
+      <div class="ix">Honcho 辯證式使用者建模(server 端 plugin,非核心,可開可關)。<a onclick="go('c-memory')">→ Honcho</a></div>
+    </div>
+    <div class="implrow">
+      <div class="it"><code>cron/suggestions.py</code> + <code>suggestion_catalog.py</code></div>
+      <div class="ix">agent 主動建議自動化,使用者接受才建立。<a onclick="go('c-cron')">→ Cron</a></div>
+    </div>
+  </div>
+  <div class="callout note"><span class="ct">一句話小結</span>新寫的只有「協調器」(<code>background_review.py</code>)+「維護器」(<code>curator.py</code>)+ 一小段觸發判斷;其餘全是重用原本的 AIAgent、memory 工具、skill 工具、session DB。聰明之處在於<strong>不另造機制,而是讓既有元件在對話收尾自動再執行一輪</strong>。<span class="src">檔名/函式為 repo 2026 年快照研讀整理,正式引用前建議再對一次 repo(更新很快)。</span></div>
+
+  <h2>逐步詳解:一次 background review 的生命週期</h2>
+  <p>上面是「用了哪些零件」;這裡把整條流程<strong>從被觸發到寫回磁碟</strong>逐步講透,每步都說明「實際做什麼 + 為什麼這樣設計」。核心心法:它不是寫一個「分析函式」,而是 <strong>fork 另一個 AI agent 去讀剛才的對話、自己決定要存什麼</strong> ── 所以每一步本質上都是「在約束一個 sub-agent」。</p>
+  <div class="flow">
+    <div class="step"><div class="sn">1</div><div class="sl">turn 結束</div><div class="sd">計數器 +1 → 門檻檢查</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">2</div><div class="sl">spawn 受限 fork</div><div class="sd">緊身衣 ×4</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">3</div><div class="sl">餵 prompt</div><div class="sd">教它找什麼</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">4</div><div class="sl">跑迴圈寫磁碟</div><div class="sd">memory/skill 工具</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">5</div><div class="sl">digest(冷快取)</div><div class="sd">跨模型省 token</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">6</div><div class="sl">summarize 回報</div><div class="sd">💾 一行給你</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">7</div><div class="sl">curator 修剪</div><div class="sd">另一條時間軸</div></div>
+  </div>
+
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">1</div><div class="line"></div></div><div class="body">
+    <h3>觸發判斷 ── 誰決定要不要 review</h3>
+    <p class="what">主迴圈每跑完一個 turn,把兩個計數器 +1:<code>_iters_since_skill</code>、<code>_turns_since_memory</code>。收尾時檢查三個條件<strong>同時成立</strong>才觸發:① 計數器 ≥ interval(預設 10)── 不是每 turn 都學,週期性回顧;② 這個 turn <strong>沒被使用者中斷</strong>(<code>/stop</code>、打斷)── 半截對話學了會學到雜訊;③ <strong>有產生 final 回應</strong>,且對應工具可用(要 review 技能就得有 skill 工具)。</p>
+    <p class="what"><strong>💡 為什麼:</strong>把學習掛在「乾淨完成的 turn」收尾,而不是隨時跑 ── 既確保有完整素材可回顧,又<strong>不阻塞使用者的即時回覆</strong>(回覆早已送出,review 是事後背景做)。達標後計數器歸零,重新累積。<a class="deep" onclick="go('c-loop')">→ Agent Loop</a></p>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">2</div><div class="line"></div></div><div class="body">
+    <h3><code>_spawn_background_review()</code> ── fork 一個受限 agent(機制的心臟)</h3>
+    <p class="what">它<strong>不</strong>自己分析對話,而是 new 一個 <code>AIAgent</code> 實例(跟主對話同一個 class、同一套程式),但套上四層「緊身衣」:</p>
+    <p class="what"><strong>① <code>max_iterations=16</code>:</strong>這個 sub-agent 自己也是個 agent loop(會思考、呼叫工具、看結果、再思考),16 是它的回合預算上限。<em>為什麼要限</em>:它背景跑、沒人盯,若不設上限萬一陷入「再查一下、再改一個」會無限燒 token;16 足夠它「回顧→決定→呼叫幾次工具→收尾」又不失控。</p>
+    <p class="what"><strong>② 只開 <code>memory + skills</code> toolset:</strong>主對話 agent 可能有 terminal/browser/web/code 一大堆工具,fork 出來的 review agent <strong>只給 memory 工具和 skill 工具</strong>,其餘全拿掉。<em>為什麼</em>:安全 + 聚焦 ── 它的任務只有「把學到的存起來」,不該也不能在背景偷跑 shell、開瀏覽器、發訊息;把工具白名單縮到最小,等於從機制上保證它只做記憶/技能這件事。</p>
+    <p class="what"><strong>③ 繼承 parent memory store(<code>_memory_store</code>):</strong>它不是從磁碟重讀一份記憶,而是直接共用主對話 agent 的記憶物件。<em>為什麼</em>:它要看「現在已經記了什麼」才能判斷「這條新的該不該存、會不會跟舊的重複」;共用同一個 store,寫進去能立刻反映、不跟主 agent 狀態打架。</p>
+    <p class="what"><strong>④ 暖快取 + 子層不再級聯:</strong>fork 通常<strong>繼承 parent 已建好的 system prompt</strong>(暖快取,省錢);而且它自己的 nudge interval 被設成 0 ── <strong>review agent 不會再觸發另一個 review</strong>(否則遞迴爆炸)。</p>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">3</div><div class="line"></div></div><div class="body">
+    <h3>兩段 prompt ── 告訴 fork「要找什麼」</h3>
+    <p class="what">fork 拿到的不是空白指令,而是一段精心寫好的回顧指令;依這次是 memory review 還是 skill review,餵不同的 prompt。</p>
+    <div class="prompt-quote"><span class="pq-label">_MEMORY_REVIEW_PROMPT(記憶面,大意)</span>「回顧上面的對話,考慮要不要存進記憶。聚焦兩點 ── ① 使用者透露了關於<strong>他自己</strong>的事(人設、偏好、個人細節)嗎?② 表達了對<strong>你該怎麼表現</strong>的期望嗎?有就用 memory 工具存;沒有就說『Nothing to save.』然後停。」</div>
+    <p class="what"><strong>設計重點:</strong>明確區分「使用者是誰」(存 USER.md)和一般事實,並給「沒東西就明講並停」的出口,避免硬擠出無意義記憶。</p>
+    <div class="prompt-quote"><span class="pq-label">_SKILL_REVIEW_PROMPT(技能面,核心是一條偏好序 ── 挑第一個符合的動作)</span>① <strong>patch 一個本次對話載入過的技能</strong>(最優先)→ ② patch 一個既有的 class-level umbrella 技能 → ③ 在既有 umbrella 下加 <code>references/</code> <code>templates/</code> <code>scripts/</code> 支援檔 → ④ 真的都沒有,才<strong>新建一個 class-level 技能</strong>。並明列「該捕捉」(使用者糾正你的風格/流程、非顯然的修法、載入的技能過時)vs「不該捕捉」(環境性失敗、對工具的負面斷言、一次性 transient 錯誤);新技能名必須是 class 級,不能用 PR 號或今天的任務碼。</div>
+    <p class="what"><strong>設計重點:</strong>這條偏好序是為了<strong>避免技能庫長成一堆一次性窄技能</strong>,逼它優先「改進既有的」而非「狂建新的」,維持成少數厚實、可重用的 umbrella 技能。<a class="deep" onclick="go('c-skills')">→ Skills</a></p>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">4</div><div class="line"></div></div><div class="body">
+    <h3>fork 自己跑迴圈、呼叫工具寫磁碟</h3>
+    <p class="what">拿到 prompt 後,這個 sub-agent 就<strong>像正常 agent 一樣跑</strong>:讀對話 → 推理「這次有什麼值得存」→ 呼叫工具。它呼叫的是<strong>既有工具</strong>:</p>
+    <p class="what">• <code>memory</code> 工具(<code>tools/memory_tool.py</code> 的 <code>MemoryStore</code>)→ 寫 <code>~/.hermes/memories/MEMORY.md</code> / <code>USER.md</code>(<code>add</code>/<code>replace</code>/<code>remove</code>)。<a class="deep" onclick="go('c-memory')">→ Memory</a><br>• <code>skill</code> 工具(<code>skill_commands.py</code> 等)→ <code>create</code>/<code>patch</code>/<code>write_file</code> 技能檔。</p>
+    <p class="what"><strong>💡 provenance:</strong>寫技能時,若是這個背景 review 建的新技能,會被 <code>mark_agent_created()</code> 標記 ── 這個標記讓<strong>之後的 curator 只整理「agent 自己建的」技能</strong>,不去動使用者手動裝的或內建的。</p>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">5</div><div class="line"></div></div><div class="body">
+    <h3><code>_digest_history</code> ── 跨模型時的冷快取優化</h3>
+    <p class="what">正常情況 review agent 用跟主對話<strong>同一個模型</strong>,可以暖快取重放整段歷史。但若你設定讓 review 走<strong>不同(較便宜)的模型</strong>,那個模型沒有暖快取,重放整段長對話會很貴。</p>
+    <p class="what"><code>_digest_history</code> 就是為此:把較舊的對話<strong>壓成一個精簡摘要</strong>(保留最近的尾段逐字),只送這個 digest 給 review agent,而不是整段原文。<strong>💡 為什麼:</strong>讓「用便宜模型做背景 review」在 token 上划算 ── 冷模型只需吃濃縮版就能完成回顧。</p>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">6</div><div class="line"></div></div><div class="body">
+    <h3><code>summarize_background_review_actions</code> ── 把成果回報給你</h3>
+    <p class="what">fork 跑完後,它做了哪些動作(存了什麼記憶、改了哪個技能)會被這個函式<strong>整理成一句精簡摘要</strong>,丟回主對話顯示,例如:</p>
+    <div class="prompt-quote" style="font-style:normal;border-left-color:var(--green);">💾 Self-improvement review: saved 1 memory, updated 2 skills</div>
+    <p class="what"><strong>💡 為什麼:</strong>背景默默改你的記憶/技能會讓人不安。給一行可見的回報,讓你知道「它剛剛學了什麼」,維持<strong>透明與可控</strong> ── 它是在你的對話裡學,不是黑箱。</p>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">7</div></div><div class="body">
+    <h3>Curator ── 另一條時間軸(非每 turn)</h3>
+    <p class="what">上面 1–6 是「每 ~10 turn 跑一次」的即時學習。<strong>Curator 是另一個週期更長的維護器</strong>(<code>agent/curator.py</code>):</p>
+    <p class="what">• <strong>何時跑:</strong>閒置 ≥2 小時 <strong>且</strong> 距上次 ≥7 天(<code>should_run_now()</code> 判斷),不是每 turn。<br>• <strong>做什麼:</strong>① 確定性轉換(不用 LLM)── 技能 30 天沒用標 stale、90 天沒用移到 <code>.archive/</code>;② 可選的 LLM 整併(<code>consolidate</code>,預設關)── 讀 agent 自創的技能,把近重複的合併成 umbrella;③ 每次動手前先備份(可 rollback)。</p>
+    <p class="what"><strong>💡 為什麼分開:</strong>即時 review 負責「長」(把新學的加進來),curator 負責「修剪」(把舊的、重複的清掉)── 一個高頻一個低頻,合起來讓技能庫<strong>既會成長又不會無限膨脹變垃圾場</strong>。<a class="deep" onclick="go('c-cron')">→ Cron</a></p>
+  </div></div>
+
+  <div class="callout gold"><span class="ct">一句話收束</span>整條流程的精髓:<strong>「在乾淨 turn 收尾,fork 一個工具受限的 sub-agent,餵它一段教它『該存什麼』的 prompt,讓它用既有的 memory/skill 工具把學到的寫回磁碟,再回報一行給你;另由低頻的 curator 定期修剪。」</strong> 沒有任何一步在動模型權重 ── 全是用既有零件組出來的編排。<span class="src">流程為 repo 2026 快照研讀整理,精確變數名/行為若要正式引用建議再對一次 repo。</span></div>
+
+  <h2>隔離粒度:這個 review 替「誰」學?</h2>
+  <p>很多人會擔心:多個 agent、多個使用者共用一套系統,那「學到的東西」會不會混在一起?要分<strong>兩個軸</strong>來看,答案不一樣 ──(A)不同主 agent (B)不同使用者。</p>
+
+  <div class="callout key"><span class="ct">✅ (A) 不同主 agent(profile)= 完全隔離</span>Hermes 用 <strong>profile</strong> 區分不同 agent(<code>hermes -p &lt;name&gt;</code>),每個 profile 有自己的家目錄:獨立的 <code>SOUL.md</code>、<code>MEMORY.md</code>/<code>USER.md</code>、<code>skills/</code>、<code>state.db</code>。background review fork 的關鍵設計是「<strong>繼承 parent 的 memory store</strong>」── 它寫回的,就是<strong>當下那個主 agent 所屬 profile</strong> 的記憶與技能庫。所以 coder profile 的對話只會改進 coder、writer 改進 writer,兩者天然分開。</div>
+
+  <div class="callout warn"><span class="ct">⚠️ (B) 不同使用者 = 預設「不分」</span>一個 profile 可能同時服務多個平台使用者(Telegram 的 A、Discord 的 B…),但內建記憶是 <strong>profile 級的單一檔案</strong> ── <code>MEMORY.md</code> + <code>USER.md</code> 不會自動按使用者切成多份,多人共用同一 profile 時偏好會<strong>混進同一份</strong>;技能庫也是 profile 級、所有使用者共享;跨 session 回憶(FTS5)搜的是整個 profile 的 <code>state.db</code>。review fork 是從<strong>當下 session</strong> spawn、繼承的是 <strong>profile 級</strong> store,不是 per-user。本質上是「<strong>單一可信使用者</strong>」導向(呼應 OpenClaw「非多租戶」的立場)。</div>
+
+  <h3>想做到「每位使用者各自 self-improving」── 兩條實作路徑</h3>
+  <div class="implgroup">
+    <div class="gh">路徑 1 ── Honcho:同一 agent 內「軟」分使用者模型</div>
+    <div class="implrow">
+      <div class="it">啟用什麼<br><code>plugins/memory/honcho/</code></div>
+      <div class="ix">啟用 Honcho memory plugin。它做 <strong>per-peer</strong> 建模:建立<strong>一個 user peer + 每個 profile 一個 AI peer</strong>,用 dialectic reasoning 為<strong>每位使用者各自</strong>建立、深化一份獨立的使用者表徵 ── 這是內建檔案式 <code>USER.md</code> 做不到的 per-user 分離。<a class="deep" onclick="go('c-memory')">→ Memory/Honcho</a></div>
+    </div>
+    <div class="implrow">
+      <div class="it">怎麼設定<br><code>~/.honcho/config.json</code></div>
+      <div class="ix">主要旋鈕:<code>recallMode</code>(hybrid/context/tools)、<code>contextCadence</code>(多久刷新基礎使用者表徵)、<code>dialecticCadence</code>(多久跑一次 LLM 推理)、<code>dialecticDepth</code>(每次幾個 pass)。三者正交,可獨立控制「頻率 vs 深度 vs 成本」。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">怎麼分辨使用者<br>identity 解析</div>
+      <div class="ix">用 <code>pinUserPeer</code>(把所有非 agent 使用者收斂成一個)/ <code>userPeerAliases[runtime_id]</code>(映射特定平台使用者)/ <code>runtimePeerPrefix + runtime_id</code>(替未知 ID 命名空間)把不同平台使用者對映成不同 peer。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">適合情境</div>
+      <div class="ix">同一個 agent(同人格、<strong>共用技能庫</strong>)要服務多人,但需要<strong>各自記住每個人</strong>的偏好與畫像。</div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">路徑 2 ── 每人一個 profile:連技能/人格都「硬」隔離</div>
+    <div class="implrow">
+      <div class="it">怎麼做<br><code>hermes -p alice</code> / <code>-p bob</code></div>
+      <div class="ix">給每位使用者一個獨立 profile。各自有完全分開的家目錄(<code>SOUL.md</code> / <code>MEMORY.md</code> / <code>USER.md</code> / <code>skills/</code> / <code>state.db</code>),self-improving 自然各學各的、互不干擾。<a class="deep" onclick="go('c-gateway')">→ Gateway/Profile</a></div>
+    </div>
+    <div class="implrow">
+      <div class="it">適合情境</div>
+      <div class="ix">要<strong>最乾淨的硬隔離</strong>,或不同人本來就需要<strong>不同人格、不同技能庫</strong>(例如個人助理 vs 團隊客服)。</div>
+    </div>
+  </div>
+
+  <div class="callout note"><span class="ct">兩條路差在哪</span><strong>Honcho</strong> = 同一 agent 內「軟」分:<em>共用</em>技能庫與人格,但<em>分</em>使用者畫像。<strong>多 profile</strong> = 「硬」分:連技能、人格、記憶全部各自獨立。一句話總結:<strong>self-improving 的隔離是「per 主 agent(profile)」✅,不是「per 使用者」</strong>;要 per-user 進化,選 Honcho(軟)或多 profile(硬)。<span class="src">2026 快照理解;「多人共用同一 profile 時記憶實際如何混合」屬邊界行為,正式引用前建議再對 source 或實測。</span></div>
+
+  <h2>機制 ①②:技能創建與使用中改進 ── background review fork</h2>
+  <p>兩者共用同一個觸發與執行機制:<code>agent/background_review.py</code> 的 fork。<span class="src">來源:agent/background_review.py、agent/curator.py、tools/skill_usage.py</span></p>
+  <div class="flow">
+    <div class="step"><div class="sn">1</div><div class="sl">turn 結束</div><div class="sd">計數器 +1</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">2</div><div class="sl">門檻檢查</div><div class="sd">≥ nudge interval?</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">3</div><div class="sl">spawn fork</div><div class="sd">隔離 review agent</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">4</div><div class="sl">偏好序決策</div><div class="sd">patch / 新建</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">5</div><div class="sl">寫磁碟</div><div class="sd">+ 標記 agent-created</div></div>
+  </div>
+
+  <div class="stepcard gold"><div class="hd"><span class="sidx">1</span>觸發門檻判斷<span class="stag">codex_runtime.py</span></div>
+    <div class="fields">
+      <div class="field f-in"><span class="fl">輸入</span>本 turn 完成;計數器 <code>_iters_since_skill</code> / <code>_turns_since_memory</code></div>
+      <div class="field f-basis"><span class="fl">判斷依據</span><code>interval&gt;0 且 計數器≥interval 且 對應工具可用(skill_manage/memory)</code>;達標即 <code>should_review_*=True</code> 並歸零計數器。預設 interval=<strong>10</strong></div>
+      <div class="field f-why"><span class="fl">設計思維</span>不是每 turn 都學(太貴),而是週期性回顧;「一次什麼都沒做的 pass 是錯失的學習機會,不是中性結果」</div>
+      <div class="field f-out"><span class="fl">輸出</span>標記要不要 review(memory / skills 各自獨立)</div>
+      <div class="field f-edge"><span class="fl">邊界</span>turn 被中斷 或 無 final 回應 → 不 spawn</div>
+    </div>
+  </div>
+
+  <div class="stepcard gold"><div class="hd"><span class="sidx">2</span>spawn 隔離 review fork<span class="stag">_spawn_background_review</span></div>
+    <div class="fields">
+      <div class="field f-in"><span class="fl">輸入</span>messages 快照、review_memory/review_skills 旗標</div>
+      <div class="field f-basis"><span class="fl">判斷依據</span>建新 <code>AIAgent(max_iterations=16, quiet_mode=True, enabled_toolsets=["memory","skills"], skip_memory=True)</code>,繼承 parent 的 memory store 與 system prompt(暖快取);<strong>子層 nudge interval=0</strong>(不級聯)</div>
+      <div class="field f-why"><span class="fl">設計思維</span>隔離且工具白名單化 → review agent 只能碰記憶/技能,不會在背景亂跑工具或無限 review</div>
+      <div class="field f-out"><span class="fl">輸出</span>fork 在執行緒中跑;結束後 <code>summarize_background_review_actions</code> 出「💾 Self-improvement review: saved X, updated Y」</div>
+      <div class="field f-edge"><span class="fl">邊界</span>若 review 用不同模型(<code>auxiliary.background_review</code>)→ 冷快取,改用 <code>_digest_history</code> 壓縮歷史省 token</div>
+    </div>
+  </div>
+
+  <div class="stepcard gold"><div class="hd"><span class="sidx">3</span>技能更新偏好序<span class="stag">_SKILL_REVIEW_PROMPT</span></div>
+    <div class="fields">
+      <div class="field f-in"><span class="fl">輸入</span>對話歷史 + 既有技能庫(skills_list/skill_view)</div>
+      <div class="field f-basis"><span class="fl">判斷依據</span>第一個符合的動作勝:① patch <strong>已載入</strong>的 skill → ② patch 既有 <strong>umbrella class-level</strong> skill → ③ 在 umbrella 下加 <code>references/templates/scripts</code> → ④ 才<strong>新建</strong> class-level skill</div>
+      <div class="field f-why"><span class="fl">設計思維</span>目標是「少數 class-level 厚技能 + references/ 細節」,不是「一堆一次性窄技能」。新技能名必須是 class 級(不可是 PR 號/錯誤字串/今日任務碼)</div>
+      <div class="field f-out"><span class="fl">輸出</span><code>skill_manage(action=patch/create/write_file)</code> 直接寫磁碟</div>
+      <div class="field f-edge"><span class="fl">邊界</span>只有 background review 來源的新建會被 <code>mark_agent_created()</code> → 納入 curator 管理(前景 agent 建的算使用者主導,curator 不碰)</div>
+    </div>
+  </div>
+
+  <div class="callout note"><span class="ct">該捕捉 vs 不該捕捉(技能訊號)</span><strong>該捕捉:</strong>使用者糾正你的風格/語氣/格式/冗長(「別這樣排版」是<em>一等</em>技能訊號,不只記憶)、糾正工作流順序、非顯然的技巧/修法、載入的 skill 過時 → 立刻 patch。<strong>不該捕捉:</strong>環境性失敗(缺 binary、未設憑證 ── 使用者自己會修)、對工具的負面斷言(「browser 工具沒用」── 幾個月後修好反而咬人)、一次性 transient 錯誤、單次任務敘事。</div>
+
+  <h2>機制 ③:agent-curated memory + 週期 nudge</h2>
+  <div class="stepcard gold"><div class="hd"><span class="sidx">M</span>記憶 nudge 與寫入<span class="stag">tools/memory_tool.py</span></div>
+    <div class="fields">
+      <div class="field f-in"><span class="fl">輸入</span>對話;<code>_MEMORY_REVIEW_PROMPT</code></div>
+      <div class="field f-basis"><span class="fl">判斷依據</span>fork 回顧:① 使用者透露了關於自己的事(人設/偏好/個人細節)? ② 表達了對你行為/工作風格的期望? 有則 <code>memory(action=add/replace/remove, target=memory|user)</code>;無則回「Nothing to save.」</div>
+      <div class="field f-why"><span class="fl">設計思維</span>memory 捕捉「使用者是誰」;skill 捕捉「怎麼為這使用者做這類任務」── 風格抱怨同時進兩者</div>
+      <div class="field f-out"><span class="fl">輸出</span>寫 <code>~/.hermes/memories/MEMORY.md</code>(2200 字元)/<code>USER.md</code>(1375 字元);以 <code>§</code> 分隔 entry</div>
+      <div class="field f-edge"><span class="fl">邊界</span>超容量 → 回錯誤要求 consolidate(用 replace 合併);load+write 都過威脅掃描(strict),中毒 entry 換成 <code>[BLOCKED]</code></div>
+    </div>
+  </div>
+  <div class="prompt-quote"><span class="pq-label">_MEMORY_REVIEW_PROMPT(摘錄)</span>"Review the conversation above and consider saving to memory if appropriate. Focus on: 1. Has the user revealed things about themselves — persona, desires, preferences…? 2. Has the user expressed expectations about how you should behave…? If something stands out, save it using the memory tool. If nothing is worth saving, just say 'Nothing to save.' and stop."</div>
+
+  <h2>機制 ④:跨 session 回憶 ── FTS5(無 LLM 摘要)</h2>
+  <div class="stepcard gold"><div class="hd"><span class="sidx">S</span>session_search 三模式<span class="stag">tools/session_search_tool.py</span></div>
+    <div class="fields">
+      <div class="field f-in"><span class="fl">輸入</span>依參數推斷:<code>query</code> / <code>session_id+around_message_id</code> / 無參數</div>
+      <div class="field f-basis"><span class="fl">判斷依據</span><strong>discovery</strong>(query → FTS5 全文搜尋 <code>messages_fts</code> + trigram)、<strong>scroll</strong>(視窗 ±N)、<strong>browse</strong>(近期 session)</div>
+      <div class="field f-why"><span class="fl">設計思維</span>回傳<strong>真實對話片段</strong>(snippet + context window + bookends),<em>不</em>做 LLM 摘要(摘要路徑曾被加入又刻意移除)── 真實內容更可信、零額外成本</div>
+      <div class="field f-out"><span class="fl">輸出</span>命中 session 的 snippet + 前後文 + 首尾 bookend</div>
+      <div class="field f-edge"><span class="fl">邊界</span>同 lineage 多 session 命中 → 走 <code>parent_session_id</code> 鏈去重到 root</div>
+    </div>
+  </div>
+
+  <h2>機制 ⑤:Honcho 辯證式使用者建模(選用)</h2>
+  <p>內建 memory 是檔案式手動 curation;Honcho 是 server 端<strong>自動</strong>用 dialectic reasoning 推理使用者。<span class="src">來源:website/docs/user-guide/features/honcho.md、plugins/memory/honcho/</span></p>
+  <div class="stepcard gold"><div class="hd"><span class="sidx">H</span>雙層注入 + cold/warm<span class="stag">peer.chat()</span></div>
+    <div class="fields">
+      <div class="field f-in"><span class="fl">輸入</span>turn 計數;recallMode(hybrid/context/tools)</div>
+      <div class="field f-basis"><span class="fl">判斷依據</span><strong>base 層</strong>每 <code>contextCadence</code>(預設 1)turn 刷新「這使用者是誰」;<strong>dialectic 層</strong>每 <code>dialecticCadence</code>(預設 2)turn 用 LLM 推「此刻什麼重要」;<code>dialecticDepth</code>&gt;1 多 pass(冷啟泛問→自審→調和)</div>
+      <div class="field f-why"><span class="fl">設計思維</span>三個正交旋鈕(cadence/depth/reasoning level)讓你獨立控制「頻率 vs 深度 vs 成本」;query 越長自動升 reasoning level</div>
+      <div class="field f-out"><span class="fl">輸出</span>session summary + user representation + 推理結論注入 prompt</div>
+      <div class="field f-edge"><span class="fl">邊界</span>多 peer:一個 user peer + 每 profile 一個 AI peer,各自獨立建模(coder profile 保持程式向、writer 保持編輯向)</div>
+    </div>
+  </div>
+
+  <h2>機制 ⑥:Curator 背景維護</h2>
+  <div class="dflow">
+    <div class="dnode"><div class="dq"><span class="qi">◇</span>該跑 curator 了嗎?<span class="qmeta">curator.py should_run_now()</span></div>
+      <div class="dbranches">
+        <div class="dbranch yes"><span class="dtag">是</span><span class="dres">enabled 且未 paused 且距上次 ≥<code>interval_hours</code>(預設 168=7天)且閒置 ≥<code>min_idle_hours</code>(預設 2)→ 跑</span></div>
+        <div class="dbranch no"><span class="dtag">否</span><span class="dres">等下一輪;首次安裝會 seed last_run 並延後一整個 interval(給使用者審查窗)</span></div>
+      </div>
+    </div>
+    <div class="dnode"><div class="dq final"><span class="qi">▶</span>確定性轉換(無 LLM)+ 可選 LLM 整併</div>
+      <div class="dbranches">
+        <div class="dbranch cs"><span class="dtag">stale</span><span class="dres">未用 ≥<code>stale_after_days</code>(30)→ 標記 stale(讀 <code>.usage.json</code>)</span></div>
+        <div class="dbranch cs"><span class="dtag">archive</span><span class="dres">未用 ≥<code>archive_after_days</code>(90)→ 移到 <code>.archive/</code></span></div>
+        <div class="dbranch yes"><span class="dtag">consolidate(opt-in)</span><span class="dres"><code>curator.consolidate:true</code> 才跑:LLM 讀 agent-created 技能,合併近重複成 umbrella(max 8 iter)</span></div>
+        <div class="dbranch no"><span class="dtag">守衛</span><span class="dres">pinned 技能豁免;built-in 僅 <code>prune_builtins:true</code> 才動;每次先備份(keep 5,可 rollback)</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>閾值速查表</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>機制</th><th>觸發</th><th>門檻 / 預設</th><th>config key</th><th>來源</th></tr>
+    <tr><td>技能 nudge</td><td>每 N turn</td><td><code>_iters_since_skill ≥ interval</code>(10)</td><td><code>skills.creation_nudge_interval</code></td><td>agent_init.py / codex_runtime.py</td></tr>
+    <tr><td>記憶 nudge</td><td>每 N turn</td><td><code>_turns_since_memory ≥ interval</code>(10)</td><td><code>memory.nudge_interval</code></td><td>agent_init.py</td></tr>
+    <tr><td>review fork 上限</td><td>spawn 時</td><td><code>max_iterations=16</code></td><td>—</td><td>background_review.py</td></tr>
+    <tr><td>curator 執行</td><td>turn 後閒置檢查</td><td>距上次 ≥168h 且閒置 ≥2h</td><td><code>curator.interval_hours / min_idle_hours</code></td><td>curator.py</td></tr>
+    <tr><td>stale → archive</td><td>curator run</td><td>30 天 → 90 天未用</td><td><code>curator.stale_after_days / archive_after_days</code></td><td>curator.py</td></tr>
+    <tr><td>LLM 整併</td><td>curator run(opt-in)</td><td>預設關;max 8 iter</td><td><code>curator.consolidate</code></td><td>curator.py</td></tr>
+    <tr><td>MEMORY/USER 容量</td><td>寫入時</td><td>2200 / 1375 字元</td><td>—</td><td>memory_tool.py</td></tr>
+    <tr><td>Honcho cadence</td><td>每 N turn</td><td>base=1 / dialectic=2 / depth=1</td><td><code>contextCadence / dialecticCadence / dialecticDepth</code></td><td>honcho.json</td></tr>
+  </table></div>
+
+  <div class="callout gold"><span class="ct">磁碟落點(學習成果存哪)</span><code>~/.hermes/memories/{MEMORY.md, USER.md}</code> · <code>~/.hermes/skills/&lt;skill&gt;/{SKILL.md, references/, templates/, scripts/}</code> + <code>.usage.json</code>(telemetry)/ <code>.archive/</code> · <code>~/.hermes/state.db</code>(sessions+FTS5)· <code>~/.hermes/cron/suggestions.json</code> · curator 報告 <code>~/.hermes/logs/curator/&lt;ts&gt;/</code>。全是磁碟/DB,零權重。</div>
+</section>
+
+<!-- ============ ⚖️ 比較 ============ -->
+<section class="pane" id="compare">
+  <div class="page-kicker">⚖️ 對照</div>
+  <h1 class="page">Hermes vs OpenClaw</h1>
+  <p class="page-sub">三者都是「會用工具的 AI agent」。<strong>Hermes</strong> 與 <strong>OpenClaw</strong> 同屬「個人助理 + 常駐 gateway + 多訊息平台」家族、高度趨同(Hermes 甚至內建 <code>hermes claw migrate</code> 從 OpenClaw 匯入);<strong>✳ Claude Code</strong> 則是 Anthropic 官方的 CLI coding agent(寫程式、接 IDE),定位不同。下表三欄並列,再用 8 張卡深比 Hermes vs OpenClaw。</p>
+
+  <div class="scrollwrap"><table>
+    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
+    <tr><td>定位招牌</td><td><strong>官方 CLI coding agent</strong>(寫程式/接 IDE)</td><td><strong>自我改進</strong>個人助理</td><td><strong>gateway 控制平面</strong> + 一切皆 plugin</td></tr>
+    <tr><td>出品</td><td>Anthropic 官方</td><td>Nous Research</td><td>開源社群</td></tr>
+    <tr><td>Runtime 語言</td><td>TypeScript(Bun 編譯)</td><td>Python</td><td>TypeScript / Node</td></tr>
+    <tr><td>核心迴圈</td><td><code>query.ts</code> while-true(785KB)</td><td><code>run_conversation()</code> + 3 API mode</td><td>embedded loop + runtime 家族</td></tr>
+    <tr><td>主要介面</td><td><strong>終端 CLI</strong> + SDK + IDE/Desktop(bridge)</td><td>多訊息平台 + CLI/TUI + ACP</td><td>20+ 訊息平台 + WebChat/TUI/Control UI</td></tr>
+    <tr><td><strong>★ 自我學習</strong></td><td>無 runtime 自學(靠 CLAUDE.md 記憶);KAIROS 規劃中</td><td><strong>一等公民</strong>:background review 造/改技能 + memory nudge + FTS5 + Honcho + curator</td><td>memory + dreaming 鞏固(預設關);無技能自創</td></tr>
+    <tr><td>Substrate / 隔離</td><td>本機 CLI;sub-agent worktree/remote;bridge 到 Remote</td><td><strong>6 terminal backend</strong>;Daytona/Modal serverless 休眠</td><td>Gateway 跑本機/VPS/雲/K8s;sandbox 隔離工具</td></tr>
+    <tr><td>多 agent / 編排</td><td>sub-agent(fork/worktree/remote)+ swarm(coordinator)</td><td>delegate_task + <strong>Kanban 多進程 worker</strong></td><td>subagents + 並行 specialist lanes</td></tr>
+    <tr><td>外部互通</td><td>消費 MCP;被 IDE/Desktop 經 SDK/bridge 整合</td><td><strong>ACP 雙向</strong> + 消費 MCP</td><td>ACP + MCP + 一切皆 plugin</td></tr>
+    <tr><td>脈絡壓縮</td><td>autoCompact/snipCompact/contextCollapse</td><td>雙重壓縮(85%/50%)+ Anthropic caching</td><td>可插拔 context engine + compaction</td></tr>
+    <tr><td>權限 / 安全</td><td>permission rules + PreToolUse hooks + checkPermissions</td><td>DANGEROUS_PATTERNS 核准 + 威脅掃描 + egress 隔離</td><td>tool policy 8 層 + exec approvals + ATLAS</td></tr>
+    <tr><td>遠端管控</td><td><strong>remote managed settings + accept-or-die killswitch</strong></td><td>無(本機優先)</td><td>無(單一可信操作者)</td></tr>
+    <tr><td>遙測</td><td><strong>兩 sink、無 UI opt-out</strong></td><td>本機;可選 OTel</td><td>本機;OTel/Prometheus plugin</td></tr>
+    <tr><td>RL / 研究角度</td><td>無(官方產品)</td><td><strong>明確</strong>:trajectory 生成+壓縮訓練模型</td><td>無(產品導向)</td></tr>
+  </table></div>
+  <div class="callout note"><span class="ct">三框架對照</span>本表已納入 <strong>✳ Claude Code</strong>(基於逆向研究 v2.1.88 快照)。Claude Code 的完整架構解說見 <a href="claude-code-architecture.html">獨立文件</a>(右上切換鈕亦可達)。下方 8 張逐元件深度卡聚焦 <strong>Hermes vs OpenClaw</strong>(兩個最相近的個人助理框架)。</div>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">深度</span>逐 component 設計對比</h2>
+    <p class="intro">上表是「各是什麼」的速覽;以下 8 張卡逐元件講<strong>設計差異 → 為何這樣 → 優劣勢 → 適用情境</strong>。<span class="cmpcol-h">金字 = Hermes</span>、<span class="cmpcol-o">橘字 = OpenClaw</span>。每張卡可點右上「深入」跳到 Hermes 的對應元件詳解。</p>
+
+    <div class="cmpcard"><div class="ch"><span class="cnum">1</span>Runtime &amp; Agent Loop<a class="cgo deep" onclick="go('c-loop')">深入 →</a></div>
+      <div class="cbody">
+        <div class="vs">
+          <div class="side h"><span class="sh">☤ Hermes</span>單一 <code>run_conversation()</code>(Python),依 provider 走 <strong>3 種 API mode</strong>(chat_completions / codex_responses / anthropic_messages);90 iter 預算 + fallback 鏈。</div>
+          <div class="side o"><span class="sh">🦞 OpenClaw</span>embedded agent loop(TypeScript)+ <strong>runtime 家族抽象</strong>(openclaw / codex / copilot / claude-cli),provider→model→runtime→channel 四層解析。</div>
+        </div>
+        <div class="crow why"><span class="clbl">💡 為何這樣</span><span class="cval">Hermes 用<b>單一迴圈 + 出口轉接</b>把分支收斂在「送出前」,核心精簡;OpenClaw 把「誰執行這個 turn」抽象成<b>可插拔 runtime</b>,好讓 Codex/Claude CLI 等外部 harness 接管整個迴圈。</span></div>
+        <div class="crow pro"><span class="clbl">⚖️ 優劣勢</span><span class="cval"><span class="hi-h">Hermes</span>:迴圈簡單易讀、行為一致;但換「執行引擎」彈性較低。<span class="hi-o">OpenClaw</span>:能無縫切到原生 Codex/Claude harness、擁有權切分清楚;但 runtime 選擇 precedence 較複雜,學習曲線陡。</span></div>
+        <div class="crow fit"><span class="clbl">🎯 適用情境</span><span class="cval">想要<b>可預測、好 hack 的單一 Python 迴圈</b> → Hermes;想<b>混用多個原生 agent 後端</b>(Codex app-server、Claude Code)在同一框架 → OpenClaw。</span></div>
+      </div>
+    </div>
+
+    <div class="cmpcard"><div class="ch"><span class="cnum">2</span>記憶系統(Sessions / Context / Memory)<a class="cgo deep" onclick="go('c-session')">深入 →</a></div>
+      <div class="cbody">
+        <div class="vs">
+          <div class="side h"><span class="sh">☤ Hermes</span>SQLite <code>state.db</code> + <strong>FTS5 全文索引</strong>;<code>MEMORY.md/USER.md</code> frozen snapshot 注入 prompt;雙重壓縮(gateway 85% / agent 50%)。</div>
+          <div class="side o"><span class="sh">🦞 OpenClaw</span>JSONL transcript + <strong>可插拔 context engine</strong>(slot)+ memory plugin slot(memory-core/QMD/Honcho/LanceDB)+ dreaming 鞏固。</div>
+        </div>
+        <div class="crow why"><span class="clbl">💡 為何這樣</span><span class="cval">Hermes 把記憶當<b>內建一等設施</b>、用 SQLite 一站搞定搜尋與壓縮;OpenClaw 把記憶/脈絡都做成<b>可換的 plugin slot</b>,讓不同後端(向量庫/Honcho)自由替換。</span></div>
+        <div class="crow pro"><span class="clbl">⚖️ 優劣勢</span><span class="cval"><span class="hi-h">Hermes</span>:零設定即有 FTS5 跨 session 搜尋、frozen snapshot 保 prompt 快取穩定;但記憶後端較固定。<span class="hi-o">OpenClaw</span>:後端可換、生態廣;但要自己選/配,且預設能力分散在 plugin。</span></div>
+        <div class="crow fit"><span class="clbl">🎯 適用情境</span><span class="cval">想<b>開箱即用的記憶 + 全文回憶</b> → Hermes;想<b>接特定向量庫/雲端記憶服務</b>或自訂 context engine → OpenClaw。</span></div>
+      </div>
+    </div>
+
+    <div class="cmpcard star"><div class="ch"><span class="cnum">★</span>技能與自我學習(招牌差異)<a class="cgo deep" onclick="go('selflearn')">深入 →</a></div>
+      <div class="cbody">
+        <div class="vs">
+          <div class="side h"><span class="sh">☤ Hermes</span><strong>一等公民的閉環</strong>:每 ~10 turn 觸發 background review fork,<b>自動創建/改進技能</b> + memory nudge + curator 週期整併。技能會「越用越貼合你」。</div>
+          <div class="side o"><span class="sh">🦞 OpenClaw</span>有 memory + <b>dreaming</b> 背景鞏固(memory-core plugin,預設關),把短期素材晉升到 MEMORY.md;但<b>無「技能自動創建/改進」</b>的對應一等機制。</div>
+        </div>
+        <div class="crow why"><span class="clbl">💡 為何這樣</span><span class="cval">Hermes 把「<b>self-improving</b>」當產品核心命題,刻意在 turn 收尾掛學習觸發;OpenClaw 聚焦「<b>能做事的 gateway 控制平面 + 廣生態</b>」,記憶鞏固足夠,不主打技能自生長。</span></div>
+        <div class="crow pro"><span class="clbl">⚖️ 優劣勢</span><span class="cval"><span class="hi-h">Hermes</span>:長期使用會自動累積貼身技能/偏好,獨一無二;但背景 fork 有額外 token 成本、行為較「會自己動」。<span class="hi-o">OpenClaw</span>:行為更可預測、不自行改技能;但要靠人工/手動維護技能庫。</span></div>
+        <div class="crow fit"><span class="clbl">🎯 適用情境</span><span class="cval">想要一個<b>長期相處、越用越懂你</b>的個人助理 → Hermes;偏好<b>行為穩定、技能由人掌控</b>的工具型 agent → OpenClaw。<em>兩者皆不動模型權重 —— 都是記憶/技能/設定累積。</em></span></div>
+      </div>
+    </div>
+
+    <div class="cmpcard"><div class="ch"><span class="cnum">4</span>Substrate / 部署<a class="cgo deep" onclick="go('c-substrate')">深入 →</a></div>
+      <div class="cbody">
+        <div class="vs">
+          <div class="side h"><span class="sh">☤ Hermes</span><strong>6 種 terminal backend</strong>(local/Docker/SSH/Singularity/Modal/Daytona);Daytona/Modal 提供 <b>serverless 休眠</b>(閒置近零成本)。</div>
+          <div class="side o"><span class="sh">🦞 OpenClaw</span>gateway 跑本機/VPS/雲/Docker/K8s;<b>sandbox</b>(docker/ssh/openshell)隔離工具執行,gateway 本身不被 sandbox。</div>
+        </div>
+        <div class="crow why"><span class="clbl">💡 為何這樣</span><span class="cval">Hermes 把<b>工具執行環境</b>抽象成可插拔 backend,主打「不綁筆電、彈性算力」;OpenClaw 把焦點放在「gateway 在哪都行 + 工具執行該不該隔離」的 sandbox 取捨。</span></div>
+        <div class="crow pro"><span class="clbl">⚖️ 優劣勢</span><span class="cval"><span class="hi-h">Hermes</span>:serverless 休眠省錢、雲端算力彈性;但 serverless 首次喚醒有冷啟延遲。<span class="hi-o">OpenClaw</span>:sandbox 模型成熟、部署選項多;但無原生 serverless 休眠概念。</span></div>
+        <div class="crow fit"><span class="clbl">🎯 適用情境</span><span class="cval">想<b>閒置不花錢、用時才喚醒的雲端 agent</b> → Hermes;想要<b>成熟的工具執行隔離 + K8s 部署</b> → OpenClaw。</span></div>
+      </div>
+    </div>
+
+    <div class="cmpcard"><div class="ch"><span class="cnum">5</span>Channels / 對外<a class="cgo deep" onclick="go('c-gateway')">深入 →</a></div>
+      <div class="cbody">
+        <div class="vs">
+          <div class="side h"><span class="sh">☤ Hermes</span>單一 GatewayRunner 接 Telegram/Discord/Slack/WhatsApp/Signal/CLI… + <strong>ACP 入口</strong>(編輯器當前端)。</div>
+          <div class="side o"><span class="sh">🦞 OpenClaw</span>單一 gateway 接 <strong>20+ channel</strong>(含 iMessage/Matrix/Feishu/LINE…)+ WebChat / TUI / Control UI 多前端。</div>
+        </div>
+        <div class="crow why"><span class="clbl">💡 為何這樣</span><span class="cval">兩者同樣「在你已用的地方回應你」;OpenClaw 投入更多在<b>channel 廣度與專用前端</b>,Hermes 則加上 <b>ACP</b> 讓 IDE 直接當 agent 介面。</span></div>
+        <div class="crow pro"><span class="clbl">⚖️ 優劣勢</span><span class="cval"><span class="hi-o">OpenClaw</span>:channel/前端選擇最廣(WebChat/Control UI 完整);<span class="hi-h">Hermes</span>:平台夠用且能直接嵌進編輯器工作流;但內建前端較少。</span></div>
+        <div class="crow fit"><span class="clbl">🎯 適用情境</span><span class="cval">要<b>覆蓋最多訊息平台 + 網頁/終端前端</b> → OpenClaw;主要在<b>IDE / 終端工作、順帶幾個 IM</b> → Hermes。</span></div>
+      </div>
+    </div>
+
+    <div class="cmpcard"><div class="ch"><span class="cnum">6</span>Tools / 能力與權限<a class="cgo deep" onclick="go('c-tools')">深入 →</a></div>
+      <div class="cbody">
+        <div class="vs">
+          <div class="side h"><span class="sh">☤ Hermes</span>registry + <strong>28+ toolset</strong>;危險指令以 <b>DANGEROUS_PATTERNS</b> regex 核准(一次核准本 session 不再問)。</div>
+          <div class="side o"><span class="sh">🦞 OpenClaw</span>工具經 <strong>8 層 policy 篩選</strong>(profile→provider→agent→sandbox→subagent…,只能收窄)+ exec approvals「取較嚴」。</div>
+        </div>
+        <div class="crow why"><span class="clbl">💡 為何這樣</span><span class="cval">Hermes 走<b>扁平 toolset + pattern 核准</b>,簡單直觀;OpenClaw 走<b>多層 policy 管線</b>,為多 agent / sandbox / 企業情境提供細緻的逐層收斂與 fail-loud。</span></div>
+        <div class="crow pro"><span class="clbl">⚖️ 優劣勢</span><span class="cval"><span class="hi-h">Hermes</span>:設定門檻低、好理解;但權限粒度較粗。<span class="hi-o">OpenClaw</span>:權限極細、可逐 agent/provider/sandbox 收斂;但配置複雜、需理解 8 層順序。</span></div>
+        <div class="crow fit"><span class="clbl">🎯 適用情境</span><span class="cval">個人/小團隊要<b>快速上手的工具核准</b> → Hermes;多 agent、需<b>嚴格分層權限治理</b>的環境 → OpenClaw。</span></div>
+      </div>
+    </div>
+
+    <div class="cmpcard"><div class="ch"><span class="cnum">7</span>擴充(Plugins / ACP / MCP)<a class="cgo deep" onclick="go('c-acp')">深入 →</a></div>
+      <div class="cbody">
+        <div class="vs">
+          <div class="side h"><span class="sh">☤ Hermes</span><code>plugins/</code>(平台/memory/model-provider/image_gen…)+ <strong>ACP 雙向</strong>(server+client)+ 消費 MCP server(OAuth/mTLS)。</div>
+          <div class="side o"><span class="sh">🦞 OpenClaw</span><strong>「一切皆 plugin」</strong>capability 模型(channel/provider/工具皆 plugin,72 內建)+ ACP + MCP。</div>
+        </div>
+        <div class="crow why"><span class="clbl">💡 為何這樣</span><span class="cval">OpenClaw 把<b>擴充性推到極致</b>(連 channel/provider 都是 plugin、core 極精簡);Hermes 的 plugin 範圍較聚焦,但同樣支援 ACP/MCP 互通。</span></div>
+        <div class="crow pro"><span class="clbl">⚖️ 優劣勢</span><span class="cval"><span class="hi-o">OpenClaw</span>:擴充點最多、社群生態(ClawHub)成熟;但 plugin 為 in-process,屬信任邊界。<span class="hi-h">Hermes</span>:plugin 較少但夠用,ACP 雙向 + MCP 整合完整。</span></div>
+        <div class="crow fit"><span class="clbl">🎯 適用情境</span><span class="cval">要<b>大量自寫/社群 plugin、極致可擴充</b> → OpenClaw;要<b>把 agent 嵌進 IDE + 接 MCP 工具生態</b> → Hermes。</span></div>
+      </div>
+    </div>
+
+    <div class="cmpcard"><div class="ch"><span class="cnum">8</span>安全模型 + RL 研究角度<a class="cgo deep" onclick="go('c-security')">深入 →</a></div>
+      <div class="cbody">
+        <div class="vs">
+          <div class="side h"><span class="sh">☤ Hermes</span>DANGEROUS_PATTERNS 核准 + 威脅掃描 + 網路 egress 隔離;<strong>明確的 RL trajectory 管線</strong>(batch 生成 + 壓縮,訓練下一代模型)。</div>
+          <div class="side o"><span class="sh">🦞 OpenClaw</span><b>單一可信操作者、非多租戶</b>;tool policy + exec approvals + sandbox + MITRE ATLAS 威脅模型;<b>無 RL 重心</b>(產品導向)。</div>
+        </div>
+        <div class="crow why"><span class="clbl">💡 為何這樣</span><span class="cval">OpenClaw 以<b>清晰的信任邊界 + 標準威脅模型</b>界定安全;Hermes 因背後是研究機構(Nous),把 runtime 產出的 trajectory 拿來<b>離線訓練模型</b>—— 這是「動權重」之處,與 runtime 自學分開。</span></div>
+        <div class="crow pro"><span class="clbl">⚖️ 優劣勢</span><span class="cval"><span class="hi-o">OpenClaw</span>:安全論述完整(ATLAS)、邊界明確;<span class="hi-h">Hermes</span>:多了 RL 資料管線(研究價值);但 runtime 安全仍以 pattern 核准為主,粒度較粗。</span></div>
+        <div class="crow fit"><span class="clbl">🎯 適用情境</span><span class="cval">重視<b>正式威脅模型/合規論述</b> → OpenClaw;想<b>用 agent 產生 RL 訓練資料、做模型研究</b> → Hermes。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>概念對映(來自 <code>hermes claw migrate</code>)</h2>
+  <p>Hermes 內建從 OpenClaw 匯入的遷移工具,其 config key 對映正好揭示兩者的概念對應:<span class="src">來源:website/docs/guides/migrate-from-openclaw.md</span></p>
+  <div class="scrollwrap"><table>
+    <tr><th>概念</th><th class="cmpcol-o">OpenClaw 來源</th><th class="cmpcol-h">Hermes 目的地</th></tr>
+    <tr><td>人格</td><td><code>workspace/SOUL.md</code></td><td><code>~/.hermes/SOUL.md</code></td></tr>
+    <tr><td>操作指令</td><td><code>workspace/AGENTS.md</code></td><td><code>AGENTS.md</code>(workspace target)</td></tr>
+    <tr><td>長期記憶</td><td><code>workspace/MEMORY.md</code> + 每日檔</td><td><code>~/.hermes/memories/MEMORY.md</code>(解析成 entry、§ 分隔、去重合併)</td></tr>
+    <tr><td>使用者檔</td><td><code>workspace/USER.md</code></td><td><code>~/.hermes/memories/USER.md</code></td></tr>
+    <tr><td>技能(4 來源)</td><td><code>workspace/skills/</code>、<code>~/.openclaw/skills/</code>、<code>~/.agents/skills/</code>…</td><td><code>~/.hermes/skills/openclaw-imports/</code></td></tr>
+    <tr><td>預設模型</td><td><code>agents.defaults.model</code></td><td><code>config.yaml → model</code></td></tr>
+    <tr><td>自訂 provider</td><td><code>models.providers.*</code></td><td><code>config.yaml → custom_providers</code></td></tr>
+    <tr><td>最大輪數</td><td><code>agents.defaults.timeoutSeconds</code></td><td><code>agent.max_turns</code>(timeoutSeconds/10,上限 200)</td></tr>
+    <tr><td>壓縮</td><td><code>agents.defaults.compaction.mode</code></td><td><code>compression.enabled</code></td></tr>
+  </table></div>
+  <pre><code># 從 OpenClaw 遷移到 Hermes
+hermes claw migrate --dry-run                          # 只預覽
+hermes claw migrate --preset full --migrate-secrets --yes   # 完整匯入(含 API key)</code></pre>
+
+  <div class="callout note"><span class="ct">怎麼選?</span>要<strong>越用越貼合你、能跑 serverless、想做 RL 研究</strong> → Hermes。要<strong>極廣的 channel/plugin 生態、gateway 控制平面、TypeScript 技術棧</strong> → OpenClaw。兩者皆本機優先、可自架、開源(MIT)。</div>
+</section>
+
+<!-- ============ 元件:Agent Loop ============ -->
+<section class="pane" id="c-loop">
+  <div class="page-kicker">元件詳解 · 大腦</div>
+  <h1 class="page">Agent Loop & Runtime</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-gateway')">gateway 觸發</a><a onclick="go('c-session')">session 歷史</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span><code>run_conversation()</code> ── turn 編排:組裝→呼叫→工具→串流→持久化</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">工具迴圈</a><a onclick="go('c-context')">壓縮</a><a onclick="go('selflearn')">★ 背景 review</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>把一則訊息變成「行動 + 回覆」並維持 session 一致,需要一條確定性、可中斷、可觀測的執行路徑,把非確定性的模型推理包在裡面。Hermes 還在這條路徑上掛了<strong>自我學習的觸發點</strong>。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">單一大迴圈、3 種 API mode</span><code>AIAgent</code>(<span class="fp">run_agent.py</span>)透過 <code>run_conversation()</code>(<span class="fp">agent/conversation_loop.py</span>)驅動;依 provider 走 <code>chat_completions</code> / <code>codex_responses</code> / <code>anthropic_messages</code>。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>訊息交替規則</strong>:system → user/assistant 交替;工具呼叫時 assistant(含 tool_calls)→ tool → … → assistant;只有 tool role 可連續。</li>
+    <li><strong>可中斷呼叫</strong>:API 在背景執行緒,主執行緒監看中斷/逾時;打斷則丟棄回應,不注入部分結果。</li>
+    <li><strong>工具執行</strong>:單一直接跑;多個經 <code>ThreadPoolExecutor</code> 並行(interactive 工具如 clarify 強制序列);結果按原序回填。</li>
+    <li><strong>iteration 預算</strong>:預設 90(<code>agent.max_turns</code>),子代理獨立預算(上限 <code>delegation.max_iterations</code>=50);100% 時回工作摘要。</li>
+    <li><strong>fallback 鏈</strong>:429/5xx/401/403 → 試 fallback provider(401/403 先試刷新憑證);in-place 換 model/provider/client。</li>
+    <li><strong>callback 面</strong>:tool_progress / thinking / reasoning / clarify / step / stream_delta / status 等。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:一個 turn 的生命週期</h2>
+    <p class="intro">來源:<span class="fp">agent/conversation_loop.py</span>、website/docs/developer-guide/agent-loop.md。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">intake</div><div class="sd">append user msg</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">組 prompt</div><div class="sd">三層 + caching</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">可中斷呼叫</div><div class="sd">背景執行緒</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">工具?</div><div class="sd">執行→回填→loop</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">5</div><div class="sl">收尾</div><div class="sd">持久化 + ★ nudge</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>intake + preflight 壓縮判斷<span class="stag">run_conversation</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>user_message、conversation_history(缺則自 session 載入)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>產生 task_id、append user msg;若 context &gt;50% → 觸發 preflight 壓縮</div>
+        <div class="field f-why"><span class="fl">設計思維</span>進迴圈前先確保有空間,避免第一次呼叫就溢位</div>
+        <div class="field f-out"><span class="fl">輸出</span>就緒的 history</div>
+        <div class="field f-edge"><span class="fl">邊界</span>gpt-5.5 on Codex OAuth:壓縮觸發提到 85%</div>
+      </div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>組 API messages + 注入 ephemeral 層<span class="stag">3 API mode</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>history + 解析出的 API mode</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>chat_completions 原樣;codex_responses 轉 Responses input items;anthropic_messages 經 anthropic_adapter 轉;注入 budget/壓力警告等 ephemeral 層;Anthropic 套 cache 標記</div>
+        <div class="field f-why"><span class="fl">設計思維</span>用同一份內部 OpenAI 格式,出口才依 provider 轉,降低分支成本</div>
+        <div class="field f-out"><span class="fl">輸出</span>provider 專用 payload</div>
+        <div class="field f-edge"><span class="fl">邊界</span>ephemeral 層不持久化進快取 prompt</div>
+      </div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">3-4</span>可中斷呼叫 + 工具迴圈<span class="stag">_interruptible_api_call</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>payload、中斷事件</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>回應含 tool_calls → 解析 → (危險?核准) → 執行(單一序列/多個並行) → append tool 結果 → 回到步驟 2;否則 → 純文字回應</div>
+        <div class="field f-why"><span class="fl">設計思維</span>可中斷讓使用者隨時改方向;並行工具省 wall-clock,interactive 工具強制序列保正確性</div>
+        <div class="field f-out"><span class="fl">輸出</span>tool 結果回填 或 final text</div>
+        <div class="field f-edge"><span class="fl">邊界</span>達 90 iter → 回工作摘要;429/5xx → fallback 鏈</div>
+      </div></div>
+    <div class="stepcard gold"><div class="hd"><span class="sidx">5</span>持久化 + ★ 觸發背景 review<span class="stag">nudge 計數器</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>final 回應;turn 計數器</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>持久化訊息到 state.db;若 nudge 門檻達標且未中斷且有回應 → <code>_spawn_background_review</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>把學習掛在 turn 收尾,使用者無感、不阻塞回覆</div>
+        <div class="field f-out"><span class="fl">輸出</span>回應送出 + 背景 fork 可能啟動</div>
+        <div class="field f-edge"><span class="fl">邊界</span>詳見 <a onclick="go('selflearn')">★ 自我學習迴圈</a></div>
+      </div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-gateway')">gateway</a> 帶 <a onclick="go('c-session')">session 歷史</a>觸發。<strong>下游:</strong>跑 <a onclick="go('c-tools')">工具</a>、叫 <a onclick="go('c-context')">壓縮</a>、收尾觸發 <a onclick="go('selflearn')">★ 背景 review</a>;prompt 由 <a onclick="go('c-prompt')">Prompt 組裝</a>提供。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>response = agent.chat("Fix the bug in main.py")          # 簡介面
+result   = agent.run_conversation(user_message="...", task_id="...")  # 全介面
+
+# config.yaml
+agent:
+  max_turns: 90
+fallback_providers:
+  - { provider: openrouter, model: "anthropic/claude-opus-4" }</code></pre>
+</section>
+
+<!-- ============ 元件:Prompt ============ -->
+<section class="pane" id="c-prompt">
+  <div class="page-kicker">元件詳解 · 大腦</div>
+  <h1 class="page">Prompt 組裝</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-memory')">memory 快照</a><a onclick="go('c-skills')">skills 索引</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>三層 system prompt:stable / context / volatile</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-loop')">送進模型</a><a onclick="go('c-context')">快取邊界</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>模型每 session 全新,且 prompt caching 要求穩定前綴。需要把「穩定的身分/工具」與「易變的記憶/時間」分層,既給連續性又最大化快取命中。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">三層,由穩到變</span><strong>stable</strong>(SOUL.md 身分、工具/模型指引、skills、環境提示)→ <strong>context</strong>(系統訊息、專案 context 檔)→ <strong>volatile</strong>(MEMORY.md/USER.md 快照、Honcho 區塊、時間戳、平台提示)。<span class="src">agent/system_prompt.py、prompt-assembly.md</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>SOUL.md</strong>:<code>load_soul_md()</code> 讀 → 安全掃描 → 截斷(上限 20k 字元);缺則 DEFAULT_AGENT_IDENTITY。</li>
+    <li><strong>context 檔優先序</strong>(首個命中):<code>.hermes.md/HERMES.md</code>(CWD 到 git root)→ <code>AGENTS.md</code> → <code>CLAUDE.md</code> → <code>.cursorrules</code>。皆安全掃描+截斷+剝 frontmatter。</li>
+    <li><strong>memory 快照</strong>在 volatile 層:mid-session 寫入更新磁碟,但不改已建的快取 prompt(下個 session 才刷新)。</li>
+    <li><strong>API-call-time-only 層</strong>(不進快取 prompt):ephemeral_system_prompt、prefill、gateway session 疊加、後期 Honcho recall、pre_llm_call plugin context。</li>
+    <li><strong>平台提示</strong>可自訂:<code>platform_hints.&lt;platform&gt;.{append|replace}</code>。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:三層如何疊出 system prompt</h2>
+    <p class="intro">穩定內容放前段(快取命中),易變內容放後段(每 turn 可變)。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">stable</div><div class="sd">SOUL+工具+skills</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">context</div><div class="sd">系統訊息+專案檔</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">volatile</div><div class="sd">memory/Honcho/時間</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">caching 標記</div><div class="sd">system_and_3</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>stable 層<span class="stag">load_soul_md</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>SOUL.md、工具/skills 清單</div><div class="field f-basis"><span class="fl">判斷依據</span>讀 SOUL→掃描→截斷 20k;組工具/模型指引 + skills 索引 + 環境提示</div><div class="field f-why"><span class="fl">設計思維</span>整個 session 不變 → 放最前面,當快取的穩定前綴</div><div class="field f-out"><span class="fl">輸出</span>stable 區塊</div><div class="field f-edge"><span class="fl">邊界</span>SOUL 缺 → DEFAULT_AGENT_IDENTITY</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>context 層<span class="stag">context 檔探索</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>caller system_message、CWD</div><div class="field f-basis"><span class="fl">判斷依據</span>首個命中:.hermes.md→AGENTS.md→CLAUDE.md→.cursorrules;皆掃描+截斷+剝 frontmatter</div><div class="field f-why"><span class="fl">設計思維</span>相容 Claude Code/Cursor 既有專案指令檔</div><div class="field f-out"><span class="fl">輸出</span>context 區塊</div><div class="field f-edge"><span class="fl">邊界</span>截斷預設 20k,70/20 頭尾比</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">3-4</span>volatile 層 + caching<span class="stag">system_and_3</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>MEMORY/USER 快照、Honcho、時間/session/平台</div><div class="field f-basis"><span class="fl">判斷依據</span>注入 frozen memory 快照;Anthropic 路徑下 4 個 cache 斷點(system + 最後 3 則訊息滾動窗)</div><div class="field f-why"><span class="fl">設計思維</span>易變內容放後段;caching 讓多輪輸入 token 省 ~75%</div><div class="field f-out"><span class="fl">輸出</span>完整 system prompt + cache 標記</div><div class="field f-edge"><span class="fl">邊界</span>mid-session memory 寫入不改已建快取,下個 session 才生效</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>吃 <a onclick="go('c-memory')">memory 快照</a>與 <a onclick="go('c-skills')">skills 索引</a>。<strong>下游:</strong>產出送 <a onclick="go('c-loop')">run_conversation</a>;三層分界對齊 <a onclick="go('c-context')">prompt caching 邊界</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>platform_hints:
+  whatsapp: { append: "When a table helps, use the table_formatting skill." }
+  slack:    { replace: "You are on Slack. Keep responses tight." }
+  telegram: "Prefer short messages; split long answers."   # 字串 = append</code></pre>
+</section>
+
+<!-- ============ 元件:Sessions ============ -->
+<section class="pane" id="c-session">
+  <div class="page-kicker">元件詳解 · 記憶</div>
+  <h1 class="page">Sessions & FTS5</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-gateway')">session key</a><a onclick="go('c-loop')">turn 寫入</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>SQLite <code>state.db</code>:訊息持久化 + FTS5 全文索引</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('selflearn')">★ 跨 session 回憶</a><a onclick="go('c-context')">壓縮 lineage</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>對話必須連續、可恢復、可被未來搜尋。需要一個持久層既存完整歷史,又支援快速全文檢索(這正是自我學習「跨 session 回憶」的基礎)。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">一個 SQLite DB 裝全部</span><code>~/.hermes/state.db</code>(WAL,schema v16):<code>sessions</code> / <code>messages</code> / <code>messages_fts</code>(FTS5)/ <code>messages_fts_trigram</code>(CJK/子字串)/ <code>state_meta</code>。<span class="fp">hermes_state.py</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>sessions 表</strong>:id、source、user_id、model、<code>parent_session_id</code>(lineage)、token/billing 統計、title。</li>
+    <li><strong>messages 表</strong>:role、content、tool_calls(JSON)、tool_name、timestamp、reasoning…;trigger 同步 FTS5。</li>
+    <li><strong>lineage</strong>:壓縮會 split session、用 <code>parent_session_id</code> 串成鏈,保歷史。</li>
+    <li><strong>寫入競爭</strong>:短 timeout(1s)、應用層重試帶 jitter(20–150ms,最多 15 次)、<code>BEGIN IMMEDIATE</code>、每 50 次寫入做 WAL checkpoint。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:session_search 三模式</h2>
+    <p class="intro">跨 session 回憶的入口,單一工具依參數推斷模式。詳細決策見 <a onclick="go('selflearn')">★ 專章機制 ④</a>。</p>
+    <div class="dflow">
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>session_search 收到什麼參數?<span class="qmeta">session_search_tool.py</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">query</span><span class="dres"><b>discovery</b>:FTS5 搜 <code>messages_fts</code>(+trigram)→ snippet + 前後文 + 首尾 bookend</span></div>
+          <div class="dbranch cs"><span class="dtag">session_id + around</span><span class="dres"><b>scroll</b>:在該 session 視窗 ±N 則</span></div>
+          <div class="dbranch no"><span class="dtag">無參數</span><span class="dres"><b>browse</b>:近期 session 依時間列出</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>寫入 + FTS5 同步<span class="stag">triggers</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>turn 的 user/assistant/tool 訊息</div><div class="field f-basis"><span class="fl">判斷依據</span>寫 messages 表;INSERT/UPDATE/DELETE trigger 自動同步 <code>messages_fts</code></div><div class="field f-why"><span class="fl">設計思維</span>索引與資料同源,搜尋無需額外建索引步驟</div><div class="field f-out"><span class="fl">輸出</span>可被 FTS5 搜尋的歷史</div><div class="field f-edge"><span class="fl">邊界</span>寫入鎖競爭 → 重試帶 jitter</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>discovery 去重<span class="stag">_resolve_to_parent</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>FTS5 命中的多個 session</div><div class="field f-basis"><span class="fl">判斷依據</span>沿 <code>parent_session_id</code> 走到 lineage root,同 root 者去重</div><div class="field f-why"><span class="fl">設計思維</span>壓縮造成的 session 分裂不該讓同一對話重複出現</div><div class="field f-out"><span class="fl">輸出</span>去重後的結果集</div><div class="field f-edge"><span class="fl">邊界</span>無 LLM 摘要 ── 回真實訊息片段</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-gateway')">gateway</a> 算 session key、<a onclick="go('c-loop')">每 turn</a> 寫入。<strong>下游:</strong>FTS5 餵 <a onclick="go('selflearn')">★ 跨 session 回憶</a>;lineage 由 <a onclick="go('c-context')">壓縮</a>產生。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>session_search(query="what did we discuss about Docker")   # discovery
+session_search(session_id="...", around_message_id=42)     # scroll
+session_search()                                           # browse</code></pre>
+</section>
+
+<!-- ============ 元件:Context ============ -->
+<section class="pane" id="c-context">
+  <div class="page-kicker">元件詳解 · 記憶</div>
+  <h1 class="page">Context 壓縮 & 快取</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-session')">session 訊息</a><a onclick="go('c-loop')">turn 用量</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>雙重壓縮(85%/50%)+ Anthropic prompt caching</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-loop')">瘦身後續跑</a><a onclick="go('c-session')">寫 lineage</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>對話無限增長但 context 視窗有限,且重複送整段歷史很貴。需要在快滿時無損地摘要、並用快取降低重複 token 成本。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">兩道防線 + 可插拔引擎</span><strong>Gateway session hygiene</strong> 在 ~85%(粗估,安全網)、<strong>Agent ContextCompressor</strong> 在 50%(實際 token,常態)。引擎可插拔(<code>context.engine</code>,plugins/context_engine/)。<span class="src">context-compression-and-caching.md、agent/context_compressor.py</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>Phase 1</strong> 修剪舊 tool 結果(&gt;200 字元、保護 tail 外)→ <code>[Old tool output cleared…]</code>。</li>
+    <li><strong>Phase 2</strong> 定邊界:保護開頭 N(system+首交換)、中段摘要、保護尾段(token budget 或 protect_last_n)。</li>
+    <li><strong>Phase 3</strong> 產結構化摘要(Goal/Constraints/Progress[Done/InProgress/Blocked]/Key Decisions/Files/Next Steps/Critical Context)。</li>
+    <li><strong>Phase 4</strong> 組裝:head + summary + tail;<strong>迭代再壓縮</strong>把舊 summary 餵 LLM 更新(In Progress→Done)。</li>
+    <li><strong>Prompt caching</strong>(Anthropic):<code>system_and_3</code> 策略 4 斷點(system + 最後 3 則滾動窗),省 ~75% 輸入 token;TTL 5m 或 1h。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:何時壓縮、保留什麼</h2>
+    <p class="intro">兩個獨立觸發點 + 4 phase 演算法。</p>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>誰先到門檻?<span class="qmeta">雙重壓縮</span></div>
+        <div class="dbranches">
+          <div class="dbranch cs"><span class="dtag">gateway 85%</span><span class="dres">粗估,進 agent 前的安全網(大 session 防爆)</span></div>
+          <div class="dbranch yes"><span class="dtag">agent 50%</span><span class="dres">實際 token,常態 in-loop 壓縮(預設 threshold 0.50)</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>定邊界 + 保護 tail<span class="stag">protect_last_n</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>訊息列表、token budget</div><div class="field f-basis"><span class="fl">判斷依據</span>保護開頭 N + 尾段(token budget 或 <code>protect_last_n</code>=20);中段送摘要;先修剪舊 tool 結果</div><div class="field f-why"><span class="fl">設計思維</span>近期上下文最關鍵 → 永不摘要;開頭含 system/任務定義也保留</div><div class="field f-out"><span class="fl">輸出</span>head / 中段 / tail 三段</div><div class="field f-edge"><span class="fl">邊界</span><code>target_ratio</code> 0.20 tail 保護</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>結構化摘要 + 迭代更新<span class="stag">ContextCompressor</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>中段訊息 +(若有)前次 summary</div><div class="field f-basis"><span class="fl">判斷依據</span>LLM 產固定結構摘要;有舊 summary 則指示「更新」而非重寫(In Progress→Done)</div><div class="field f-why"><span class="fl">設計思維</span>多次壓縮間保資訊不流失,項目隨進度遷移</div><div class="field f-out"><span class="fl">輸出</span>head + summary + tail 的壓縮訊息</div><div class="field f-edge"><span class="fl">邊界</span>摘要可用 <code>auxiliary.compression.model</code> 走別的模型</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>Anthropic prompt caching<span class="stag">system_and_3</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>組好的訊息(Claude 模型)</div><div class="field f-basis"><span class="fl">判斷依據</span>4 個 <code>cache_control</code> 斷點:system + 最後 3 則非 system 訊息(滾動窗)</div><div class="field f-why"><span class="fl">設計思維</span>穩定前綴重用快取,多輪省 ~75% 輸入成本</div><div class="field f-out"><span class="fl">輸出</span>帶快取標記的請求</div><div class="field f-edge"><span class="fl">邊界</span>TTL 預設 5m,可設 1h;Claude on Anthropic/OpenRouter 自動啟用</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>讀 <a onclick="go('c-session')">session 訊息</a>、看 <a onclick="go('c-loop')">turn 用量</a>。<strong>下游:</strong>瘦身後交回 <a onclick="go('c-loop')">迴圈</a>;split 寫回 <a onclick="go('c-session')">lineage</a>;快取邊界對齊 <a onclick="go('c-prompt')">prompt 三層</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>compression:
+  enabled: true
+  threshold: 0.50
+  target_ratio: 0.20
+  protect_last_n: 20
+prompt_caching:
+  cache_ttl: "5m"</code></pre>
+</section>
+
+<!-- ============ 元件:Memory ============ -->
+<section class="pane" id="c-memory">
+  <div class="page-kicker">元件詳解 · 記憶</div>
+  <h1 class="page">Memory & Honcho</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('selflearn')">★ memory nudge 寫入</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>MEMORY.md/USER.md frozen snapshot + 可選 Honcho 辯證建模</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-prompt')">注入 volatile 層</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>跨 session 記得使用者偏好與人設,且讓使用者可檢視/編輯。檔案式 memory 透明可控;Honcho 則自動深化建模,兩者互補。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">memory ≠ context;frozen snapshot</span>兩個有界檔:<code>MEMORY.md</code>(2200 字元,agent 筆記)、<code>USER.md</code>(1375 字元,使用者檔)。session 開始載入成 frozen snapshot 注入 prompt;mid-session 寫入落磁碟、下個 session 才生效。<span class="fp">tools/memory_tool.py</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>memory 工具</strong>:<code>add / replace / remove</code>,target=memory|user;replace/remove 用短唯一子字串定位。</li>
+    <li><strong>容量管理</strong>:超限回錯誤要求 consolidate(用 replace 合併重疊 entry)。</li>
+    <li><strong>威脅掃描</strong>:load 與 write 都掃(scope strict),中毒 entry 換 <code>[BLOCKED]</code>(memory 進 frozen prompt,一則中毒可污染整個 session)。</li>
+    <li><strong>Honcho</strong>(選用,plugin):server 端 dialectic;雙層注入、cold/warm prompt、多 pass depth、多 peer 隔離。詳見 <a onclick="go('selflearn')">★ 機制 ⑤</a>。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:memory 注入與寫入</h2>
+    <p class="intro">frozen snapshot 是關鍵設計 ── 解釋了「為何寫入要等下個 session 才生效」。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">session 開始</div><div class="sd">load → snapshot</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">注入 prompt</div><div class="sd">不可變區塊</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">mid-session 寫入</div><div class="sd">落磁碟,不改 prompt</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">下個 session</div><div class="sd">snapshot 刷新</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1-2</span>載入快照 + 注入<span class="stag">frozen snapshot</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>磁碟上的 MEMORY.md/USER.md</div><div class="field f-basis"><span class="fl">判斷依據</span>session 開始載入成 <code>_system_prompt_snapshot</code>,渲染成 volatile 層不可變區塊;載入時過威脅掃描</div><div class="field f-why"><span class="fl">設計思維</span>凍結 → 保 prompt 前綴穩定(快取命中)</div><div class="field f-out"><span class="fl">輸出</span>system prompt 帶記憶</div><div class="field f-edge"><span class="fl">邊界</span>中毒 entry → <code>[BLOCKED]</code></div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">3-4</span>寫入 + 下次刷新<span class="stag">memory tool</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span><code>memory(action=add/replace/remove)</code></div><div class="field f-basis"><span class="fl">判斷依據</span>立刻寫磁碟(durable);但<strong>不</strong>改本 session 已建的 system prompt;下個 session 載入才見</div><div class="field f-why"><span class="fl">設計思維</span>持久性 vs 快取穩定性的取捨 ── 兩者兼得</div><div class="field f-out"><span class="fl">輸出</span>磁碟更新</div><div class="field f-edge"><span class="fl">邊界</span>超容量 → 要求 consolidate</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>主要寫入者是 <a onclick="go('selflearn')">★ memory nudge fork</a>(也可前景 agent 寫)。<strong>下游:</strong>快照注入 <a onclick="go('c-prompt')">prompt volatile 層</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>memory(action="add", target="user", content="User prefers Python 3.12, nvim, US/Pacific")
+# Honcho (選用): ~/.honcho/config.json
+{ "recallMode": "hybrid", "contextCadence": 1, "dialecticCadence": 2, "dialecticDepth": 1 }</code></pre>
+</section>
+
+<!-- ============ 元件:Tools ============ -->
+<section class="pane" id="c-tools">
+  <div class="page-kicker">元件詳解 · 能力</div>
+  <h1 class="page">Tools & Toolsets</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">工具迴圈呼叫</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>registry + 28+ toolset + 危險指令核准</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-substrate')">terminal backend 執行</a><a onclick="go('c-security')">核准/掃描</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>「會做事」的 agent 需要可呼叫動作(terminal/browser/web/code/檔案…),且要能依場景開關工具集、並對危險動作把關。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">registry + toolsets</span>每個工具在模組層 <code>registry.register(name, toolset, schema, handler, check_fn…)</code>;toolsets 是具名工具束(28+,如 web/terminal/browser/kanban…)。<span class="fp">tools/registry.py、toolsets.py</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>自動發現</strong>:AST 掃 <code>tools/*.py</code> 的頂層 register;<strong>check_fn</strong> 決定工具是否可用(如 API key 在否),不可用則不送 schema。</li>
+    <li><strong>toolset 解析</strong>:enabled→只那些;disabled→全部減去;皆無→全部;再經 check_fn 過濾。</li>
+    <li><strong>agent-loop 工具</strong>(registry 前攔截,需 agent 層狀態):<code>todo / memory / session_search / delegate_task</code>。</li>
+    <li><strong>dispatch</strong>:pre_tool_call hook → registry.dispatch(async 橋接)→ post hook;例外包成 JSON error,模型恆收良構 JSON。</li>
+    <li><strong>內建工具</strong>:web_search/extract、terminal/process、read/write/patch/search_files、browser_*、vision、image_generate、tts、execute_code、cronjob、ha_*、kanban_*、computer_use…</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:工具可見性 + 危險指令核准</h2>
+    <p class="intro">兩條決策:① 哪些工具被模型看到 ② 危險指令怎麼放行。</p>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>這個工具要送給模型嗎?<span class="qmeta">get_tool_definitions</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">在啟用 toolset</span><span class="dres">且 <code>check_fn()</code> 為真(依賴/key 在)→ 送 schema</span></div>
+          <div class="dbranch no"><span class="dtag">否 / check 失敗</span><span class="dres">跳過該工具(含例外視為不可用)</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>指令命中 DANGEROUS_PATTERNS?<span class="qmeta">tools/approval.py</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">CLI 互動提示 / gateway 非同步核准回呼;可選 LLM 智能自動核准低風險;一次核准本 session 不再問;「allow permanently」寫 config</span></div>
+          <div class="dbranch no"><span class="dtag">未命中</span><span class="dres">直接執行</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>toolset 解析 + check_fn<span class="stag">registry</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>enabled/disabled toolsets</div><div class="field f-basis"><span class="fl">判斷依據</span>解析出工具集合,逐一 check_fn;execute_code/browser schema 動態 patch 成只引用可用工具</div><div class="field f-why"><span class="fl">設計思維</span>不可用工具不出現,免模型呼叫缺依賴的工具</div><div class="field f-out"><span class="fl">輸出</span>送模型的 schema 清單</div><div class="field f-edge"><span class="fl">邊界</span>check_fn 拋例外 → 視為不可用</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>dispatch + hooks<span class="stag">handle_function_call</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>模型的 tool_call</div><div class="field f-basis"><span class="fl">判斷依據</span>agent-loop 工具先攔;否則 pre hook → registry.dispatch → post hook;async 自動橋接</div><div class="field f-why"><span class="fl">設計思維</span>hook 讓 plugin 攔截/觀測;錯誤恆良構 JSON 回模型可自我修正</div><div class="field f-out"><span class="fl">輸出</span>工具結果字串</div><div class="field f-edge"><span class="fl">邊界</span>例外包 <code>{"error": "..."}</code></div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-loop')">工具迴圈</a>呼叫。<strong>下游:</strong>terminal 類在 <a onclick="go('c-substrate')">6 backend</a> 之一執行;危險核准/掃描屬 <a onclick="go('c-security')">Security</a>;MCP 工具見 <a onclick="go('c-acp')">ACP/MCP</a>;<a onclick="go('c-skills')">skills</a> 教模型何時用工具。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code># 限定工具集
+agent.run_conversation(..., enabled_toolsets=["terminal","file","web"])
+# DANGEROUS_PATTERNS 例:rm -rf / mkfs / DROP TABLE without WHERE / curl | sh …</code></pre>
+</section>
+
+<!-- ============ 元件:Skills ============ -->
+<section class="pane" id="c-skills">
+  <div class="page-kicker">元件詳解 · 能力</div>
+  <h1 class="page">Skills</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-prompt')">skills 索引注入</a><a onclick="go('selflearn')">★ 背景 review 創建/改進</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>agentskills.io 相容的 class-level 技能庫</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">引導工具使用</a><a onclick="go('selflearn')">★ curator 維護</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>有工具還不夠,模型常不知何時/怎麼用。Skills 把可重用工作流模組化成 Markdown;Hermes 更讓 agent <strong>自己創建與改進</strong>技能(見專章)。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">class-level umbrella,不是一次性窄技能</span>每個技能一個目錄含 <code>SKILL.md</code> + 可選 <code>references/ templates/ scripts/</code>。相容 <a href="https://agentskills.io">agentskills.io</a>。目標是少數厚技能 + references 細節。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>注入</strong>:skills 索引進 stable 層 system prompt(<code>&lt;available_skills&gt;</code>);SKILL.md 全文按需 <code>skill_view</code> 才讀。</li>
+    <li><strong>管理工具</strong>:<code>skill_manage(action=create/patch/edit/write_file/remove_file/delete)</code>(<span class="fp">agent/skill_commands.py</span>)。</li>
+    <li><strong>來源</strong>:bundled(<code>skills/</code>)、optional(<code>optional-skills/</code>)、hub-installed、agent-created;telemetry 在 <code>.usage.json</code>。</li>
+    <li><strong>provenance</strong>:只有背景 review 來源的新建會 <code>mark_agent_created()</code> → 納入 curator。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:技能更新偏好序</h2>
+    <p class="intro">這是自我學習的核心決策之一,完整版在 <a onclick="go('selflearn')">★ 機制 ②</a>。</p>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>有已載入的 skill 涵蓋此學習?<span class="qmeta">_SKILL_REVIEW_PROMPT</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres">① <b>patch 已載入 skill</b>(最優先)</span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">續判</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>有既有 umbrella class-level skill 涵蓋?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres">② patch 該 umbrella(加子節/pitfall/放寬 trigger)</span></div>
+          <div class="dbranch cs"><span class="dtag">部分</span><span class="dres">③ 在 umbrella 下加 <code>references/templates/scripts</code></span></div>
+          <div class="dbranch no"><span class="dtag">皆無</span><span class="dres">④ <b>新建 class-level skill</b>(名稱不可是 PR 號/任務碼)</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>載入與 view<span class="stag">skill_view</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>session 中 <code>/skill-name</code> 或 <code>skill_view</code> 的呼叫</div><div class="field f-basis"><span class="fl">判斷依據</span>掃對話找曾載入/查閱的技能,作為 patch 首選對象</div><div class="field f-why"><span class="fl">設計思維</span>當時在用的技能,最該被延伸</div><div class="field f-out"><span class="fl">輸出</span>候選 patch 目標</div><div class="field f-edge"><span class="fl">邊界</span>無則往偏好序下一階</div></div></div>
+    <div class="stepcard gold"><div class="hd"><span class="sidx">2</span>寫入 + 標記 provenance<span class="stag">mark_agent_created</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>偏好序選定的動作</div><div class="field f-basis"><span class="fl">判斷依據</span><code>skill_manage</code> 寫磁碟;若為背景 review 新建 → <code>mark_agent_created</code></div><div class="field f-why"><span class="fl">設計思維</span>區分 agent 自創 vs 使用者主導,curator 只整理前者</div><div class="field f-out"><span class="fl">輸出</span>技能庫更新</div><div class="field f-edge"><span class="fl">邊界</span>bundled/hub 技能不被標記、curator 預設不動(除非 prune_builtins)</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>索引由 <a onclick="go('c-prompt')">prompt</a> 注入;<a onclick="go('selflearn')">★ 背景 review</a> 創建/改進。<strong>下游:</strong>引導 <a onclick="go('c-tools')">工具</a>使用;<a onclick="go('selflearn')">★ curator</a> 週期維護。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>skill_manage(action="patch", name="docker-deployment", content="## Pitfall: ...")
+skill_manage(action="write_file", name="docker-deployment", file_path="references/troubleshooting.md", content="...")</code></pre>
+</section>
+
+<!-- ============ 元件:ACP/MCP ============ -->
+<section class="pane" id="c-acp">
+  <div class="page-kicker">元件詳解 · 能力</div>
+  <h1 class="page">ACP & MCP</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-gateway')">編輯器/外部 client</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>ACP 雙向(server+client)+ 消費 MCP server</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">外部工具進 registry</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>agent 不該是孤島:要能被編輯器(VS Code/Zed/JetBrains)當 agent 用(ACP server),也要能接外部工具生態(MCP)甚至連別的 CLI agent。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">ACP = 編輯器↔agent 的 JSON-RPC stdio 協定</span>Hermes 既是 <strong>ACP server</strong>(把自己暴露給編輯器,<span class="fp">acp_adapter/server.py</span> 的 <code>HermesACPAgent</code>),也透過 MCP 當 <strong>client</strong> 消費外部 server。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>ACP server</strong>:entry <code>hermes acp</code> → <code>HermesACPAgent</code>;<code>new_session/prompt/cancel/fork_session</code>;callback 經 <code>events.py</code> 轉 ACP <code>session_update</code>;核准經 <code>permissions.py</code> 對映(allow_once→once)。</li>
+    <li>暴露 <code>hermes-acp</code> 精選 toolset(檔案/terminal/web/browser/memory/skills…,排除訊息投遞/cron)。</li>
+    <li><strong>MCP client</strong>:<code>mcp_servers</code> config,stdio 或 HTTP;工具前綴 <code>mcp_&lt;server&gt;_&lt;tool&gt;</code>;OAuth 2.1(PKCE,token 存 <code>~/.hermes/mcp-tokens/</code>)、mTLS;per-server include/exclude 過濾;動態 <code>tools/list_changed</code>;MCP sampling(server 反向要 LLM)。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:MCP server 工具如何進 registry</h2>
+    <p class="intro">啟動時連線、發現、前綴、過濾、註冊。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">連線</div><div class="sd">stdio / HTTP(+OAuth)</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">discover</div><div class="sd">list tools</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">前綴+過濾</div><div class="sd">mcp_x_y / include-exclude</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">註冊</div><div class="sd">進 registry</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1-2</span>連線 + 發現<span class="stag">mcp_servers</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span><code>mcp_servers</code> config</div><div class="field f-basis"><span class="fl">判斷依據</span>stdio→起子進程;HTTP→連端點,<code>auth: oauth</code> 走 PKCE;list tools/resources/prompts</div><div class="field f-why"><span class="fl">設計思維</span>不必寫原生工具即接外部生態;capability-aware 只註冊支援的 utility 工具</div><div class="field f-out"><span class="fl">輸出</span>外部工具清單</div><div class="field f-edge"><span class="fl">邊界</span>token 存 <code>~/.hermes/mcp-tokens/</code>(0600)</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">3-4</span>前綴 + 過濾 + 註冊<span class="stag">mcp_&lt;server&gt;_&lt;tool&gt;</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>發現的工具</div><div class="field f-basis"><span class="fl">判斷依據</span>加前綴避免衝突;per-server <code>include/exclude</code> 過濾;<code>tools/list_changed</code> 自動 re-fetch</div><div class="field f-why"><span class="fl">設計思維</span>前綴隔離命名空間;過濾控制曝險(如排除 delete_customer)</div><div class="field f-out"><span class="fl">輸出</span>註冊進 registry,模型可呼叫</div><div class="field f-edge"><span class="fl">邊界</span>MCP sampling 讓 server 反向要 Hermes 做 LLM 推理</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>編輯器/外部 client 經 ACP 連入。<strong>下游:</strong>MCP 工具與原生 <a onclick="go('c-tools')">tools</a> 一起進 registry;ACP session 也存 <a onclick="go('c-session')">state.db</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>mcp_servers:
+  github:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    tools: { include: [create_issue, list_issues] }
+  linear:
+    url: "https://mcp.linear.app/mcp"
+    auth: oauth</code></pre>
+</section>
+
+<!-- ============ 元件:Gateway ============ -->
+<section class="pane" id="c-gateway">
+  <div class="page-kicker">元件詳解 · 對外</div>
+  <h1 class="page">Gateway & 平台</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-substrate')">跑在某 substrate</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>單一 GatewayRunner 接多平台、授權、算 session key</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-loop')">建 AIAgent</a><a onclick="go('c-session')">session</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>在你已用的訊息軟體回應你,需要一個常駐進程統一接所有平台、做授權與路由,讓 agent 不綁筆電。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">一個 GatewayRunner、多 adapter</span>所有平台 adapter 繼承 <code>BasePlatformAdapter</code>(connect/disconnect/send_message/on_message),匯入 <code>_handle_message()</code>。<span class="fp">gateway/run.py</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>平台</strong>:核心直連(signal/weixin/bluebubbles/qqbot/webhook/api_server…)+ plugin 包裝(telegram/discord/slack/whatsapp/matrix/teams/line/feishu…)。</li>
+    <li><strong>session key</strong>:<code>agent:main:{platform}:{chat_type}:{chat_id}</code>(thread-aware);用 <code>build_session_key()</code>,勿手構。</li>
+    <li><strong>授權</strong>(依序):per-platform allow-all → allowlist → DM pairing → 全域 allow-all → 預設 deny。</li>
+    <li><strong>雙層訊息守衛</strong>:base adapter 檢查 active session(忙則佇列+中斷事件);runner 攔 <code>/stop /new /queue /status /approve /deny</code>(inline 派發避免 race)。</li>
+    <li><strong>token lock</strong>:<code>acquire_scoped_lock()</code> 防兩 profile 同時用同 bot token。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:inbound 訊息授權與路由</h2>
+    <p class="intro">從平台事件到建立 agent 的決策鏈。</p>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>此 sender 獲授權?<span class="qmeta">多層,依序</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">通過任一層</span><span class="dres">platform allow-all → allowlist → DM pairing → 全域 allow-all</span></div>
+          <div class="dbranch no"><span class="dtag">皆否</span><span class="dres">預設 <span class="dwin r">deny</span></span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>是控制指令還是對話?</div>
+        <div class="dbranches">
+          <div class="dbranch cs"><span class="dtag">/stop /new…</span><span class="dres">runner 攔截 inline 派發(避免 race)</span></div>
+          <div class="dbranch yes"><span class="dtag">對話</span><span class="dres">算 session key → 建 AIAgent → run_conversation</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>正規化 + 授權<span class="stag">on_message</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>平台原生事件</div><div class="field f-basis"><span class="fl">判斷依據</span>adapter 正規化成 MessageEvent;多層授權依序,首個通過即放行</div><div class="field f-why"><span class="fl">設計思維</span>DM pairing 讓已授權者用配對碼授權新人,免改 config</div><div class="field f-out"><span class="fl">輸出</span>授權的 MessageEvent</div><div class="field f-edge"><span class="fl">邊界</span>語音備忘錄先轉錄;token lock 防衝突</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>session key + 建 agent<span class="stag">build_session_key</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>platform/chat_type/chat_id/thread</div><div class="field f-basis"><span class="fl">判斷依據</span><code>agent:main:{platform}:{chat_type}:{chat_id}</code>;thread-aware</div><div class="field f-why"><span class="fl">設計思維</span>確定性 key 讓跨平台對話連續性可控</div><div class="field f-out"><span class="fl">輸出</span>帶 session 歷史的 AIAgent</div><div class="field f-edge"><span class="fl">邊界</span>active session 忙 → 佇列 + 中斷事件</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>跑在某 <a onclick="go('c-substrate')">substrate</a>。<strong>下游:</strong>建 <a onclick="go('c-loop')">AIAgent</a>、用 <a onclick="go('c-session')">session</a>;cron 投遞也走這裡(<a onclick="go('c-cron')">Cron</a>)。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>TELEGRAM_ALLOWED_USERS="123,456"
+# DM pairing: 管理員 /pair → 取得碼 → 新使用者輸入碼 → 授權</code></pre>
+</section>
+
+<!-- ============ 元件:Substrate ============ -->
+<section class="pane" id="c-substrate">
+  <div class="page-kicker">元件詳解 · 棲身</div>
+  <h1 class="page">Substrate & 6 Terminal Backends</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><span>無 ── 這是地基</span></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>工具執行落在哪:6 種 terminal backend</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-gateway')">承載 gateway</a><a onclick="go('c-tools')">執行 terminal 工具</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>agent 要「隨時在線、可隔離、可彈性算力、閒置近零成本」。把工具執行環境抽象成可插拔 backend,就能在筆電/VPS/雲/serverless 間自由切換。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">TerminalEnvironment ABC + 6 實作</span><code>tools/environments/{local,docker,ssh,singularity,modal,daytona}.py</code>;<code>terminal.backend</code> 一鍵切換。Daytona/Modal 提供 <strong>serverless 休眠</strong>。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>Backend</th><th>在哪</th><th>隔離</th><th>最適合</th></tr>
+    <tr><td><strong>local</strong></td><td>本機直接</td><td>無</td><td>開發、個人用(預設)</td></tr>
+    <tr><td><strong>docker</strong></td><td>常駐容器</td><td>完整(namespace、cap-drop)</td><td>安全沙箱</td></tr>
+    <tr><td><strong>ssh</strong></td><td>遠端伺服器</td><td>網路邊界</td><td>遠端開發、強硬體</td></tr>
+    <tr><td><strong>singularity</strong></td><td>Apptainer 容器</td><td>namespace(--containall)</td><td>HPC cluster</td></tr>
+    <tr><td><strong>modal</strong></td><td>Modal 雲沙箱</td><td>完整(雲 VM)</td><td>短暫算力、eval;<strong>serverless 休眠</strong></td></tr>
+    <tr><td><strong>daytona</strong></td><td>Daytona workspace</td><td>完整(雲容器)</td><td>代管雲開發;<strong>serverless 休眠</strong></td></tr>
+  </table></div>
+  <p><code>home_mode</code>(local):<code>auto</code>(host 用真 HOME、容器用 profile HOME)/ <code>real</code> / <code>profile</code>(嚴格隔離)。</p>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:terminal 工具落到哪執行</h2>
+    <p class="intro">backend 決定執行位置與隔離強度;serverless 的喚醒/休眠是省成本關鍵。</p>
+    <div class="dflow">
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span><code>terminal.backend</code> = ?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">local</span><span class="dres">本機直接跑(無隔離)</span></div>
+          <div class="dbranch cs"><span class="dtag">docker/singularity</span><span class="dres">常駐容器,跨 session/subagent 共用</span></div>
+          <div class="dbranch cs"><span class="dtag">ssh</span><span class="dres">遠端主機執行(workspace remote-canonical)</span></div>
+          <div class="dbranch cs"><span class="dtag">modal/daytona</span><span class="dres">雲沙箱;<b>閒置休眠、用時喚醒</b>(near-zero idle cost)</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>解析 backend + 環境<span class="stag">TerminalEnvironment</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span><code>terminal.backend</code>、image、env_passthrough</div><div class="field f-basis"><span class="fl">判斷依據</span>實例化對應 backend;容器/雲類拉 image(<code>nikolaik/python-nodejs</code> 預設)</div><div class="field f-why"><span class="fl">設計思維</span>同一 agent 行為、不同執行姿態 ── $5 VPS 到 GPU cluster 無縫</div><div class="field f-out"><span class="fl">輸出</span>就緒的執行環境</div><div class="field f-edge"><span class="fl">邊界</span>serverless 首次喚醒有冷啟延遲</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>持久化 + 休眠<span class="stag">container_persistent</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>工具執行請求</div><div class="field f-basis"><span class="fl">判斷依據</span>docker 容器跨 session 共用;modal/daytona 狀態經 <code>container_persistent:true</code> 在休眠間保留</div><div class="field f-why"><span class="fl">設計思維</span>環境連續性(裝過的東西還在)+ 閒置近零成本</div><div class="field f-out"><span class="fl">輸出</span>命令結果</div><div class="field f-edge"><span class="fl">邊界</span>per-command timeout 預設 180s</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>下游:</strong>承載 <a onclick="go('c-gateway')">gateway</a> 進程;<a onclick="go('c-tools')">terminal/code 工具</a>在此執行;隔離強度與 <a onclick="go('c-security')">Security</a> 相關;<a onclick="go('c-delegation')">子代理</a>各有自己的 terminal session。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>terminal:
+  backend: daytona          # local|docker|ssh|singularity|modal|daytona
+  timeout: 180
+  daytona_image: "nikolaik/python-nodejs:python3.11-nodejs20"
+  home_mode: auto</code></pre>
+</section>
+
+<!-- ============ 元件:Delegation/Kanban ============ -->
+<section class="pane" id="c-delegation">
+  <div class="page-kicker">元件詳解 · 治理</div>
+  <h1 class="page">Delegation & Kanban</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">delegate_task 工具</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>子代理並行(同進程)+ Kanban 多進程 worker lanes</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-substrate')">各自 terminal session</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>複雜任務要並行多工作流而不污染主 context;長期/跨進程協作則需要更耐久、可審計的看板,而非脆弱的 in-process swarm。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">兩個層級</span><strong>delegate_task</strong>:同 gateway 內 spawn 子 AIAgent(隔離 context、受限 toolset、各自 terminal),只回最終摘要進父 context。<strong>Kanban</strong>:SQLite 看板(<code>~/.hermes/kanban.db</code>),每個 worker 是<strong>獨立 OS 進程</strong>(<code>hermes -p &lt;assignee&gt; chat -q</code>)。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>delegation</strong>:預設最多 3 並行子代理;巢狀需 <code>role="orchestrator"</code>(<code>max_spawn_depth</code> 預設 1=扁平);葉子不能再 delegate/clarify/memory/send_message/execute_code;中斷父則中斷所有子;子繼承父的 key/provider/credential pool;可用便宜模型(<code>delegation.model</code>)。</li>
+    <li><strong>Kanban worker lane</strong>:assignee(profile 名)+ spawn 機制(注入 <code>HERMES_KANBAN_*</code> 環境變數)+ 生命週期終止(<code>kanban_complete</code> / <code>kanban_block</code> / 進程退出);review-required block 模式;stale claim TTL(15min)、crash 偵測、consecutive-failure breaker、max_runtime。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:delegate vs kanban 怎麼選 + worker 生命週期</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>是短暫並行子任務還是長期跨進程協作?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">短暫並行</span><span class="dres"><b>delegate_task</b>:同進程 spawn,回摘要;省 token</span></div>
+          <div class="dbranch cs"><span class="dtag">長期/可審計</span><span class="dres"><b>Kanban</b>:多進程 worker,SQLite 看板,人可介入</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>Kanban worker 如何終止?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">complete</span><span class="dres"><code>kanban_complete</code> → done</span></div>
+          <div class="dbranch cs"><span class="dtag">block</span><span class="dres"><code>kanban_block(reason="review-required: …")</code> → 等人 unblock 後 respawn</span></div>
+          <div class="dbranch no"><span class="dtag">退出無呼叫</span><span class="dres">reap → crashed / gave_up / timed_out</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>delegate_task spawn<span class="stag">async_delegation</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>goal、context、toolsets(可批次)</div><div class="field f-basis"><span class="fl">判斷依據</span>spawn 子 AIAgent;最多 3 並行;只回最終摘要</div><div class="field f-why"><span class="fl">設計思維</span>隔離 context + 只回摘要 → token 高效</div><div class="field f-out"><span class="fl">輸出</span>摘要進父 context</div><div class="field f-edge"><span class="fl">邊界</span>葉子不能再 spawn(除非 orchestrator 且 depth≥2)</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>Kanban 派工 + 防呆<span class="stag">dispatcher</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>task row(assignee、workspace)</div><div class="field f-basis"><span class="fl">判斷依據</span>assignee 對映 profile → <code>_default_spawn</code> 注入 <code>HERMES_KANBAN_*</code> 起進程;claim/heartbeat 機制</div><div class="field f-why"><span class="fl">設計思維</span>每 worker 是完整 OS 進程有自己身分 → 比 in-process swarm 穩</div><div class="field f-out"><span class="fl">輸出</span>worker 進程 + task_runs/task_events 審計</div><div class="field f-edge"><span class="fl">邊界</span>stale claim 15min 才回收(且需進程已死);crash → consecutive_failures → 可 auto-block</div></div></div>
+  </div>
+
+  <h2>Kanban 深入:多進程協作看板</h2>
+  <p>Kanban 是一個 <strong>SQLite 支撐的任務看板</strong>,讓多個 Hermes agent(各自是獨立 OS 進程)像團隊一樣協作 ── 每個任務是一列、每次交接也是一列、每個 worker 是有自己身分的完整進程。它要取代的是「在同一進程裡硬塞一堆 subagent」那種脆弱做法。</p>
+
+  <h3>跟 delegate_task 差在哪(為什麼要有它)</h3>
+  <div class="scrollwrap"><table>
+    <tr><th>面向</th><th>delegate_task(子代理)</th><th>Kanban</th></tr>
+    <tr><td>worker 是什麼</td><td>同進程裡 fork 的子 agent</td><td><strong>獨立 OS 進程</strong>(<code>hermes -p &lt;name&gt;</code>)</td></tr>
+    <tr><td>持久性</td><td>在記憶體、隨主進程消失</td><td><strong>存 SQLite,跨重啟存活</strong></td></tr>
+    <tr><td>人能介入嗎</td><td>不太行</td><td><strong>能</strong>(CLI / dashboard 隨時看與改)</td></tr>
+    <tr><td>適合</td><td>短暫並行子任務、回個摘要</td><td>長期、可審計、需人介入的協作</td></tr>
+  </table></div>
+
+  <h3>運作機制</h3>
+  <div class="implgroup">
+    <div class="gh">儲存與兩個操作介面</div>
+    <div class="implrow">
+      <div class="it">看板儲存<br><code>~/.hermes/kanban.db</code></div>
+      <div class="ix">整塊看板是 SQLite。每個任務 = 一列(task row),帶 <code>assignee</code>(指派給誰)、<code>workspace</code>(在哪個目錄做)、狀態等。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">Agent 介面<br><code>kanban_*</code> toolset</div>
+      <div class="ix"><code>kanban_create / show / list / complete / block / unblock / comment / link / heartbeat</code> ── agent 直接用工具驅動看板。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">人類介面<br><code>hermes kanban</code> / <code>/kanban</code> / dashboard</div>
+      <div class="ix">人用 CLI、slash 指令或儀表板操作;兩個介面都走同一層 <code>kanban_db</code>,看到的是同一塊看板。</div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">dispatcher 派工流程</div>
+    <div class="implrow">
+      <div class="it">挑任務 + spawn</div>
+      <div class="ix">看板上有 <code>ready</code> 任務 → dispatcher 看它的 <code>assignee</code>(對映到某個 Hermes profile)→ <code>_default_spawn</code> 起進程:<code>hermes -p &lt;assignee&gt; chat -q "&lt;任務 prompt&gt;"</code>。<a class="deep" onclick="go('c-gateway')">→ Profile</a></div>
+    </div>
+    <div class="implrow">
+      <div class="it">注入環境變數</div>
+      <div class="ix">讓 worker 知道自己在做哪張卡:<code>HERMES_KANBAN_TASK</code>(任務 id)、<code>HERMES_KANBAN_DB</code>、<code>HERMES_KANBAN_WORKSPACE</code>(這張卡的工作目錄)、<code>HERMES_KANBAN_RUN_ID</code>、claim lock 等。worker 是個<strong>完整的 Hermes agent</strong>,在自己被 pin 的 workspace 裡幹活。<a class="deep" onclick="go('c-substrate')">→ workspace/terminal</a></div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">worker 怎麼結束(三種生命週期終止子,必須三選一)</div>
+    <div class="implrow">
+      <div class="it">✅ <code>kanban_complete(summary=…)</code></div>
+      <div class="ix">任務成功 → 狀態 <code>done</code>。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">⏸ <code>kanban_block(reason=…)</code></div>
+      <div class="ix">卡住、等人處理 → 狀態 <code>blocked</code>;人 <code>kanban_unblock</code> 後 dispatcher 會<strong>重新 spawn</strong> 它接續。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">💥 進程掛了沒呼叫工具</div>
+      <div class="ix">被回收(reap),依情況標成 <code>crashed</code> / <code>gave_up</code> / <code>timed_out</code>。</div>
+    </div>
+  </div>
+
+  <div class="callout note"><span class="ct">review-required 慣例(內建人類審核關卡)</span>改程式碼的任務,推薦<strong>不要直接 complete</strong>,而是 <code>kanban_block(reason="review-required: …")</code> + 用 <code>kanban_comment</code> 留結構化說明 → 在儀表板上顯示為「待審核」;reviewer 看完 <code>unblock</code>(帶評論重新 spawn)或要求修改。等於把「人類在迴圈中」做進機制裡。</div>
+
+  <h3>能做到什麼</h3>
+  <div class="mechgrid">
+    <div class="mechcard"><h4>多 agent 並行協作</h4><p>不同 profile(可不同人格/技能組)各認領各的卡,真正平行跑。</p></div>
+    <div class="mechcard"><h4>任務依賴與交接</h4><p><code>kanban_link</code> 串任務、<code>block/unblock</code> 表達「等別人先做完」;交接都是看板上一列,人或 agent 都能讀寫。</p></div>
+    <div class="mechcard"><h4>人機混合工作流</h4><p>人開卡、agent 做、人審核 ── 像用 Trello/Jira,但執行者是 AI。</p></div>
+    <div class="mechcard"><h4>長時間、跨重啟</h4><p>狀態在 SQLite,gateway 重啟、worker 換機都不丟。</p></div>
+    <div class="mechcard"><h4>完整稽核軌跡</h4><p>每任務有 stdout/stderr log、<code>task_runs</code>(每次執行 exit code/summary)、<code>task_events</code>(promoted/claimed/heartbeat/completed/blocked/crashed…);<code>hermes kanban tail &lt;id&gt;</code> 即時、<code>runs &lt;id&gt;</code> 歷史。</p></div>
+  </div>
+
+  <h3>優勢(為什麼這設計好)</h3>
+  <div class="callout key"><span class="ct">① 進程級隔離 = 穩</span>每個 worker 是獨立 OS 進程、有自己身分。一個 worker 崩了不會拖垮別人或主 gateway ── 比「in-process subagent 群」健壯太多(這正是它的設計動機)。</div>
+  <div class="callout key"><span class="ct">② 耐久 + 可恢復(內建四項防呆)</span><strong>stale claim TTL</strong>(預設 15 分鐘):認領卻不 heartbeat/完成的 worker,<em>確認進程已死</em>才回收(活著的會 extend 而非被搶);<strong>crash 偵測 + consecutive-failure 斷路器</strong>:一直失敗的任務自動 block,不無限重跑燒資源;<strong>per-task max runtime</strong>:硬上限防單一任務跑到天荒地老;<strong>stranded 偵測</strong>:ready 卻長期沒人認領的卡在 <code>hermes kanban diagnostics</code> 報警。</div>
+  <div class="callout key"><span class="ct">③ 可觀測、可審計</span>每一步都是看板上的列 + log,出事可回溯;不是黑箱 swarm。</div>
+  <div class="callout key"><span class="ct">④ 人能隨時介入</span>review-required、comment、unblock ── 把「人類在迴圈」做進機制,適合需要把關的正式工作。</div>
+  <div class="callout key"><span class="ct">⑤ 天然對接多 profile</span>worker 就是 <code>hermes -p &lt;profile&gt;</code>,可用不同 profile 當不同「角色工人」(如 <code>coder</code>、<code>reviewer</code>、<code>researcher</code>),各有各的技能/人格。<a class="deep" onclick="go('c-gateway')">→ Profile</a></div>
+
+  <div class="callout note"><span class="ct">一個具體想像</span>你開三張卡:<code>研究競品</code>(指派 <code>researcher</code>)、<code>寫實作</code>(指派 <code>coder</code>,<code>link</code> 依賴前一張)、<code>審查</code>(<code>review-required</code>)。dispatcher 各自 spawn 一個 <code>hermes -p …</code> 進程;coder 做完不 complete 而是 block 成「待審」;你在 dashboard 看 diff、留 comment、unblock → coder 進程帶著你的意見重新跑修。<strong>全程狀態在 SQLite,中途關機再開都接得回來。</strong><span class="src">env 變數名/TTL 預設值為 repo 2026 快照研讀整理,正式引用前建議再對一次 source。</span></div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-loop')">迴圈</a>呼叫 delegate_task。<strong>下游:</strong>子代理/worker 各有 <a onclick="go('c-substrate')">terminal session</a>;Kanban worker 是獨立 <code>hermes</code> 進程(經 <a onclick="go('c-gateway')">profile</a>)。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>delegate_task(tasks=[
+  {"goal":"Research topic A","toolsets":["web"]},
+  {"goal":"Fix the build","toolsets":["terminal","file"]}])
+# delegation: { model: "google/gemini-flash-2.0", max_concurrent_children: 3, max_spawn_depth: 1 }</code></pre>
+</section>
+
+<!-- ============ 元件:Cron/Plugins ============ -->
+<section class="pane" id="c-cron">
+  <div class="page-kicker">元件詳解 · 治理</div>
+  <h1 class="page">Cron & Plugins</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-gateway')">gateway daemon tick</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>內建排程(自然語言)+ plugin 擴充架構</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-loop')">排程觸發 agent</a><a onclick="go('selflearn')">★ suggestions</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>有用的助理要能主動(定時報告/備份/稽核),且核心要精簡、能力以 plugin 擴充。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">gateway 內建排程,非 shell cron</span>gateway daemon 每 60s tick;jobs 存 <code>~/.hermes/cron/jobs.json</code>,輸出 <code>~/.hermes/cron/output/</code>;檔鎖防重疊 tick。<span class="fp">cron/scheduler.py</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>建立</strong>:<code>/cron add "every 2h" "Check server status"</code>;可掛 <code>--skill</code>(多技能組合)。</li>
+    <li><strong>no-agent 模式</strong>:純腳本排程,stdout 原樣投遞,零 LLM(watchdog/heartbeat)。</li>
+    <li><strong>投遞</strong>:origin/local/各平台/all;<strong>context 鏈</strong>(<code>context_from</code> 讓 job2 收 job1 輸出)。</li>
+    <li><strong>plugins</strong>:<code>plugins/</code> 下 browser/memory/model-providers/image_gen/video_gen/kanban/observability/spotify…;<code>ctx.register_hook()</code> 掛 tool 攔截/metrics/guardrail。</li>
+    <li><strong>★ suggestions</strong>:<code>cron/suggestions.py</code> + catalog ── agent 可建議自動化(daily briefing/重要信監看/週回顧),使用者接受才建。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:cron tick 與投遞</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">daemon tick</div><div class="sd">每 60s</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">到期?</div><div class="sd">取檔鎖</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">執行</div><div class="sd">agent 或 no-agent 腳本</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">投遞</div><div class="sd">平台/local/all</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>tick + 取鎖<span class="stag">.tick.lock</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>jobs.json、現在時間</div><div class="field f-basis"><span class="fl">判斷依據</span>每 60s 掃到期 job;<code>.tick.lock</code> 防重疊</div><div class="field f-why"><span class="fl">設計思維</span>排程跑在 gateway 內 → 一個常駐進程管全部,免外部 cron</div><div class="field f-out"><span class="fl">輸出</span>待執行 job 清單</div><div class="field f-edge"><span class="fl">邊界</span>no-agent 預設 120s timeout</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>執行 + context 鏈<span class="stag">context_from</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>job prompt /(可選)上游 job 輸出</div><div class="field f-basis"><span class="fl">判斷依據</span>agent 模式跑 run_conversation;<code>context_from</code> 把前一 job 輸出當 context</div><div class="field f-why"><span class="fl">設計思維</span>job 鏈組合(收集→評分)無需單一巨型 prompt</div><div class="field f-out"><span class="fl">輸出</span>投遞到指定平台/local/all</div><div class="field f-edge"><span class="fl">邊界</span>失敗有輸出檔可查</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-gateway')">gateway daemon</a> tick。<strong>下游:</strong>排程觸發 <a onclick="go('c-loop')">agent</a>;<a onclick="go('selflearn')">★ suggestions</a> 是自學迴圈的一環;plugin 擴充 <a onclick="go('c-tools')">tools</a>/<a onclick="go('c-gateway')">平台</a>/<a onclick="go('c-memory')">memory</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>/cron add "0 7 * * *" "Fetch top 10 AI stories" --name "Collector"
+/cron add "30 7 * * *" "Score each story" --context-from &lt;collector_id&gt; --name "Triage"</code></pre>
+</section>
+
+<!-- ============ 元件:Security ============ -->
+<section class="pane" id="c-security">
+  <div class="page-kicker">元件詳解 · 治理</div>
+  <h1 class="page">Security & RL 研究角度</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-substrate')">backend 隔離</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>危險指令核准 · 威脅掃描 · 網路 egress 隔離</span></div>
+    <div class="relbox down"><div class="rl">約束對象</div><a onclick="go('c-tools')">exec/工具</a><a onclick="go('c-memory')">memory 內容</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>能跑 shell、開瀏覽器、裝 MCP 的 agent 既強大也危險。需要明確的核准閘、內容掃描與網路隔離,讓強大與安全可取捨。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout warn"><span class="ct">多道防線</span>① <strong>DANGEROUS_PATTERNS</strong> 核准(rm -rf / mkfs / DROP TABLE / curl|sh…)② <strong>威脅掃描</strong>(memory/context/SOUL 載入與寫入,中毒換 <code>[BLOCKED]</code>)③ <strong>網路 egress 隔離</strong>(docs/security/network-egress-isolation.md)④ backend 隔離(docker/modal/daytona)。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>核准流</strong>:CLI 互動 / gateway 非同步回呼;可選 LLM 智能自動核准低風險;一次核准本 session 不再問;allow permanently 寫 config。</li>
+    <li><strong>憑證隔離</strong>:provider key 只送對應 host(OPENROUTER_API_KEY 只給 openrouter.ai)。</li>
+    <li><strong>memory 掃描 scope strict</strong>(因進 frozen prompt,一則中毒污染整個 session)。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:危險指令核准 + RL 資料管線</h2>
+    <p class="intro">前者是 runtime 安全;後者是離線研究,刻意與 runtime 自學分開。</p>
+    <div class="dflow">
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>指令命中 DANGEROUS_PATTERNS?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">核准回呼(CLI 互動 / 平台訊息);LLM 可自動核准低風險;一次核准本 session 不再問</span></div>
+          <div class="dbranch no"><span class="dtag">未命中</span><span class="dres">直接執行</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>偵測 + 核准<span class="stag">detect_dangerous_command</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>將執行的 shell 指令</div><div class="field f-basis"><span class="fl">判斷依據</span>regex 比對 DANGEROUS_PATTERNS;命中走核准路徑</div><div class="field f-why"><span class="fl">設計思維</span>強大但有護欄;session 級記憶免重複打擾</div><div class="field f-out"><span class="fl">輸出</span>執行 或 拒絕</div><div class="field f-edge"><span class="fl">邊界</span>obfuscation 可能繞過(已知殘餘風險)</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>RL 資料管線(離線,另案)<span class="stag">batch_runner / trajectory_compressor</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>大量任務 / 既有 trajectory</div><div class="field f-basis"><span class="fl">判斷依據</span><code>batch_runner.py</code> 批次跑生成 trajectory;<code>trajectory_compressor.py</code> 壓縮成訓練資料</div><div class="field f-why"><span class="fl">設計思維</span>產生訓練下一代 tool-calling 模型的資料 ── 這才是「動權重」的地方,且在<strong>離線</strong>發生</div><div class="field f-out"><span class="fl">輸出</span>trajectory 訓練集</div><div class="field f-edge"><span class="fl">邊界</span><strong>與 runtime 自我學習無關</strong> ── 後者只累積記憶/技能,不動權重</div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居(橫切)</span><strong>約束對象:</strong><a onclick="go('c-tools')">exec/工具</a>(危險核准)、<a onclick="go('c-memory')">memory 內容</a>(威脅掃描)、<a onclick="go('c-prompt')">context/SOUL</a>(載入掃描);隔離強度由 <a onclick="go('c-substrate')">backend</a> 提供。RL 管線與 <a onclick="go('selflearn')">★ runtime 自學</a> 明確分離。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code># 危險指令核准記憶在 session;allow permanently 寫入 config.yaml
+# 離線 RL: python batch_runner.py ... ; python trajectory_compressor.py ...</code></pre>
+</section>
+
+</main>
+
+<footer>
+  <p>本文件由研讀 Hermes Agent 開源 repo(<a href="https://github.com/NousResearch/hermes-agent">github.com/NousResearch/hermes-agent</a>)的 <code>website/docs/**</code> 與真實原始碼(<code>agent/</code>、<code>gateway/</code>、<code>tools/</code>、<code>cron/</code>、<code>acp_adapter/</code>…)整理而成。核心重點 ── <strong>自我學習迴圈</strong> ── 獨立成專章。每個主張皆標註來源(<span class="src">docs/...</span>、<span class="fp">agent/...</span>)以利查證。版本對應 repo 約 2026 年快照。</p>
+  <p>☤ <strong>The self-improving AI agent</strong> · Built by Nous Research · 為 Cathay DDT_MLE openclaw_design 整理 · 可與 <code>openclaw-architecture.html</code> 並排對照</p>
+</footer>
+
+<script>
+const COMP = new Set(['comp-home','c-loop','c-prompt','c-session','c-context','c-memory','c-tools','c-skills','c-acp','c-gateway','c-substrate','c-delegation','c-cron','c-security']);
+function go(id){
+  if(!document.getElementById(id)) return;
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));
+  const t1 = COMP.has(id) ? 'comp-home' : id;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t1));
+  const sub=document.getElementById('subtabs');
+  if(COMP.has(id)){ sub.classList.add('show'); } else { sub.classList.remove('show'); }
+  document.querySelectorAll('#subtabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+  history.replaceState(null,'','#'+id);
+}
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.tab);});
+document.getElementById('subtabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.tab);});
+window.addEventListener('DOMContentLoaded',()=>{const h=location.hash.slice(1);if(h&&document.getElementById(h))go(h);});
+</script>
+</body>
+</html>

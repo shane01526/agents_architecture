@@ -1,0 +1,8 @@
+# Local tooling / editor state — not part of the deploy
+.claude/
+.DS_Store
+Thumbs.db
+*.log
+
+# Private design source (not for publication)
+image.webp

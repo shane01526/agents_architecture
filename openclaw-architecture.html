@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw 框架架構詳解 · 三路徑導讀</title>
+<style>
+:root{
+  --bg:#0f1115; --bg2:#161922; --panel:#1b1f2a; --panel2:#222736;
+  --ink:#e7ecf3; --ink-dim:#a4adbe; --ink-faint:#6b7488;
+  --line:#2a3040; --line2:#363d50;
+  --accent:#ff7a45; --accent2:#ffa477; --accent-d:#c8542a;
+  --green:#3fb98c; --blue:#4f9cf0; --purple:#a880f0; --yellow:#e8c468; --red:#e26d6d;
+  --mono:"SFMono-Regular",ui-monospace,"Cascadia Code","Consolas",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.68;font-size:15px;}
+a{color:var(--accent2);text-decoration:none;cursor:pointer;}
+a:hover{text-decoration:underline;}
+code{font-family:var(--mono);font-size:.86em;background:#0c0e13;border:1px solid var(--line);border-radius:5px;padding:.08em .4em;color:#ffcda8;}
+pre{margin:0;}
+pre code{display:block;background:#0a0c11;border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;color:#cdd6e6;line-height:1.55;font-size:13px;}
+
+header.top{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,#12141b 72%,rgba(18,20,27,.93));border-bottom:1px solid var(--line);backdrop-filter:blur(8px);}
+.top-inner{max-width:1180px;margin:0 auto;padding:13px 26px 4px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.logo{font-size:21px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:10px;}
+.logo .claw{color:var(--accent);}
+.logo small{font-weight:500;font-size:12px;color:var(--ink-faint);letter-spacing:0;}
+.tagline{font-size:12.5px;color:var(--ink-dim);margin-left:auto;font-style:italic;}
+
+nav.tabs{max-width:1180px;margin:0 auto;padding:8px 18px 0;display:flex;gap:5px;flex-wrap:wrap;}
+nav.tabs button{appearance:none;border:1px solid transparent;background:none;color:var(--ink-dim);font-family:var(--sans);font-size:14px;font-weight:700;padding:11px 17px;cursor:pointer;border-radius:9px 9px 0 0;transition:.15s;white-space:nowrap;display:flex;align-items:center;gap:7px;}
+nav.tabs button .ic{font-size:15px;}
+nav.tabs button:hover{color:var(--ink);background:var(--panel);}
+nav.tabs button.active{color:var(--accent);background:var(--bg2);border-color:var(--line);border-bottom-color:var(--bg2);position:relative;top:1px;}
+
+nav.subtabs{max-width:1180px;margin:0 auto;padding:8px 20px 10px;display:none;gap:5px;flex-wrap:wrap;background:var(--bg2);border-bottom:1px solid var(--line);}
+nav.subtabs.show{display:flex;}
+nav.subtabs button{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink-dim);font-family:var(--sans);font-size:12.5px;font-weight:600;padding:6px 11px;cursor:pointer;border-radius:20px;transition:.13s;}
+nav.subtabs button:hover{color:var(--ink);border-color:var(--line2);}
+nav.subtabs button.active{color:#fff;background:var(--accent-d);border-color:var(--accent);}
+nav.subtabs .grp{font-size:11px;color:var(--ink-faint);align-self:center;font-weight:700;letter-spacing:.5px;margin:0 2px 0 8px;}
+
+main{max-width:1180px;margin:0 auto;padding:32px 26px 90px;}
+.pane{display:none;animation:fade .32s ease;}
+.pane.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+h1.page{font-size:29px;margin:0 0 4px;font-weight:800;letter-spacing:.3px;}
+.page-kicker{font-size:12.5px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:6px;}
+.page-sub{color:var(--ink-dim);font-size:15px;margin:0 0 24px;max-width:880px;}
+h2{font-size:20px;margin:38px 0 13px;padding-top:12px;font-weight:750;border-top:1px solid var(--line);color:#fff;}
+.pane h2:first-of-type{border-top:none;padding-top:0;}
+h3{font-size:16px;margin:24px 0 9px;font-weight:700;color:var(--accent2);}
+h4{font-size:14px;margin:16px 0 7px;font-weight:700;color:var(--ink);}
+p{margin:10px 0;}
+ul,ol{margin:10px 0;padding-left:22px;}
+li{margin:5px 0;}
+
+.lead{font-size:16px;color:var(--ink);background:linear-gradient(90deg,rgba(255,122,69,.10),transparent);border-left:3px solid var(--accent);padding:13px 17px;border-radius:0 8px 8px 0;margin:18px 0;}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:19px 21px;margin:16px 0;}
+.card.tight{padding:14px 17px;}
+.grid{display:grid;gap:15px;}
+.grid.c2{grid-template-columns:1fr 1fr;}
+.grid.c3{grid-template-columns:repeat(3,1fr);}
+.grid.c4{grid-template-columns:repeat(4,1fr);}
+@media(max-width:860px){.grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr;}}
+
+.callout{border-radius:10px;padding:12px 16px;margin:15px 0;font-size:14px;border:1px solid;}
+.callout .ct{font-weight:700;display:block;margin-bottom:3px;font-size:13px;letter-spacing:.3px;}
+.callout.note{background:rgba(79,156,240,.08);border-color:rgba(79,156,240,.4);} .callout.note .ct{color:var(--blue);}
+.callout.warn{background:rgba(232,196,104,.08);border-color:rgba(232,196,104,.4);} .callout.warn .ct{color:var(--yellow);}
+.callout.key{background:rgba(63,185,140,.08);border-color:rgba(63,185,140,.4);} .callout.key .ct{color:var(--green);}
+.callout.danger{background:rgba(226,109,109,.08);border-color:rgba(226,109,109,.4);} .callout.danger .ct{color:var(--red);}
+
+table{border-collapse:collapse;width:100%;margin:15px 0;font-size:13.5px;display:block;overflow-x:auto;}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top;}
+th{background:var(--panel2);color:#fff;font-weight:700;white-space:nowrap;}
+td{color:var(--ink-dim);} td strong,td code{color:var(--ink);}
+tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.4px;vertical-align:middle;}
+.pill.built{background:rgba(63,185,140,.16);color:var(--green);border:1px solid rgba(63,185,140,.4);}
+.pill.exp{background:rgba(168,128,240,.16);color:var(--purple);border:1px solid rgba(168,128,240,.4);}
+
+.fp{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);background:#0c0e13;border:1px solid var(--line);padding:1px 6px;border-radius:4px;}
+.src{font-size:12px;color:var(--ink-faint);font-style:italic;}
+
+/* section structure for component pages */
+.secnum{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent-d);color:#fff;font-size:13px;font-weight:800;margin-right:9px;vertical-align:middle;}
+.s-why h2{color:var(--yellow);}
+.section-why{background:rgba(232,196,104,.05);border:1px solid rgba(232,196,104,.25);border-radius:12px;padding:4px 18px 14px;margin:18px 0;}
+.section-why h2{border-top:none;padding-top:14px;}
+
+/* relations chips */
+.relbar{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap;margin:6px 0 22px;}
+.relbar .relbox{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 14px;}
+.relbar .relbox .rl{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--ink-faint);text-transform:uppercase;margin-bottom:5px;}
+.relbar .relbox.up{border-left:3px solid var(--blue);}
+.relbar .relbox.self{border-left:3px solid var(--accent);}
+.relbar .relbox.down{border-left:3px solid var(--green);}
+.relbar a{font-size:13px;display:inline-block;margin:1px 8px 1px 0;}
+
+/* flow / journey */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:16px 0;}
+.flow .step{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:11px 13px;}
+.flow .arrow{display:flex;align-items:center;color:var(--accent);font-size:19px;padding:0 5px;}
+.flow .step .sn{font-size:11px;color:var(--accent);font-weight:700;}
+.flow .step .sl{font-weight:700;font-size:13.5px;margin:2px 0;}
+.flow .step .sd{font-size:11.5px;color:var(--ink-dim);}
+
+/* journey stations */
+.station{display:grid;grid-template-columns:54px 1fr;gap:0;margin:0;}
+.station .rail{position:relative;display:flex;flex-direction:column;align-items:center;}
+.station .dot{width:34px;height:34px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);color:var(--accent);font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:2;flex:0 0 auto;}
+.station .line{width:2px;flex:1;background:var(--line2);margin:2px 0;}
+.station:last-child .line{display:none;}
+.station .body{padding:0 0 26px 18px;}
+.station .body h3{margin-top:2px;color:#fff;font-size:17px;}
+.station .body .what{color:var(--ink-dim);}
+.deep{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:700;background:rgba(255,122,69,.12);border:1px solid rgba(255,122,69,.4);color:var(--accent2);padding:4px 11px;border-radius:20px;}
+.deep:hover{text-decoration:none;background:rgba(255,122,69,.22);}
+
+/* layers (bottom-up) */
+.layer{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px 19px;margin:13px 0;border-left:4px solid var(--accent);}
+.layer .ltag{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);}
+.layer h3{margin:2px 0 6px;color:#fff;}
+.layer .need{font-size:13.5px;color:var(--yellow);background:rgba(232,196,104,.06);border-radius:7px;padding:7px 11px;margin:8px 0;}
+.layer.l0{border-left-color:#8a93a8;} .layer.l1{border-left-color:var(--purple);}
+.layer.l2{border-left-color:var(--accent);} .layer.l3{border-left-color:var(--blue);}
+.layer.l4{border-left-color:var(--green);} .layer.l5{border-left-color:#e08bc4;}
+.layer.l6{border-left-color:var(--red);}
+
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px;margin:10px 0;}
+.kv dt{font-weight:700;color:var(--accent2);font-family:var(--mono);font-size:12.5px;}
+.kv dd{margin:0;color:var(--ink-dim);}
+
+.spine{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;margin:16px 0;}
+.spine .row{display:flex;gap:9px;flex-wrap:wrap;margin:8px 0;}
+.spine .blk{flex:1;min-width:140px;background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:10px 12px;cursor:pointer;transition:.13s;}
+.spine .blk:hover{border-color:var(--accent);transform:translateY(-1px);}
+.spine .blk.hl{border-color:var(--accent);box-shadow:0 0 0 1px rgba(255,122,69,.3) inset;}
+.spine .blk .bt{font-weight:700;font-size:13px;}
+.spine .blk .bd{font-size:11px;color:var(--ink-faint);}
+.spine .bar{background:rgba(232,196,104,.07);border:1px dashed rgba(232,196,104,.45);border-radius:9px;padding:7px 12px;font-size:12px;color:var(--yellow);text-align:center;margin:8px 0;}
+
+.pathcards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:22px 0;}
+@media(max-width:860px){.pathcards{grid-template-columns:1fr;}}
+.pathcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;cursor:pointer;transition:.15s;}
+.pathcard:hover{border-color:var(--accent);transform:translateY(-2px);}
+.pathcard .pe{font-size:30px;}
+.pathcard h3{margin:8px 0 4px;color:#fff;}
+.pathcard .who{font-size:12.5px;color:var(--green);font-weight:700;margin-bottom:6px;}
+.pathcard p{font-size:13.5px;color:var(--ink-dim);margin:6px 0 0;}
+
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink-dim);margin:12px 0;}
+footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:12.5px;}
+.scrollwrap{overflow-x:auto;}
+.big-num{font-size:13px;color:var(--accent);font-weight:700;}
+.compgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:13px;margin:18px 0;}
+.compgrid .ci{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 15px;cursor:pointer;transition:.14s;}
+.compgrid .ci:hover{border-color:var(--accent);transform:translateY(-2px);}
+.compgrid .ci .cn{font-size:11px;color:var(--accent);font-weight:700;}
+.compgrid .ci h4{margin:3px 0 4px;color:#fff;}
+.compgrid .ci p{font-size:12.5px;color:var(--ink-dim);margin:0;}
+
+/* ===== 逐步推演 step-by-step ===== */
+.s-steps h2{color:var(--blue);}
+.section-steps{background:rgba(79,156,240,.045);border:1px solid rgba(79,156,240,.25);border-radius:12px;padding:4px 18px 16px;margin:18px 0;}
+.section-steps h2{border-top:none;padding-top:14px;}
+.section-steps .intro{font-size:13.5px;color:var(--ink-dim);margin:6px 0 14px;}
+.stepcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:13px 0;overflow:hidden;}
+.stepcard>.hd{background:var(--panel2);border-bottom:1px solid var(--line2);padding:9px 14px;font-weight:750;font-size:14.5px;color:#fff;display:flex;align-items:center;gap:9px;}
+.stepcard>.hd .sidx{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:13px;background:var(--blue);color:#0a0c11;font-size:12.5px;font-weight:800;}
+.stepcard>.hd .stag{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink-faint);}
+.stepcard .fields{display:grid;grid-template-columns:repeat(5,1fr);gap:0;}
+@media(max-width:900px){.stepcard .fields{grid-template-columns:1fr;}}
+.stepcard .field{padding:10px 13px;border-right:1px solid var(--line);font-size:12.5px;line-height:1.55;}
+.stepcard .field:last-child{border-right:none;}
+@media(max-width:900px){.stepcard .field{border-right:none;border-bottom:1px solid var(--line);}.stepcard .field:last-child{border-bottom:none;}}
+.stepcard .field .fl{display:block;font-size:10.5px;font-weight:800;letter-spacing:.4px;margin-bottom:5px;text-transform:uppercase;}
+.stepcard .field.f-in{border-top:2px solid var(--blue);} .stepcard .field.f-in .fl{color:var(--blue);}
+.stepcard .field.f-basis{border-top:2px solid var(--yellow);} .stepcard .field.f-basis .fl{color:var(--yellow);}
+.stepcard .field.f-why{border-top:2px solid var(--accent);} .stepcard .field.f-why .fl{color:var(--accent2);}
+.stepcard .field.f-out{border-top:2px solid var(--green);} .stepcard .field.f-out .fl{color:var(--green);}
+.stepcard .field.f-edge{border-top:2px solid var(--red);} .stepcard .field.f-edge .fl{color:var(--red);}
+.stepcard .field code{font-size:11px;padding:0 3px;}
+/* decision tree */
+.dtree{background:#0a0c11;border:1px solid var(--line);border-radius:11px;padding:16px 18px;margin:16px 0;font-family:var(--mono);font-size:12.5px;line-height:1.85;color:var(--ink-dim);overflow-x:auto;}
+.dtree .q{color:var(--yellow);font-weight:700;}
+.dtree .y{color:var(--green);} .dtree .n{color:var(--ink-faint);}
+.dtree .win{color:var(--accent2);font-weight:700;}
+.dtree b{color:var(--ink);}
+.stepnote{font-size:12.5px;color:var(--ink-faint);font-style:italic;margin:8px 0 0;}
+/* ===== 視覺化決策流 (取代 ASCII dtree) ===== */
+.dflow{margin:16px 0;}
+.dnode{margin:0 0 10px;}
+.dq{display:flex;align-items:baseline;gap:8px;background:rgba(232,196,104,.07);border:1px solid rgba(232,196,104,.32);border-radius:9px;padding:9px 13px;font-weight:700;font-size:13px;color:#fff;}
+.dq .qi{color:var(--yellow);font-weight:800;flex:0 0 auto;}
+.dq .qmeta{font-weight:500;color:var(--ink-faint);font-size:11px;font-family:var(--mono);margin-left:auto;}
+.dq.final{background:rgba(255,122,69,.09);border-color:rgba(255,122,69,.4);}
+.dq.final .qi{color:var(--accent);}
+.dbranches{margin:7px 0 0 16px;display:flex;flex-direction:column;gap:6px;border-left:2px solid var(--line2);padding-left:14px;}
+.dbranch{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;line-height:1.5;}
+.dtag{flex:0 0 auto;font-weight:800;font-size:10.5px;letter-spacing:.2px;padding:3px 9px;border-radius:20px;margin-top:1px;white-space:nowrap;}
+.dbranch.yes .dtag{background:rgba(63,185,140,.16);color:var(--green);border:1px solid rgba(63,185,140,.4);}
+.dbranch.no  .dtag{background:rgba(255,255,255,.03);color:var(--ink-faint);border:1px solid var(--line2);}
+.dbranch.cs  .dtag{background:rgba(79,156,240,.14);color:var(--blue);border:1px solid rgba(79,156,240,.4);}
+.dres{flex:1;color:var(--ink-dim);}
+.dres b{color:var(--ink);}
+.dres code{font-size:11px;}
+.dwin{display:inline-block;background:rgba(255,122,69,.13);border:1px solid rgba(255,122,69,.4);color:var(--accent2);border-radius:6px;padding:1px 8px;font-weight:700;font-family:var(--mono);font-size:11.5px;}
+.dwin.g{background:rgba(63,185,140,.12);border-color:rgba(63,185,140,.4);color:var(--green);}
+.dwin.r{background:rgba(226,109,109,.12);border-color:rgba(226,109,109,.4);color:var(--red);}
+.dnote{font-size:11px;color:var(--ink-faint);font-style:italic;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="logo"><span class="claw">🦞</span> OpenClaw <small>框架架構詳解 · 三路徑導讀</small></div>
+    <div class="hdr-actions" style="display:flex;align-items:center;gap:12px;margin-left:auto;flex:0 0 auto;">
+      <a class="hbtn-cmp" href="hermes-architecture.html#compare" title="三框架逐元件深度對比(比較頁在 Hermes 文件)" style="padding:6px 14px;border:1px solid rgba(168,128,240,.5);border-radius:20px;background:var(--panel);color:var(--purple);font-size:12.5px;font-weight:700;flex:0 0 auto;text-decoration:none;">⚖️ 比較</a>
+      <div class="docswitch" title="切換框架介紹" style="display:flex;border:1px solid var(--line2);border-radius:20px;overflow:hidden;font-size:12.5px;font-weight:700;flex:0 0 auto;">
+        <span style="padding:6px 12px;background:var(--accent-d);color:#fff;">🦞 OpenClaw</span>
+        <a href="hermes-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-left:1px solid var(--line2);">☤ Hermes</a>
+        <a href="claude-code-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-left:1px solid var(--line2);">✳ Claude Code</a>
+      </div>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="intro" class="active"><span class="ic">🧭</span>導讀</button>
+    <button data-tab="journey"><span class="ic">🚶</span>路徑一 · 訊息的旅程</button>
+    <button data-tab="bottomup"><span class="ic">🏗️</span>路徑二 · 由下而上</button>
+    <button data-tab="comp-home"><span class="ic">📚</span>元件詳解</button>
+  </nav>
+  <nav class="subtabs" id="subtabs">
+    <span class="grp">總覽</span>
+    <button data-tab="comp-home">元件地圖</button>
+    <span class="grp">基礎</span>
+    <button data-tab="c-substrate">棲身/Gateway</button>
+    <button data-tab="c-identity">身分/多代理</button>
+    <span class="grp">大腦</span>
+    <button data-tab="c-loop">Agent Loop</button>
+    <button data-tab="c-runtime">Runtime</button>
+    <span class="grp">記憶</span>
+    <button data-tab="c-session">Session</button>
+    <button data-tab="c-memory">Memory</button>
+    <button data-tab="c-context">Context/壓縮</button>
+    <span class="grp">能力</span>
+    <button data-tab="c-tools">Tools</button>
+    <button data-tab="c-skills">Skills</button>
+    <span class="grp">對外</span>
+    <button data-tab="c-channels">Channels</button>
+    <span class="grp">治理</span>
+    <button data-tab="c-automation">自動化/學習</button>
+    <button data-tab="c-plugins">Plugins</button>
+    <button data-tab="c-security">Security</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ================= 導讀 ================= -->
+<section class="pane active" id="intro">
+  <div class="page-kicker">START HERE · 導讀</div>
+  <h1 class="page">用三條思路理解 OpenClaw</h1>
+  <p class="page-sub">OpenClaw 是一個<strong>個人 AI 助理框架</strong>:跑在你自己的裝置上,透過你已經在用的訊息軟體回應你。它源自一個學習 AI 的個人實驗,歷經數次更名(Warelay → Clawdbot → Moltbot → OpenClaw)。本文件基於 OpenClaw 開源 repo 的 <code>docs/</code>、<code>src/</code>、<code>extensions/</code> 與部署檔逐一研讀整理,每個重要主張皆標註來源檔案路徑。</p>
+
+  <div class="lead">
+    <strong>一句話心智模型:Gateway 是 agent 的「家」</strong> ── 一個常駐的單一控制平面(control plane),擁有所有 session、channel 連線、認證與狀態;所有客戶端(CLI、Web UI、桌面 App、手機/headless 節點)都透過<strong>同一條 WebSocket</strong> 連到它。其餘所有子系統都圍繞 Gateway 運作。
+  </div>
+
+  <h2>為什麼用「三條路徑」而不是一份清單?</h2>
+  <p>上一版本把 10 個主題平行排列、各自陳述事實 ── 正確,但讀起來像參考手冊的傾倒,缺乏「<strong>為什麼這樣設計</strong>」的因果線。理解一個 agent 框架其實需要三種不同的思路,而它們指向<strong>同一組元件</strong>:</p>
+
+  <div class="pathcards">
+    <div class="pathcard" onclick="go('journey')">
+      <div class="pe">🚶</div>
+      <h3>路徑一 · 訊息的旅程</h3>
+      <div class="who">想知道「執行時實際發生什麼」</div>
+      <p>跟著一則訊息,從進站、路由、排隊、組裝脈絡、呼叫模型、跑工具、串流回覆,一路到寫回記憶與背景延續。<strong>動態、線性、有故事性。</strong></p>
+    </div>
+    <div class="pathcard" onclick="go('bottomup')">
+      <div class="pe">🏗️</div>
+      <h3>路徑二 · 由下而上</h3>
+      <div class="who">想建立「為什麼這樣分層」的直覺</div>
+      <p>從最底層的棲身環境開始往上疊:住哪 → 它是誰 → 怎麼想 → 記得什麼 → 能做什麼 → 怎麼對外 → 怎麼自主與被約束。<strong>靜態、結構性。</strong></p>
+    </div>
+    <div class="pathcard" onclick="go('comp-home')">
+      <div class="pe">📚</div>
+      <h3>元件詳解 · 問題導向</h3>
+      <div class="who">想深入單一 component</div>
+      <p>13 個元件,每個一律依固定 5 段結構:<strong>① 為什麼存在 ② 核心概念 ③ 運作機制 ④ 與其他元件的關係 ⑤ 範例/設定</strong>。把因果與關聯織進每一頁。</p>
+    </div>
+  </div>
+
+  <h2>架構脊椎(點任一塊可深入)</h2>
+  <p>下圖是一個 OpenClaw「數位同事」的解剖。<strong>核心 Runtime(操作狀態的邏輯)是脊椎</strong>;channel 從外界把訊息送進來、把回覆送出去;memory / skills / 自動化各是一塊。<span class="src">來源:docs/concepts/architecture.md、agent-runtime-architecture.md</span></p>
+  <div class="spine">
+    <div class="bar">治理 Harness(橫切全部):tool policy · exec approvals · sandbox · hooks · 資料邊界 · audit / trajectory</div>
+    <div class="row">
+      <div class="blk" onclick="go('c-channels')"><div class="bt">介面 Channel</div><div class="bd">WhatsApp/Telegram/Slack… + WebChat/TUI/Control UI</div></div>
+      <div class="blk" onclick="go('c-session')"><div class="bt">↔ Session 狀態</div><div class="bd">每 session 一條 JSONL transcript</div></div>
+      <div class="blk hl" onclick="go('c-loop')"><div class="bt">Agent Loop(編排者)</div><div class="bd">確定性控制 · 佇列/lane · 串流 · 壓縮 · 工具迴圈</div></div>
+      <div class="blk" onclick="go('c-runtime')"><div class="bt">Runtime(被選用)</div><div class="bd">openclaw · codex · copilot · claude-cli</div></div>
+    </div>
+    <div class="row">
+      <div class="blk" onclick="go('c-tools')"><div class="bt">能力 Tools</div><div class="bd">exec / browser / web / media / sessions / cron</div></div>
+      <div class="blk" onclick="go('c-skills')"><div class="bt">技能 Skills</div><div class="bd">Markdown 指令包</div></div>
+      <div class="blk" onclick="go('c-memory')"><div class="bt">記憶 Memory</div><div class="bd">短期 transcript + 長期 MEMORY.md</div></div>
+      <div class="blk" onclick="go('c-automation')"><div class="bt">學習 Learning</div><div class="bd">記憶累積 + dreaming(非權重微調)</div></div>
+    </div>
+    <div class="row">
+      <div class="blk" onclick="go('c-identity')"><div class="bt">身分 Identity</div><div class="bd">SOUL.md · AGENTS.md · 每 agent workspace</div></div>
+      <div class="blk" onclick="go('c-plugins')"><div class="bt">Plugins</div><div class="bd">一切皆 plugin:channel/provider/工具</div></div>
+      <div class="blk" onclick="go('c-substrate')"><div class="bt">棲身 Substrate</div><div class="bd">本機 / Pi / VPS / 雲端 / Docker / K8s</div></div>
+    </div>
+  </div>
+
+  <div class="grid c3">
+    <div class="callout key"><span class="ct">核心 Runtime ≠ 模型</span>Runtime 是<strong>確定性控制</strong>(狀態怎麼轉、護欄);模型負責<strong>非確定性推理</strong>(回什麼內容)。狀態轉移絕不交給 LLM。</div>
+    <div class="callout note"><span class="ct">一切皆 plugin</span>Channel、模型 provider、媒體/語音/搜尋 provider、甚至探索服務都是 plugin。Core 刻意精簡。<span class="src">VISION.md</span></div>
+    <div class="callout warn"><span class="ct">單一可信操作者</span>OpenClaw 是<strong>本機優先、給可信操作者</strong>的基礎設施,<em>不是</em>多租戶共享邊界。</div>
+  </div>
+  <div class="legend">
+    <span><span class="pill built">已實作</span> 程式碼可見</span>
+    <span><span class="pill exp">實驗性</span> experimental</span>
+    <span><span class="fp">src/path.ts</span> 真實程式碼/文件路徑</span>
+    <span><span class="deep">深入 →</span> 點擊跳到元件詳解</span>
+  </div>
+</section>
+
+<!-- ================= 路徑一:訊息的旅程 ================= -->
+<section class="pane" id="journey">
+  <div class="page-kicker">路徑一 · 動態視角</div>
+  <h1 class="page">🚶 一則訊息的旅程</h1>
+  <p class="page-sub">這條路徑跟著<strong>一則訊息從進來到回覆、再到背景延續</strong>的完整生命週期。每一站都標明它做什麼、為什麼重要,並提供「深入 →」連到對應的元件詳解。讀完這條路徑,你會理解 OpenClaw 在執行時實際發生了什麼。</p>
+
+  <div class="callout note"><span class="ct">舞台早已就緒</span>在第一則訊息抵達<em>之前</em>,<strong>Gateway 早已是一個常駐 process</strong>:它綁在 <code>127.0.0.1:18789</code>、維持著所有 channel 的連線(WhatsApp 的 Baileys session、Telegram 的 grammY 連線…)、載入好 plugin 與 skills 快照。旅程的每一步都發生在這個常駐的家裡。<a onclick="go('c-substrate')">→ 棲身/Gateway</a></div>
+
+  <div class="station"><div class="rail"><div class="dot">1</div><div class="line"></div></div><div class="body">
+    <h3>進站 · Channel adapter 把平台事件正規化</h3>
+    <p class="what">訊息先抵達對應的 channel adapter(每個平台一個 plugin)。Adapter 的工作是把平台原生事件翻成 OpenClaw 的<strong>正規化 inbound 訊息</strong>。此時做兩件防護:<strong>去重</strong>(短期 cache,防止斷線重連造成的重送再次觸發執行)與 <strong>debounce</strong>(快速連發的同人文字訊息可合併成一個 turn;媒體/附件即時 flush;控制指令繞過 debounce)。Body 會分離成 <code>BodyForAgent</code>(模型面向)、<code>CommandBody</code>(指令解析)等欄位。</p>
+    <a class="deep" onclick="go('c-channels')">深入 → Channels & Chat</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">2</div><div class="line"></div></div><div class="body">
+    <h3>路由 · 「最具體者勝」選定一個 agent 與 session</h3>
+    <p class="what">路由是<strong>確定性</strong>的、由主機設定控制 ── <em>模型從不選 channel 或 agent</em>。系統依序嘗試 bindings 比對(精確 peer → parent peer/thread → guild+roles → guild → team → account → channel → 預設 agent),<strong>首個命中勝出</strong>。選定的 agent 決定了用哪個 workspace 與 session store。接著算出 <strong>session key</strong>:DM 收斂到 <code>agent:&lt;id&gt;:main</code>;群組/頻道按 channel 隔離成 <code>agent:main:telegram:group:…:topic:…</code> 之類。</p>
+    <a class="deep" onclick="go('c-channels')">深入 → 路由</a> &nbsp;<a class="deep" onclick="go('c-identity')">深入 → 多代理 bindings</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">3</div><div class="line"></div></div><div class="body">
+    <h3>排隊 · session lane 序列化 + 檔案寫鎖</h3>
+    <p class="what">為什麼要排隊?因為<strong>每個 session 同時只能有一個活躍執行</strong>,否則工具與 session 歷史會競爭。OpenClaw 用 <strong>session lane</strong>(<code>session:&lt;key&gt;</code>)序列化,再進入全域 lane(預設 <code>main</code>,並行上限 4;subagent lane 為 8)。Transcript 寫入另受<strong>檔案層級 session write lock</strong> 保護(process-aware,連跨 process 的寫入都攔得到;預設等待上限 60000ms)。若此時又來新訊息,預設以 <code>steer</code> 模式接入當前執行。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → 佇列/Lane/Steering</a> &nbsp;<a class="deep" onclick="go('c-session')">深入 → Session 寫鎖</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">4</div><div class="line"></div></div><div class="body">
+    <h3>Loop 啟動 · agent RPC → runEmbeddedAgent</h3>
+    <p class="what"><code>agent</code> RPC 驗證參數、解析 session、持久化 metadata,然後<strong>立即回傳 <code>{runId, acceptedAt}</code></strong>(非阻斷 ── 呼叫者拿到 runId 就能去監聽串流或用 <code>agent.wait</code> 等待)。接著 <code>agentCommand</code> 解析模型與 thinking/verbose 預設、載入 skills 快照,呼叫 <code>runEmbeddedAgent</code>。後者序列化執行、解析 auth profile、建立 OpenClaw session、訂閱 runtime 事件,並設定逾時計時器。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → Agent Loop</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">5</div><div class="line"></div></div><div class="body">
+    <h3>組裝脈絡 · context engine 決定模型看到什麼</h3>
+    <p class="what">這是 agent 品質的關鍵一步。<strong>Context engine</strong> 的 <code>assemble</code> 回傳符合 token budget 的有序訊息;系統把 workspace 的 <strong>bootstrap 檔案</strong>(AGENTS.md/SOUL.md/USER.md/MEMORY.md…)注入 system prompt 的 Project Context。若啟用 <strong>active memory</strong>,一個阻斷式記憶子代理會<em>先</em>跑,在主回覆前把相關長期記憶以隱藏前綴浮現出來。Memory 是磁碟上的 Markdown ── 模型只記得被存下來的東西,沒有隱藏狀態。</p>
+    <a class="deep" onclick="go('c-context')">深入 → Context Engine</a> &nbsp;<a class="deep" onclick="go('c-memory')">深入 → Memory & Active Memory</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">6</div><div class="line"></div></div><div class="body">
+    <h3>呼叫模型 · 解析 Provider / Model / Runtime</h3>
+    <p class="what">在送出前,OpenClaw 解析四個層次:<strong>provider</strong>(怎麼認證)、<strong>model</strong>(選哪顆模型)、<strong>agent runtime</strong>(哪個迴圈執行這個 turn ── 內建 <code>openclaw</code>、或 plugin harness 如 <code>codex</code>/<code>copilot</code>、或 CLI backend <code>claude-cli</code>)、<strong>channel</strong>(訊息進出處)。Runtime 選擇有明確優先序(model-scoped → provider-scoped → auto)。這一步決定了「誰擁有模型迴圈」。</p>
+    <a class="deep" onclick="go('c-runtime')">深入 → Agent Runtime</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">7</div><div class="line"></div></div><div class="body">
+    <h3>工具迴圈 · 模型要動作 → 篩選 → 執行 → 回灌</h3>
+    <p class="what">模型若決定呼叫工具,OpenClaw 並非把所有工具都攤給它 ── 工具經<strong>8 層 policy 篩選</strong>(profile → provider → 全域 allow/deny → agent → sandbox → subagent…),每層只能<em>進一步限制,絕不加回</em>。模型只看到存活的工具的 schema。Skills(Markdown 指令)早在第 4 站就注入了 system prompt,<strong>教模型何時/如何用這些工具</strong>。工具執行的結果(經 size/image 清洗)回灌進對話,迴圈繼續直到模型給出最終回覆。</p>
+    <a class="deep" onclick="go('c-tools')">深入 → Tools 與 policy</a> &nbsp;<a class="deep" onclick="go('c-skills')">深入 → Skills</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">8</div><div class="line"></div></div><div class="body">
+    <h3>串流回覆 · 確定性地回到原 channel</h3>
+    <p class="what">Assistant delta 串流出來。注意:<strong>到 channel 沒有真正的 token-delta 串流</strong> ── 預覽是基於訊息的(送出 + 編輯)。期間有 typing 指示器、progress draft(單一持續更新的進度訊息)。靜默 token <code>NO_REPLY</code> 會被過濾掉。最終回覆<strong>確定性地回到訊息來的那個 channel</strong>(不是模型挑的)。</p>
+    <a class="deep" onclick="go('c-channels')">深入 → 串流/typing/progress</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">9</div><div class="line"></div></div><div class="body">
+    <h3>收尾 · 記憶刷新 → 寫 transcript →(可能)壓縮</h3>
+    <p class="what">執行寫進 append-only JSONL transcript。若 context 接近視窗上限,觸發 <strong>compaction</strong>(摘要較舊對話,完整歷史仍留磁碟)。壓縮<em>之前</em>會先跑一個靜默的「現在寫記憶」turn(回覆以 NO_REPLY 開頭,使用者看不到),提醒 agent 把重要脈絡存進記憶檔,避免壓縮造成脈絡流失。</p>
+    <a class="deep" onclick="go('c-context')">深入 → Compaction</a> &nbsp;<a class="deep" onclick="go('c-memory')">深入 → 記憶刷新</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">10</div></div><div class="body">
+    <h3>之後 · 背景延續(heartbeat / commitments / dreaming)</h3>
+    <p class="what">旅程沒有真正結束。<strong>Heartbeat</strong> 每 30 分鐘跑一次 main-session turn,批次檢查收件匣/行事曆。對話中推斷的 <strong>commitments</strong>(「明天面試後關心一下」)會在未來經 heartbeat 投遞。夜裡 <strong>dreaming</strong>(預設關閉)把短期素材鞏固、晉升到 <code>MEMORY.md</code>。這就是 OpenClaw 的「學習」── 記憶與設定的累積,<em>不是</em>權重微調。</p>
+    <a class="deep" onclick="go('c-automation')">深入 → 自動化與學習</a>
+  </div></div>
+
+  <div class="callout key" style="margin-top:24px"><span class="ct">下一步建議</span>看完動態旅程後,讀<a onclick="go('bottomup')">路徑二 · 由下而上</a>會幫你把這些站點重新組織成「為什麼這樣分層」的靜態心智模型。</div>
+</section>
+
+<!-- ================= 路徑二:由下而上 ================= -->
+<section class="pane" id="bottomup">
+  <div class="page-kicker">路徑二 · 結構視角</div>
+  <h1 class="page">🏗️ 由下而上建構心智模型</h1>
+  <p class="page-sub">路徑一講「發生什麼」;這條路徑講「<strong>為什麼這樣分層</strong>」。我們從最底層往上疊,每一層先回答「<em>為何需要這一層</em>」,再說明它上面承載什麼。每層都連到對應的元件詳解。</p>
+
+  <div class="layer l0"><div class="ltag">L0 · 地基</div><h3>棲身 Substrate + Gateway</h3>
+    <div class="need">為何需要這層:agent 要能「一直在線、隨時回應」,就必須有個常駐的東西擁有所有連線與狀態 ── 否則每次都要冷啟動、無法跨客戶端共享 session。</div>
+    <p>Gateway 是<strong>單一、常駐的控制平面</strong>(每主機一個),綁 <code>127.0.0.1:18789</code>,以一條多工 WebSocket 承載 RPC、HTTP API、Control UI、Canvas。Substrate 是你選擇跑它的地方:本機 PC、Raspberry Pi、VPS、雲端、Docker、K8s。其上才談得上其他一切。</p>
+    <a class="deep" onclick="go('c-substrate')">深入 → 棲身/Gateway/Nodes</a>
+  </div>
+
+  <div class="layer l1"><div class="ltag">L1 · 身分</div><h3>Identity + Workspace(它是誰)</h3>
+    <div class="need">為何需要這層:同一個 Gateway 可能服務多個用途/多個人,而模型每個 session 都是全新實例 ── 必須有檔案來定義「這個 agent 是誰、它的連續性在哪」。</div>
+    <p>每個 agent 有自己的 <strong>workspace</strong>(檔案工具的家)與身分檔:<code>SOUL.md</code>(聲音/語氣)、<code>AGENTS.md</code>(操作規則/standing orders)、<code>USER.md</code>、<code>IDENTITY.md</code>。多個 agent 可在一個 Gateway 上完全隔離,靠 bindings 路由。</p>
+    <a class="deep" onclick="go('c-identity')">深入 → Identity & Multi-Agent</a>
+  </div>
+
+  <div class="layer l2"><div class="ltag">L2 · 大腦</div><h3>Runtime + Agent Loop(它怎麼想)</h3>
+    <div class="need">為何需要這層:有了家與身分,還需要一個<strong>確定性的引擎</strong>來驅動「intake → 推理 → 工具 → 回覆 → 持久化」的迴圈,並保證狀態一致(不能讓 LLM 直接改狀態)。</div>
+    <p>核心鐵律:<strong>Runtime(確定性控制)≠ 模型(非確定性推理)</strong>。Agent runtime 擁有準備好的模型迴圈;agent loop 是每 session 單一、序列化的真實執行,發出 lifecycle/assistant/tool 三條串流。Runtime 有家族(embedded openclaw/codex vs CLI backend)。</p>
+    <a class="deep" onclick="go('c-runtime')">深入 → Runtime</a> &nbsp;<a class="deep" onclick="go('c-loop')">深入 → Agent Loop</a>
+  </div>
+
+  <div class="layer l3"><div class="ltag">L3 · 記憶</div><h3>Session · Memory · Context Engine(它記得什麼)</h3>
+    <div class="need">為何需要這層:模型 context 視窗有限且無狀態,但助理必須記得過去 ── 需要持久層(磁碟)、可插拔的檢索,以及把有限視窗填好的機制。</div>
+    <p><strong>Session</strong> 是每對話的 JSONL transcript(短期);<strong>Memory</strong> 是磁碟上的 Markdown(長期 MEMORY.md + 每日筆記),可插拔後端;<strong>Context engine</strong> 控制每 turn 模型看到什麼,並在視窗滿時 compaction。三者合起來是「記憶」的全貌。</p>
+    <a class="deep" onclick="go('c-session')">深入 → Session</a> &nbsp;<a class="deep" onclick="go('c-memory')">深入 → Memory</a> &nbsp;<a class="deep" onclick="go('c-context')">深入 → Context/壓縮</a>
+  </div>
+
+  <div class="layer l4"><div class="ltag">L4 · 能力</div><h3>Tools + Skills(它能做什麼)</h3>
+    <div class="need">為何需要這層:會想會記還不夠 ── agent 要能<strong>做事</strong>(跑指令、開瀏覽器、查網路、發訊息),也要被<strong>教會</strong>何時怎麼用這些能力,並受權限約束。</div>
+    <p><strong>Tools</strong> 是型別化的可呼叫動作,經多層 policy 篩選後才攤給模型。<strong>Skills</strong> 是 Markdown 指令包,注入 prompt 教模型工作流程(skill ≠ tool)。tool search 讓大型 catalog 不必全部攤開。</p>
+    <a class="deep" onclick="go('c-tools')">深入 → Tools</a> &nbsp;<a class="deep" onclick="go('c-skills')">深入 → Skills</a>
+  </div>
+
+  <div class="layer l5"><div class="ltag">L5 · 對外</div><h3>Channels + 聊天前端(它怎麼接觸世界)</h3>
+    <div class="need">為何需要這層:助理的價值在於「在你已經用的地方回應你」── 需要把 20+ 訊息平台與多個前端統一接到同一個大腦,且路由可預測。</div>
+    <p><strong>Channels</strong> 是訊息表面的 adapter(WhatsApp/Telegram/Slack/Discord…),把平台事件正規化、把輸出翻回原生 send。<strong>前端</strong>(WebChat/TUI/Control UI)都連同一條 Gateway WS。回覆確定性回到來源。</p>
+    <a class="deep" onclick="go('c-channels')">深入 → Channels & Chat</a>
+  </div>
+
+  <div class="layer l6"><div class="ltag">L6 · 自主與治理</div><h3>Automation/Learning · Plugins · Security</h3>
+    <div class="need">為何需要這層:一個真正有用的助理要能<strong>主動</strong>(不只被動回覆)、能被<strong>擴充</strong>、且整個強大的系統要被<strong>約束</strong>在可信邊界內。</div>
+    <p><strong>Automation</strong>(cron/heartbeat/standing orders/commitments/task flow)給它自主性;<strong>Learning</strong> = 記憶+設定累積 + dreaming 鞏固(非權重)。<strong>Plugins</strong> 是「一切皆 plugin」的擴充模型。<strong>Security</strong> 定義信任邊界(單一可信操作者、非多租戶)。</p>
+    <a class="deep" onclick="go('c-automation')">深入 → 自動化/學習</a> &nbsp;<a class="deep" onclick="go('c-plugins')">深入 → Plugins</a> &nbsp;<a class="deep" onclick="go('c-security')">深入 → Security</a>
+  </div>
+
+  <div class="callout key" style="margin-top:22px"><span class="ct">下一步建議</span>由下而上建好骨架後,任何一個元件想看細節,就到<a onclick="go('comp-home')">元件詳解</a>用固定 5 段結構深讀。</div>
+</section>
+
+<!-- ================= 元件地圖 ================= -->
+<section class="pane" id="comp-home">
+  <div class="page-kicker">元件詳解 · 問題導向</div>
+  <h1 class="page">📚 元件地圖</h1>
+  <p class="page-sub">13 個元件,每頁一律依固定 5 段結構講解,把「為什麼存在」與「與鄰居的關係」織進每一頁:</p>
+  <div class="card tight" style="display:flex;gap:14px;flex-wrap:wrap;justify-content:space-around;text-align:center">
+    <div><span class="secnum">1</span><strong>為什麼存在</strong><br><span class="src">要解決的問題</span></div>
+    <div><span class="secnum">2</span><strong>核心概念</strong><br><span class="src">一段話心智模型</span></div>
+    <div><span class="secnum">3</span><strong>運作機制</strong><br><span class="src">細節/表格/程式碼路徑</span></div>
+    <div><span class="secnum">4</span><strong>與其他元件的關係</strong><br><span class="src">上游 ← 本元件 → 下游</span></div>
+    <div><span class="secnum">5</span><strong>範例/設定</strong><br><span class="src">json5/指令/走查</span></div>
+  </div>
+
+  <h2>基礎</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-substrate')"><div class="cn">L0</div><h4>棲身 / Gateway / Nodes</h4><p>agent 住哪;單一控制平面;部署矩陣;節點裝置;network model;sandbox</p></div>
+    <div class="ci" onclick="go('c-identity')"><div class="cn">L1</div><h4>Identity & Multi-Agent</h4><p>SOUL/AGENTS;workspace;bindings 路由;多 agent 隔離;Mantis</p></div>
+  </div>
+  <h2>大腦</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-loop')"><div class="cn">L2</div><h4>Agent Loop</h4><p>編排者:執行流程;佇列/lane/寫鎖;串流;逾時;hook 點 ── <strong>在迴圈內選用 Runtime</strong></p></div>
+    <div class="ci" onclick="go('c-runtime')"><div class="cn">L2</div><h4>Agent Runtime</h4><p>被迴圈選用:Provider/Model/Runtime/Channel 四層;embedded vs CLI;Codex 擁有權切分</p></div>
+  </div>
+  <h2>記憶</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-session')"><div class="cn">L3</div><h4>Session & State</h4><p>JSONL transcript;session key;寫鎖;sessions.json 索引</p></div>
+    <div class="ci" onclick="go('c-memory')"><div class="cn">L3</div><h4>Memory</h4><p>Markdown 記憶;active memory;可插拔後端;memory search;dreaming</p></div>
+    <div class="ci" onclick="go('c-context')"><div class="cn">L3</div><h4>Context Engine & 壓縮</h4><p>四點生命週期;compaction 觸發;session pruning</p></div>
+  </div>
+  <h2>能力</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-tools')"><div class="cn">L4</div><h4>Tools</h4><p>工具清單;8 層 policy;tool search;subagents</p></div>
+    <div class="ci" onclick="go('c-skills')"><div class="cn">L4</div><h4>Skills</h4><p>SKILL.md 格式;載入順序;workshop;內建技能</p></div>
+  </div>
+  <h2>對外</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-channels')"><div class="cn">L5</div><h4>Channels & Chat</h4><p>20+ 平台;路由;訊息生命週期;WebChat/TUI/Control UI</p></div>
+  </div>
+  <h2>治理</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-automation')"><div class="cn">L6</div><h4>Automation & Learning</h4><p>cron/heartbeat/standing orders/commitments;dreaming</p></div>
+    <div class="ci" onclick="go('c-plugins')"><div class="cn">L6</div><h4>Plugins</h4><p>capability 模型;manifest;hooks;72 內建</p></div>
+    <div class="ci" onclick="go('c-security')"><div class="cn">L6</div><h4>Security</h4><p>信任模型;auth 模式;secrets;ATLAS 威脅模型</p></div>
+  </div>
+</section>
+
+<!-- ===== c-substrate ===== -->
+<section class="pane" id="c-substrate">
+  <div class="page-kicker">元件詳解 · 基礎 L0</div>
+  <h1 class="page">棲身 Substrate · Gateway · Nodes</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游(誰依賴前提)</div><span>無 ── 這是地基。安裝指令 <code>openclaw onboard</code> 啟動一切。</span></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>Gateway 控制平面 + 它跑的環境 + 連上來的節點</span></div>
+    <div class="relbox down"><div class="rl">下游(承載什麼)</div><a onclick="go('c-identity')">身分</a><a onclick="go('c-loop')">Agent Loop</a><a onclick="go('c-channels')">Channels</a><a onclick="go('c-security')">Security</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>一個「個人 AI 助理」的核心承諾是<strong>一直在線、隨時在你用的地方回應你</strong>。要做到這點,必須有個東西:① 常駐不關;② 擁有所有 channel 連線(WhatsApp 一台主機只能開一個 session);③ 集中保管 session、認證、狀態,讓多個客戶端(手機 App、CLI、Web)共享同一個對話脈絡。如果沒有這層,你會得到一堆各自為政、無法協調、每次冷啟動的腳本。<strong>Gateway 就是為了當這個「家」而存在。</strong></p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout key"><span class="ct">把 Gateway host 想成「agent 住的地方」</span>它擁有 session、auth profile、channel、狀態。你的筆電、桌機、節點都連到那個主機。<strong>每主機一個 Gateway。</strong><span class="src">docs/gateway/remote.md</span></div>
+  <p><strong>Substrate</strong> 則是你選擇跑這個 Gateway process 的環境。Gateway 與 substrate 的關係,就像「程式」與「它跑的機器」。</p>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>Gateway:一個 process、一個多工 port</h3>
+  <ul>
+    <li><strong>一個常駐 process</strong> 負責路由、控制平面、所有 channel 連線。</li>
+    <li><strong>一個多工 port</strong>(預設 <code>127.0.0.1:18789</code>)承載全部:WS 控制/RPC、HTTP API(<code>/v1/models</code> <code>/v1/chat/completions</code> <code>/tools/invoke</code>)、plugin HTTP route、Control UI、Canvas host(<code>/__openclaw__/canvas/</code>)。</li>
+    <li>Bind 模式:<code>loopback</code>(預設)/<code>lan</code>/<code>tailnet</code>/<code>custom</code>/<code>auto</code>。<strong>非 loopback bind 預設要求認證。</strong></li>
+    <li>監督:macOS launchd(<code>ai.openclaw.gateway</code>)、Linux/WSL2 systemd user service、Windows 排程工作。</li>
+  </ul>
+  <h3>Substrate 矩陣與權衡</h3>
+  <div class="scrollwrap"><table>
+    <tr><th>環境</th><th>權衡</th></tr>
+    <tr><td><strong>本機 macOS</strong></td><td>選單列 App 擁有 TCC 權限、管理 launchd、把 Mac 能力當 node 暴露。筆電睡眠 agent 也睡。勿放 iCloud 同步資料夾。</td></tr>
+    <tr><td><strong>本機 Windows</strong></td><td>三條路:Windows Hub(WinUI、免管理員、tray)、原生 PowerShell Gateway(排程工作)、WSL2(最相容,需啟用 systemd)。</td></tr>
+    <tr><td><strong>本機 Linux</strong></td><td>Gateway 完整支援;有 OOM 受害者偏置(子 process 先被殺,Gateway 存活)。</td></tr>
+    <tr><td><strong>Raspberry Pi</strong></td><td>$35–80 一次性、無月費。<strong>只有 gateway 在本機,模型走雲端 API</strong>。勿在 Pi 跑本地 LLM。</td></tr>
+    <tr><td><strong>VPS</strong></td><td>常駐、便宜、不睡。Gateway 是真相來源 ── 備份狀態+workspace。安全預設:保 loopback,經 SSH/Tailscale 連入。</td></tr>
+    <tr><td><strong>雲端(Fly/Render/Railway/Hetzner/GCP/Azure/Oracle/DO)</strong></td><td>有真實部署檔(<code>fly.toml</code>、<code>render.yaml</code>)。需持久 volume + token + 非 loopback bind。Render 免費層 15min spin down 丟狀態。</td></tr>
+    <tr><td><strong>Docker / Docker VM / K8s</strong></td><td>GHCR 預建映像(<code>node:24-bookworm-slim</code> + tini)。VM runtime 關鍵:skill binary 須 build 時烘進映像。K8s 用 Kustomize、硬化、pod 內預設 loopback → <code>kubectl port-forward</code>;明言非 production-ready。</td></tr>
+    <tr><td><strong>macOS VM</strong></td><td>為 macOS-only 能力(iMessage)或嚴格隔離。建議仍以小型 Linux VPS 為主,hybrid = VPS Gateway + Mac 當 node。</td></tr>
+  </table></div>
+  <h3>Nodes:裝置伴生(不是 gateway)</h3>
+  <div class="callout note"><span class="ct">Nodes 是周邊,不是 gateway</span>Node 以 <code>role:"node"</code> 連到 Gateway WS(同 port),暴露指令(<code>canvas.*</code> <code>camera.*</code> <code>screen.record</code> <code>location.get</code> <code>system.run</code>)。它<strong>不</strong>跑 gateway 服務。Channel 訊息落在 Gateway,絕不在 node。</div>
+  <p>指令流(Telegram → node):① 訊息到 Gateway → ② Gateway 跑 agent、決定呼叫 node 工具 → ③ 經 WS 呼叫 node → ④ node 回結果,Gateway 回 Telegram。<strong>兩道閘</strong>:node 須在 <code>connect.commands</code> 宣告 + Gateway 平台政策須允許(危險指令如 camera.snap 需明確 <code>gateway.nodes.allowCommands</code>)。</p>
+  <h3>Network model 與 Sandbox</h3>
+  <p><strong>Loopback first</strong>;非 loopback 需有效認證(<code>gateway.auth.mode</code>:none/token/password/trusted-proxy)。遠端偏好 <strong>Tailscale/VPN &gt; SSH tunnel</strong>。<strong>Sandboxing 可選且預設關閉</strong>,只隔離工具執行 ── Gateway 本身從不被 sandbox(詳見 <a onclick="go('c-security')">Security</a>、<a onclick="go('c-tools')">Tools</a>)。</p>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:Gateway 啟動 bind/auth 判斷 + node 配對</h2>
+    <p class="intro">兩條關鍵決策鏈:① Gateway 啟動時如何決定 bind 與是否要求 auth;② 一個 node 如何從連線到取得 token。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">解析 port/bind</div><div class="sd">CLI→env→config→18789</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">auth 強制</div><div class="sd">非 loopback 必須有 auth</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">node 連線</div><div class="sd">pending 請求</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">核准發 token</div><div class="sd">輪替 + 重連</div></div>
+    </div>
+    <h4>bind/auth 決策細節</h4>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>bind 模式?<span class="qmeta">--port→env→gateway.port→18789 · CLI→gateway.bind→loopback</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">loopback</span><span class="dres">綁 <code>127.0.0.1</code>,auth 可選 → 直接啟動</span></div>
+          <div class="dbranch no"><span class="dtag">非 loopback</span><span class="dres">lan/tailnet/custom → 進入下一道判斷 ↓</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>非 loopback:有有效 auth 路徑?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">有</span><span class="dres">token / password / trusted-proxy → <span class="dwin g">啟動</span></span></div>
+          <div class="dbranch no"><span class="dtag">無</span><span class="dres"><span class="dwin r">拒絕綁定</span> 「refusing to bind gateway without auth」</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>解析 port + bind 模式<span class="stag">precedence</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>CLI 旗標、env、config</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>port:<code>--port → OPENCLAW_GATEWAY_PORT → gateway.port → 18789</code>;bind:<code>CLI → gateway.bind → loopback</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>loopback first ── 預設最安全,要對外必須明確選擇</div>
+        <div class="field f-out"><span class="fl">輸出</span>決定綁哪個位址</div>
+        <div class="field f-edge"><span class="fl">邊界</span>port 衝突 → <code>EADDRINUSE</code>/「another gateway already listening」</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>非 loopback 的 auth 強制<span class="stag">gateway.auth.mode</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>bind 模式 + auth 設定</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>非 loopback bind 必須有有效 auth(token/password/trusted-proxy);否則拒絕啟動</div>
+        <div class="field f-why"><span class="fl">設計思維</span>對外曝露的控制平面沒認證 = 災難 → fail-closed,寧可不啟動</div>
+        <div class="field f-out"><span class="fl">輸出</span>Gateway 監聽,接受 WS/HTTP</div>
+        <div class="field f-edge"><span class="fl">邊界</span>「refusing to bind gateway … without auth」</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>Node 連線 → pending 請求<span class="stag">role: node</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>node 的 <code>connect</code> 幀(device 身分 + caps/commands)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>新 device id → 建 device pairing 請求(<code>node.pair.requested</code>);核准 scope 隨宣告的 command 升級(commandless→pairing;system.run→admin)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>Gateway 是「哪些 node 可加入」的真相來源(Option B);UI 只是前端</div>
+        <div class="field f-out"><span class="fl">輸出</span>pending 請求,等核准</div>
+        <div class="field f-edge"><span class="fl">邊界</span>pending <strong>5 分鐘</strong>過期;核准前送來的 command 被<strong>丟棄非延後</strong></div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">4</span>核准 → 發 token → 重連<span class="stag">token 輪替</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>operator 核准(<code>openclaw devices approve</code>)或 trusted-CIDR 自動核准</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>核准 → 發新 device token(每次重新配對輪替)→ node 帶 token 重連</div>
+        <div class="field f-why"><span class="fl">設計思維</span>token 輪替限制外洩窗;自動核准只對無 scope 的純 node、絕不升級 browser/operator 客戶端</div>
+        <div class="field f-out"><span class="fl">輸出</span>node 可被呼叫工具(canvas/camera/system.run)</div>
+        <div class="field f-edge"><span class="fl">邊界</span>loopback 帶 <code>X-Forwarded-*</code> header → 喪失 loopback-locality,須明確配對(防偽)</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong>無,這是地基。<strong>下游:</strong>Gateway 載入 <a onclick="go('c-identity')">身分檔與 workspace</a>、啟動 <a onclick="go('c-loop')">agent loop</a>、維持 <a onclick="go('c-channels')">channel 連線</a>;它的 bind/auth 是 <a onclick="go('c-security')">Security</a> 信任模型的第一道邊界;node 為 <a onclick="go('c-tools')">tools</a> 提供裝置能力。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code># 安裝與啟動
+curl -fsSL https://openclaw.ai/install.sh | bash      # macOS/Linux/WSL2
+openclaw onboard --install-daemon                     # 引導設定 gateway/workspace/channels/skills
+
+# 遠端存取(通用 fallback,不繞過 gateway auth)
+ssh -N -L 18789:127.0.0.1:18789 user@host</code></pre>
+  <p>多 Gateway 僅用於隔離或救援 bot(須隔離 <code>OPENCLAW_CONFIG_PATH</code>/<code>OPENCLAW_STATE_DIR</code>/workspace/port)。<span class="src">docs/gateway/index.md, network.md, vps.md, nodes/index.md, install/*</span></p>
+</section>
+
+<!-- ===== c-identity ===== -->
+<section class="pane" id="c-identity">
+  <div class="page-kicker">元件詳解 · 基礎 L1</div>
+  <h1 class="page">Identity, Soul & Multi-Agent</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-substrate')">Gateway/Workspace</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>定義「這個 agent 是誰」的檔案 + 一個 Gateway 上多 agent 的隔離與路由</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-context')">注入 Context</a><a onclick="go('c-channels')">bindings 路由</a><a onclick="go('c-automation')">standing orders</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>LLM <strong>每個 session 都是全新、無狀態的實例</strong> ──「你每個 session 都是全新實例,連續性活在這些檔案裡」(<span class="src">docs/reference/AGENTS.default.md</span>)。若不在某處定義「這個助理是誰、語氣如何、遵守什麼規則」,每次對話都會是另一個人格。再者,一個 Gateway 可能要同時當「家庭助理」與「工作助理」,甚至服務不同人 ── 必須有機制讓多個 agent <strong>完全隔離</strong>又能正確路由。Identity 層就是為了給模型一個穩定的「自我」與多腦隔離。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <p>身分是<strong>檔案式</strong>的,每 session 注入。乾淨分離:<strong><code>AGENTS.md</code> = 操作規則;<code>SOUL.md</code> = 聲音</strong>。一個 <strong>agent</strong> = 完整 scope 的「腦」:自己的 workspace + state dir + session store。</p>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>身分檔(bootstrap files,每 session 自動注入)</h3>
+  <div class="card tight"><p style="font-family:var(--mono);font-size:12.5px;line-height:1.9;"><code>AGENTS.md</code>(操作指令/standing orders)· <code>SOUL.md</code>(persona/語氣)· <code>USER.md</code>(使用者是誰)· <code>IDENTITY.md</code>(名字/氛圍/emoji)· <code>TOOLS.md</code>(本機工具註記)· <code>HEARTBEAT.md</code> · <code>BOOTSTRAP.md</code>(首次)· <code>MEMORY.md</code></p></div>
+  <p><code>SOUL.md</code> 裝語氣、意見、簡潔度、幽默、邊界 ── <em>不</em>裝生平、changelog 或安全政策。Workspace 是「agent 的家」(檔案工具唯一工作目錄),但<strong>它是預設 cwd,不是硬 sandbox</strong> ── 絕對路徑可逃逸,除非 sandboxing 開啟。</p>
+  <div class="callout note"><span class="ct">兩個 AGENTS.md 別搞混</span><strong>Workspace <code>AGENTS.md</code></strong> = agent 的操作指令(standing orders 住這)。<strong>Repo-root <code>AGENTS.md</code></strong> = OpenClaw 程式碼庫本身的貢獻者政策。<code>CLAUDE.md</code> 只是 <code>AGENTS.md</code> 的 symlink 別名。</div>
+  <h3>多 agent 於單一 Gateway</h3>
+  <p>單 agent 預設 <code>agentId=main</code>。每 agent 的 state dir <code>~/.openclaw/agents/&lt;id&gt;/agent/</code> 放 per-agent auth profile;session store 在 <code>.../sessions/</code>。Auth 是 per-agent,但缺本地 profile 時讀通到預設 agent(OAuth refresh token <em>不</em>複製)。</p>
+  <h3>Agent 間路由 ── Bindings</h3>
+  <p>一個 <strong>binding</strong> 把 <code>(channel, accountId, peer)</code>(+ 選擇性 guild/team/roles)映射到一個 <code>agentId</code>。路由<strong>確定性、最具體者勝</strong>:peer → parentPeer → guildId+roles → guildId → teamId → accountId → channel → 預設 agent。每 agent 可有自己的 sandbox + tool allow/deny。</p>
+  <h3>Mantis(視覺化 E2E 驗證)</h3>
+  <p>Mantis <em>不</em>是 runtime 身分,而是 OpenClaw 的端到端視覺 QA 系統,在真實傳輸上重現 bug:對 baseline ref 跑情境(before)、再對 candidate ref(after),把比較發布為 PR artifacts。它與身分主題的關聯僅在於會啟動隔離狀態的拋棄式子 gateway 來驗證真實 agent 行為。</p>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:多 agent 如何隔離又共用認證</h2>
+    <p class="intro">一個 Gateway 上多個 agent 各有獨立的 workspace / state dir / session store,但認證採「per-agent 為主、缺則 read-through 預設 agent」的混合策略。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">bindings 挑 agent</div><div class="sd">最具體者勝</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">載入 workspace</div><div class="sd">注入身分檔</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">解析認證</div><div class="sd">per-agent→read-through</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">套 policy</div><div class="sd">per-agent sandbox/tool</div></div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>inbound → bindings 挑 agent<span class="stag">見路由</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>正規化的 channel/account/peer</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>resolveAgentRoute</code> 的 8 層 tier(最具體者勝),選定 <code>agentId</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>路由確定性、由設定控制 ── 模型不選 agent,讓「誰處理」可預測可稽核</div>
+        <div class="field f-out"><span class="fl">輸出</span>選定 agent 決定 workspace + session store</div>
+        <div class="field f-edge"><span class="fl">邊界</span>完整決策樹見 <a onclick="go('c-channels')">Channels 的逐步推演</a></div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>載入該 agent 的 workspace + 身分檔<span class="stag">bootstrap files</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>選定 agent 的 <code>workspace</code> 路徑</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>注入 <code>AGENTS.md/SOUL.md/USER.md/IDENTITY.md/MEMORY.md…</code>(上限 20000/檔、60000 總)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>模型每 session 全新 ── 身分與連續性必須來自這些檔,且 per-agent 隔離</div>
+        <div class="field f-out"><span class="fl">輸出</span>該 agent 專屬人格與規則進入 system prompt</div>
+        <div class="field f-edge"><span class="fl">邊界</span>workspace 是預設 cwd 不是硬 sandbox,絕對路徑可逃逸(除非開 sandbox)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>解析認證:per-agent → read-through<span class="stag">agentDir</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>該 agent 的 <code>agentDir</code>(<code>~/.openclaw/agents/&lt;id&gt;/agent/</code>)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>先找本地 auth profile;缺則讀通(read-through)到<strong>預設 agent</strong> 的 profile</div>
+        <div class="field f-why"><span class="fl">設計思維</span>免每個 agent 重新登入;但 <code>agentDir</code> 絕不可跨 agent 共用</div>
+        <div class="field f-out"><span class="fl">輸出</span>取得執行此 turn 的憑證</div>
+        <div class="field f-edge"><span class="fl">邊界</span>OAuth profile(refresh token 輪替敏感)<strong>不</strong>複製 ── 預設不可攜</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">4</span>每 agent 套自己的 sandbox/tool policy<span class="stag">per-agent override</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span><code>agents.list[].tools</code> / <code>.sandbox</code></div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>per-agent allow/deny 與 sandbox mode 疊在全域政策上(deny 永遠勝)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>例如 family agent 綁某 WhatsApp 群、<code>sandbox.mode:"all"</code>、deny write/browser/cron</div>
+        <div class="field f-out"><span class="fl">輸出</span>該 agent 的有效執行姿態</div>
+        <div class="field f-edge"><span class="fl">邊界</span><code>tools.elevated</code> 是全域/sender-based,非 per-agent</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-substrate')">Gateway</a> 載入 workspace 與身分檔。<strong>下游:</strong>身分檔被注入 <a onclick="go('c-context')">system prompt 的 Project Context</a>;bindings 是 <a onclick="go('c-channels')">channel 路由</a>挑 agent 的依據;<code>AGENTS.md</code> 承載 <a onclick="go('c-automation')">standing orders</a>;每 agent 的 tool/sandbox policy 與 <a onclick="go('c-security')">Security</a> 交織。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>bindings: [
+  { match: { channel: "slack", teamId: "T123" }, agentId: "support" },
+  { match: { channel: "telegram", peer: { kind: "group", id: "-100123" } }, agentId: "support" },
+]</code></pre>
+  <p><strong>Broadcast groups</strong>(實驗性,目前僅 WhatsApp)讓多個 agent 為同一 peer 跑,session/歷史/workspace/工具/記憶完全隔離。Agent 間訊息(<code>tools.agentToAgent</code>)預設關閉 + allowlisted。<span class="src">docs/concepts/soul.md, agent-workspace.md, multi-agent.md, mantis.md</span></p>
+</section>
+
+<!-- ===== c-runtime ===== -->
+<section class="pane" id="c-runtime">
+  <div class="page-kicker">元件詳解 · 大腦 L2</div>
+  <h1 class="page">Agent Runtime</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">Agent Loop 在解析模型時選用</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>擁有「準備好的模型迴圈」的元件:接 prompt、驅動輸出、處理工具呼叫</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">工具迴圈</a><a onclick="go('c-context')">context 投射</a><a onclick="go('c-plugins')">plugin harness</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>「執行一個 agent turn」不只是呼叫一次 API ── 它牽涉串流、原生工具呼叫、壓縮、重試、auth 輪替。不同的後端(OpenClaw 自己的迴圈、OpenAI 的 Codex app-server、Claude CLI)對這個迴圈的<strong>擁有程度不同</strong>。如果不把「誰擁有模型迴圈」抽象成一個明確的層,使用者會被 provider/model/runtime 混在一起的標籤搞糊塗,而且無法在保留 OpenClaw 工具/記憶的同時接上外部 harness。Runtime 層就是為了<strong>把「執行 turn 的引擎」與「選哪顆模型」解耦</strong>。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout key"><span class="ct">四個容易混淆的層級</span><strong>Provider</strong>(怎麼認證)→ <strong>Model</strong>(選哪顆)→ <strong>Agent runtime</strong>(哪個迴圈執行)→ <strong>Channel</strong>(訊息進出處)。它們是正交的。「harness」是<em>提供</em>某 runtime 的實作(如 Codex harness 實作 <code>codex</code> runtime)。</div>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>兩個 runtime 家族</h3>
+  <div class="grid c2">
+    <div class="card tight"><h4>Embedded harnesses</h4>跑在 OpenClaw agent loop <em>內部</em>:內建 <code>openclaw</code> + plugin harness(<code>codex</code>/<code>copilot</code>)。預設 id <code>openclaw</code>(<span class="fp">src/agents/agent-runtime-id.ts</span>)。</div>
+    <div class="card tight"><h4>CLI backends</h4>跑本機 CLI process,model ref 保持 canonical。如 <code>claude-cli</code>。<strong>不是</strong> embedded harness id,不可傳給 harness 選擇器。</div>
+  </div>
+  <h3>選擇優先序</h3>
+  <ol>
+    <li>Model-scoped policy 最優先(<code>agents.defaults.models["provider/model"].agentRuntime</code>,萬用字元在精確比對後)</li>
+    <li>Provider-scoped(<code>models.providers.&lt;provider&gt;.agentRuntime</code>)</li>
+    <li><code>auto</code> 下 plugin runtime 認領支援的配對</li>
+    <li>無人認領 → 用 <code>openclaw</code> 相容 runtime</li>
+  </ol>
+  <div class="callout warn"><span class="ct">被忽略的 pin & fail-closed</span>整個 session/agent 層級 runtime pin 一律忽略(<code>openclaw doctor --fix</code> 清理)。明確 plugin runtime(如 <code>agentRuntime.id:"codex"</code>)fail-closed ── 出錯絕不悄悄退回 openclaw。</div>
+  <h3>Codex app-server:擁有權切分(關鍵設計規則)</h3>
+  <div class="scrollwrap"><table>
+    <tr><th>面向</th><th>OpenClaw embedded</th><th>Codex app-server</th></tr>
+    <tr><td>模型迴圈擁有者</td><td>OpenClaw embedded runner</td><td>Codex app-server</td></tr>
+    <tr><td>Canonical thread 狀態</td><td>OpenClaw transcript</td><td>Codex thread + <strong>OpenClaw 鏡像</strong></td></tr>
+    <tr><td>OpenClaw 動態工具</td><td>原生工具迴圈</td><td>經 Codex adapter 橋接</td></tr>
+    <tr><td>Context engine</td><td>原生組裝</td><td>OpenClaw 投射進 Codex turn</td></tr>
+    <tr><td>Compaction</td><td>OpenClaw 或選定引擎</td><td>Codex 原生 + OpenClaw 通知/鏡像</td></tr>
+  </table></div>
+  <p>統御規則:OpenClaw 擁有的面向→可給正常 hook;原生 runtime 擁有的面向→需 runtime 事件/原生 hook;原生擁有 canonical thread→OpenClaw 只鏡像投射,不改寫。</p>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:runtime 選擇的精確 precedence</h2>
+    <p class="intro">由 <code>resolveModelRuntimePolicy</code>(<span class="fp">src/agents/model-runtime-policy.ts</span>)決定 policy,再由 <code>selectAgentHarnessDecision</code>(<span class="fp">src/agents/harness/selection.ts</span>)挑 harness。核心原則:<strong>只讀 model-scoped 與 provider-scoped 政策;explicit plugin runtime fail-closed;只有 auto 可路由到 OpenClaw fallback。</strong></p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">解析 model 政策</div><div class="sd">exact→catalog→wildcard→provider</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">正規化</div><div class="sd">無政策⇒auto</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">挑 harness</div><div class="sd">fail-closed</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">執行</div><div class="sd">不悄悄降級</div></div>
+    </div>
+    <h4>精確 precedence 決策樹</h4>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">1◇</span>model-entry EXACT 命中?<span class="qmeta">models["provider/model"].agentRuntime</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres">用該 runtime <span class="dnote">(source: model)</span> — 多重不明確 provider 命中則拒絕選(ambiguous)</span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">續判 provider catalog</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">2◇</span>provider catalog model config 有 runtime?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres">用該 runtime <span class="dnote">(source: model)</span></span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">續判 wildcard</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">3◇</span>model-entry provider-wildcard 命中?<span class="qmeta">models["vllm/*"].agentRuntime</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres">用該 runtime <span class="dnote">▸ 在 exact 之後,故精確例外優先</span></span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">續判 provider-scoped</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">4◇</span>provider-scoped 政策?<span class="qmeta">models.providers.&lt;p&gt;.agentRuntime</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres">用該 runtime <span class="dnote">(source: provider)</span></span></div>
+          <div class="dbranch no"><span class="dtag">否</span><span class="dres">runtime = <b>auto</b> <span class="dnote">(source: implicit)</span> ↓</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq final"><span class="qi">5◇</span>auto 且 provider=openai 且官方 base url?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres"><span class="dwin">codex</span>(隱含預設)</span></div>
+          <div class="dbranch no"><span class="dtag">否</span><span class="dres">各 plugin <code>harness.supports()</code> 認領 → 最高 priority 勝;無人認領 → <span class="dwin">openclaw fallback</span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>解析 model/provider runtime 政策<span class="stag">resolveModelRuntimePolicy</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>provider、modelId、config</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>順序:QA 強制覆寫(測試)→ model-entry exact → provider catalog → model-entry provider-wildcard → provider-scoped → 空</div>
+        <div class="field f-why"><span class="fl">設計思維</span>exact 在 wildcard 之前 → 動態探索的 provider 模型可共享一個 runtime,而精確 per-model 例外仍勝出</div>
+        <div class="field f-out"><span class="fl">輸出</span><code>{policy:{id}, source}</code>;<code>source</code>(model/provider/implicit)在後續關鍵</div>
+        <div class="field f-edge"><span class="fl">邊界</span>未限定 model id 命中多個不同 provider 的條目 → <code>ambiguous</code> 回 <code>{}</code>(拒絕亂選)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>正規化成 harness 政策<span class="stag">resolveAgentHarnessPolicy</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>configured policy + source</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>normalizeEmbeddedAgentRuntime</code>:<code>pi→openclaw</code>、<code>codex-app-server→codex</code>、空→openclaw;無明確政策 ⇒ <code>auto</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>OpenAI 特例:provider=openai 且官方 base url 且 runtime=auto → 預設 <code>codex</code>(自訂 base url 故意繞過)</div>
+        <div class="field f-out"><span class="fl">輸出</span><code>{runtime, runtimeSource}</code></div>
+        <div class="field f-edge"><span class="fl">邊界</span><code>"auto"/"default"</code> 視為預設選擇</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>挑 harness(fail-closed 分支)<span class="stag">selectAgentHarnessDecision</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>正規化後的 runtime + source</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>=="openclaw"</code>→強制 OpenClaw;<code>!="auto"</code>(明確 plugin)→找該 id harness,<code>supports()</code> 通過則用,否則 <strong>throw</strong>(除非是 CLI alias 如 claude-cli → passthrough)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>內建 OpenClaw <strong>故意不在</strong> plugin 候選清單;明確 plugin runtime 出錯就報錯,不悄悄退回 ── 否則會把使用者的 turn 跑在不同 loop/owner 上,藏住能力/auth 不符</div>
+        <div class="field f-out"><span class="fl">輸出</span>選定 harness + reason(forced_openclaw / forced_plugin / auto_plugin…)</div>
+        <div class="field f-edge"><span class="fl">邊界</span>唯二 auto→OpenClaw:<code>auto_openclaw</code>(無人認領)與 <code>implicit_plugin_unavailable_openclaw</code>(隱含 codex 但無 codex harness)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">4</span>執行選定 harness<span class="stag">runAgentHarnessAttempt</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>選定的 harness</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>OpenClaw 直接跑;plugin harness 可能先 <code>applyPluginHarnessDenyAllToolPolicy</code> 過濾工具</div>
+        <div class="field f-why"><span class="fl">設計思維</span>plugin harness 拋錯 → log 後<strong>re-throw,不</strong>退回 embedded ── 選定後絕不悄悄降級</div>
+        <div class="field f-out"><span class="fl">輸出</span>turn 執行結果</div>
+        <div class="field f-edge"><span class="fl">邊界</span>whole-session/agent pin(<code>OPENCLAW_AGENT_RUNTIME</code> 等)一律被忽略;<code>doctor --fix</code> 清理</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong><a onclick="go('c-loop')">Agent Loop</a> 在 provider/model 解析後選定 runtime。<strong>下游:</strong>runtime 驅動 <a onclick="go('c-tools')">工具迴圈</a>;<a onclick="go('c-context')">context engine</a> 把組好的 context 投射給 runtime;plugin harness 由 <a onclick="go('c-plugins')">Plugin 系統</a>註冊。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{
+  agents: {
+    defaults: {
+      model: "anthropic/claude-opus-4-8",
+      models: {
+        "anthropic/claude-opus-4-8": { agentRuntime: { id: "claude-cli" } },
+      },
+    },
+  },
+}</code></pre>
+  <p>常見 ChatGPT/Codex 訂閱設定:保持 model ref 為 <code>openai/*</code> 並選 <code>codex</code> runtime ── 這<em>不</em>代表 API 計費。<span class="src">docs/concepts/agent-runtimes.md, agent-runtime-architecture.md</span></p>
+</section>
+
+<!-- ===== c-loop ===== -->
+<section class="pane" id="c-loop">
+  <div class="page-kicker">元件詳解 · 大腦 L2</div>
+  <h1 class="page">Agent Loop(代理迴圈)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-channels')">inbound 觸發</a><a onclick="go('c-session')">session 解析</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>每 session 單一、序列化的真實執行:intake→推理→工具→回覆→持久化</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-runtime')">選 runtime</a><a onclick="go('c-tools')">跑工具</a><a onclick="go('c-context')">壓縮</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>把一則訊息變成「行動 + 最終回覆」並<strong>保持 session 狀態一致</strong>,需要一條權威的執行路徑。如果讓多個執行同時動同一個 session,或讓 LLM 直接決定狀態轉移,transcript 會錯亂、工具會競爭、回覆會重複。Agent Loop 存在的理由是:<strong>提供一個確定性、序列化、可觀測(發出生命週期事件)的「真實執行」骨架</strong>,把非確定性的模型推理包在裡面。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout key"><span class="ct">單一、序列化、可觀測</span>一個 loop 是<strong>每 session 單一、序列化</strong>的執行,過程發出三條串流:<code>lifecycle</code>(start/end/error)、<code>assistant</code>(delta)、<code>tool</code>。<span class="src">docs/concepts/agent-loop.md</span></div>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>進入點與執行流程</h3>
+  <div class="flow">
+    <div class="step"><div class="sn">1</div><div class="sl">agent RPC</div><div class="sd">驗證、解析 session、<strong>立即</strong>回 {runId}</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">2</div><div class="sl">agentCommand</div><div class="sd">解析模型+預設、載入 skills 快照</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">3</div><div class="sl">runEmbeddedAgent</div><div class="sd">序列化、建 session、訂閱事件、設逾時</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">4</div><div class="sl">subscribe…</div><div class="sd">橋接 runtime 事件→串流</div></div>
+  </div>
+  <p><code>agent.wait</code> 用 <code>waitForAgentRun</code> 等待 lifecycle end/error。</p>
+  <h3>佇列 · 並行 · 寫鎖</h3>
+  <table>
+    <tr><th>Lane</th><th>預設並行</th><th>用途</th></tr>
+    <tr><td>未設定</td><td>1</td><td>序列</td></tr>
+    <tr><td><code>main</code></td><td>4</td><td>一般 inbound</td></tr>
+    <tr><td><code>subagent</code></td><td>8</td><td>子代理</td></tr>
+    <tr><td><code>cron</code>/<code>cron-nested</code></td><td>cron.maxConcurrentRuns</td><td>背景排程(避免死鎖)</td></tr>
+  </table>
+  <div class="callout note"><span class="ct">Session 寫鎖</span>Transcript 寫入受檔案層級寫鎖保護(process-aware)。等待上限 <code>session.writeLock.acquireTimeoutMs</code> 預設 <span class="big-num">60000ms</span>,預設不可重入。</div>
+  <h3>佇列模式(Steering)</h3>
+  <p>同 turn steering 是預設(<code>mode:"steer"</code>):在工具 batch 結束、turn end 後,把佇列訊息當 user message 接到下次 LLM 前。其他:<code>followup</code>/<code>collect</code>/<code>interrupt</code>。預設 <code>debounceMs:500, cap:20, drop:"summarize"</code>。</p>
+  <h3>串流與回覆塑形</h3>
+  <ul>
+    <li><strong>無真正 token-delta 串流</strong>到 channel ── 預覽是訊息式(送出+編輯)。Block streaming 預設 off;chunk ~800–1200 字元,永不在 code fence 內切斷。</li>
+    <li>靜默 token <code>NO_REPLY</code>/<code>no_reply</code> 被過濾。</li>
+  </ul>
+  <h3>逾時(精確數值)</h3>
+  <table>
+    <tr><th>設定</th><th>預設</th></tr>
+    <tr><td><code>agent.wait</code> 等待</td><td>30s(僅等待,不停 agent)</td></tr>
+    <tr><td><code>agents.defaults.timeoutSeconds</code></td><td>172800s(48h)</td></tr>
+    <tr><td>模型 idle watchdog(未設逾時時)</td><td>120s</td></tr>
+    <tr><td>Stuck-session abort 門檻</td><td>≥5min 且 ≥3× 警告門檻</td></tr>
+  </table>
+  <h3>Hook 點</h3>
+  <p>兩套:內部 hook(Gateway,如 <code>agent:bootstrap</code>、<code>/new</code>);plugin hook(loop/pipeline 內,如 <code>before_model_resolve</code>、<code>before_prompt_build</code>、<code>before_agent_reply</code>、<code>before/after_tool_call</code>、<code>tool_result_persist</code>、<code>message_received/sending/sent</code>、<code>before/after_compaction</code>)。詳見 <a onclick="go('c-plugins')">Plugins</a>。</p>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:從 RPC 接受到最終回覆</h2>
+    <p class="intro">關鍵設計是<strong>兩道佇列(session lane 在外、global lane 在內)</strong>加上<strong>單寫者</strong>保證。下面拆解每階段的判斷與理由。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">A0</div><div class="sl">accept</div><div class="sd">立即回 runId</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">A3</div><div class="sl">lane 解析</div><div class="sd">session: + global</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">A4</div><div class="sl">雙重 enqueue</div><div class="sd">外 session / 內 global</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">A5</div><div class="sl">run loop</div><div class="sd">attempt→failover</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">A7</div><div class="sl">stream</div><div class="sd">tool/assistant/lifecycle</div></div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">A0</span>agent RPC 接受<span class="stag">server-methods/agent.ts</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>RPC params(message、sessionKey/Id、model 覆寫、queue mode)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>驗證→解析 session→持久化 metadata→<code>respond(true, {runId, status:"accepted"})</code> <strong>之後</strong>才 fire-and-forget 排程執行</div>
+        <div class="field f-why"><span class="fl">設計思維</span>讓緊接而來的 <code>agent.wait</code> 能在 pre-turn runner 霸佔 event loop 前抵達(10ms <code>yieldAfterAgentAcceptedAck</code> 先 flush accept 幀)</div>
+        <div class="field f-out"><span class="fl">輸出</span>runId 鑄出、detached async run 排程</div>
+        <div class="field f-edge"><span class="fl">邊界</span>param 驗證失敗 → 錯誤回應、無 runId;dispatch 之後若拋錯只經 lifecycle/agent.wait 浮現</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">A3</span>Lane 解析(session + global)<span class="stag">lanes.ts</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span><code>sessionKey</code>(先 backfill 保證非空)、<code>lane</code></div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>resolveSessionLane</code> → <code>session:&lt;key&gt;</code>;<code>resolveGlobalLane</code> → <code>cron</code> 映射為 <code>cron-nested</code>,否則預設 <code>main</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>session lane 保證「每 session 單一執行」(transcript 一致、避免工具/檔案競爭);global lane 限制<strong>總並行</strong>;cron→cron-nested 避免死鎖</div>
+        <div class="field f-out"><span class="fl">輸出</span>兩個 lane 名稱,尚未 enqueue</div>
+        <div class="field f-edge"><span class="fl">邊界</span>空 key → 退回 <code>main</code></div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">A4</span>雙重 enqueue(序 + 並行上限)<span class="stag">command-queue.ts</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>lane 名稱、queue 優先序、lane timeout</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>外層 session lane(只准此 session 一個)→ 中間 <code>waitForDeferredTurnMaintenance</code> → 內層 global lane(<code>drainLane</code>:<code>activeTaskIds.size &lt; maxConcurrent</code>;未設定預設 1,main=4、subagent=8)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>session lane 套在 global lane 外 → 等待中的 session <strong>不</strong>佔用稀缺的 global slot,且維護檢查點不持有 global lane</div>
+        <div class="field f-out"><span class="fl">輸出</span>admission 後 <code>claimAgentRunContext(runId, {sessionKey, lifecycleGeneration})</code></div>
+        <div class="field f-edge"><span class="fl">邊界</span>generation 在排隊時旋轉 → 可能 abort(除非 foreground 且可跨旋轉續跑);lane watchdog 無進度則 abort</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">A5</span>Run loop:attempt → failover 決策<span class="stag">failover-policy.ts</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>組好的 prompt/session/model、attempt abort signal</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>每次 attempt 後讀 <code>{aborted, timedOut, idleTimedOut, promptError…}</code> → <code>resolveRunFailoverDecision</code>:continue / rotate_profile / fallback_model / surface_error</div>
+        <div class="field f-why"><span class="fl">設計思維</span>idle-timeout 斷路器(連續 5 次無輸出才跳)防「wedged provider 60 秒燒 700+ 次付費呼叫」;billed token 故意不重置它</div>
+        <div class="field f-out"><span class="fl">輸出</span>串流事件、transcript+usage 累積;fallback 時換 model/profile 進下一輪</div>
+        <div class="field f-edge"><span class="fl">邊界</span><code>externalAbort</code> 永遠 surface_error 不 rotate;plugin harness 自有 timeout → 不替它 rotate;格式終局失敗 → surface</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">A6</span>Steering 在 turn 邊界的 5 步 drain<span class="stag">mode: steer</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>執行中佇列裡的新使用者訊息</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>① assistant 要工具 → ② 執行該批工具 → ③ 發 turn end → ④ drain 佇列 steering → ⑤ 當 user message 接到下次 LLM 前</div>
+        <div class="field f-why"><span class="fl">設計思維</span><strong>不中斷進行中的工具</strong> ── 只在模型邊界 drain,保持「工具結果與發起它的 assistant 訊息配對」,中途插入會孤立 tool result、破壞 transcript 配對</div>
+        <div class="field f-out"><span class="fl">輸出</span>下個 LLM 呼叫看到最新使用者輸入</div>
+        <div class="field f-edge"><span class="fl">邊界</span>要中止當前執行請用 <code>/queue interrupt</code>;Codex harness 改用 <code>turn/steer</code>(review/壓縮 turn 拒絕同 turn steering)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">A8</span>agent.wait 解析<span class="stag">run-wait.ts</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>runId、可選 timeoutMs</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>等待該 runId 的 lifecycle end/error;未設 timeout 預設 <strong>30000ms</strong></div>
+        <div class="field f-why"><span class="fl">設計思維</span>wait 與 run 解耦:wait 逾時<strong>不</strong>停止 run(run 自有 48h / 120s idle 計時)</div>
+        <div class="field f-out"><span class="fl">輸出</span><code>{status: ok|error|timeout|pending, startedAt, endedAt, error?}</code></div>
+        <div class="field f-edge"><span class="fl">邊界</span>gateway timeout 例外 → 映射為 <code>status:"timeout"</code></div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-channels')">channel inbound</a> 觸發,在 <a onclick="go('c-session')">session</a> lane 序列化。<strong>下游:</strong>loop 選 <a onclick="go('c-runtime')">runtime</a>、跑 <a onclick="go('c-tools')">工具迴圈</a>、在視窗滿時叫 <a onclick="go('c-context')">compaction</a>;hook 由 <a onclick="go('c-plugins')">plugins</a> 掛入。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ messages: { queue: {
+    mode: "steer", debounceMs: 500, cap: 20, drop: "summarize",
+    byChannel: { discord: "collect" },
+} } }</code></pre>
+  <p><span class="src">docs/concepts/agent-loop.md, queue.md, queue-steering.md, streaming.md, src/agents/embedded-agent-runner/</span></p>
+</section>
+
+<!-- ===== c-session ===== -->
+<section class="pane" id="c-session">
+  <div class="page-kicker">元件詳解 · 記憶 L3</div>
+  <h1 class="page">Session & State</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-channels')">路由算出 session key</a><a onclick="go('c-identity')">每 agent session store</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>每對話的持久狀態:append-only JSONL transcript + 索引</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-loop')">序列化執行</a><a onclick="go('c-context')">壓縮改寫</a><a onclick="go('c-memory')">短期記憶</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>模型無狀態,但對話必須連續。Session 是「<strong>這場對話到目前為止的權威記錄</strong>」── 它讓中斷的執行能恢復、讓 compaction 有原始資料可摘要、讓並行控制有明確的 key 可序列化。沒有 session 層,就沒有可靠的對話脈絡與並行安全。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <p>Session 是 <strong>append-only 的 JSONL transcript</strong>,由 Gateway 擁有,存在每 agent 的 session store。Session key 是「決定脈絡桶與並行 lane」的字串。</p>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>Session key 形狀</h3>
+  <p>DM 收斂到 main:<code>agent:&lt;agentId&gt;:&lt;mainKey&gt;</code>(預設 <code>agent:main:main</code>)。群組/頻道按 channel 隔離:</p>
+  <pre><code>agent:main:telegram:group:-1001234567890:topic:42
+agent:main:discord:channel:123456:thread:987654</code></pre>
+  <h3>儲存位置</h3>
+  <dl class="kv">
+    <dt>sessions.json</dt><dd>索引(<code>~/.openclaw/agents/&lt;agentId&gt;/sessions/sessions.json</code>)</dd>
+    <dt>&lt;sessionId&gt;.jsonl</dt><dd>逐則 transcript(user/assistant/toolResult)</dd>
+  </dl>
+  <p>可用 <code>session.store</code> 以 <code>{agentId}</code> 模板覆寫。Gateway/ACP 探索掃描 agents 根目錄;發現的 store 須在解析根內、用正規 sessions.json,symlink/越界路徑被忽略。</p>
+  <h3>並行安全:寫鎖</h3>
+  <p>Transcript 寫入受<strong>檔案層級 session write lock</strong>(process-aware,連繞過 in-process 佇列或跨 process 的寫入都攔得到)。任何 transcript 改寫/壓縮/截斷路徑都必須先取同一把鎖。</p>
+  <h3>tool result 的可見/隱藏分離</h3>
+  <p><code>toolResult.content</code> 模型可見;<code>toolResult.details</code> 是 runtime metadata(UI/診斷/媒體),在 provider replay/compaction 前被剝除。持久 transcript 只保留有界的 details。</p>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:session key 如何推導 + 取寫鎖</h2>
+    <p class="intro">由 <code>buildAgentPeerSessionKey</code>(<span class="fp">src/routing/session-key.ts</span>)推導。決定 key 形狀的唯一旋鈕是 <strong>peer kind</strong> 與 <strong>dmScope</strong>。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">正規化 + 判 kind</div><div class="sd">null peer = DM</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2a</div><div class="sl">DM 分支</div><div class="sd">依 dmScope 選形狀</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2b</div><div class="sl">群組分支</div><div class="sd">永遠隔離</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">取寫鎖</div><div class="sd">單寫者</div></div>
+    </div>
+    <h4>peer kind × dmScope 決策細節</h4>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>peer kind?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">direct / null</span><span class="dres">看 <b>dmScope</b> ↓(下方)</span></div>
+          <div class="dbranch cs"><span class="dtag">group/channel/room</span><span class="dres"><span class="dwin g">agent:&lt;id&gt;:&lt;channel&gt;:&lt;kind&gt;:&lt;peerId&gt;</span> (+ <code>:topic</code> / <code>:thread</code>) — 永遠隔離</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>DM 分支:dmScope = ?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">main(預設)</span><span class="dres"><span class="dwin">agent:&lt;id&gt;:main</span> ▸ 全部 DM 收斂成一個「大腦」</span></div>
+          <div class="dbranch cs"><span class="dtag">per-peer</span><span class="dres"><code>agent:&lt;id&gt;:direct:&lt;peerId&gt;</code></span></div>
+          <div class="dbranch cs"><span class="dtag">per-channel-peer</span><span class="dres"><code>agent:&lt;id&gt;:&lt;channel&gt;:direct:&lt;peerId&gt;</code></span></div>
+          <div class="dbranch cs"><span class="dtag">per-account-channel-peer</span><span class="dres"><code>agent:&lt;id&gt;:&lt;channel&gt;:&lt;account&gt;:direct:&lt;peerId&gt;</code></span></div>
+          <div class="dbranch no"><span class="dtag">守衛</span><span class="dres">任一非 main 形狀都需 peerId 非空,否則 fall through 回 main</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>正規化 + 判 peer kind<span class="stag">buildAgentSessionKey</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>matched agentId、channel、accountId、peer</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>peerKind = peer?.kind ?? "direct"</code> ── <strong>null peer 視為 DM</strong>;channel/peerId 正規化</div>
+        <div class="field f-why"><span class="fl">設計思維</span>把「無 peer」歸為 DM,讓 CLI/WebChat 等內部來源自然落在 main</div>
+        <div class="field f-out"><span class="fl">輸出</span>進入 DM 分支或群組分支</div>
+        <div class="field f-edge"><span class="fl">邊界</span>peerId 解析不出 → <code>"unknown"</code></div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2a</span>DM 分支:依 dmScope 選形狀<span class="stag">resolveLinkedPeerId</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>peerId、dmScope、identityLinks</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>非 main scope 先查 <code>identityLinks</code>:若 peerId(或 <code>channel:peerId</code>)命中某 canonical name → 用該名取代</div>
+        <div class="field f-why"><span class="fl">設計思維</span>「同一人跨 channel → 同一 session」;main scope 下 identityLinks 失效(反正都收斂 main),也因此設了 links 會停用 route cache</div>
+        <div class="field f-out"><span class="fl">輸出</span><code>agent:&lt;id&gt;:main</code> 或四種隔離形狀之一</div>
+        <div class="field f-edge"><span class="fl">邊界</span>非 main 形狀需 peerId 非空,否則 fall through 回 main</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2b</span>群組分支:永遠隔離<span class="stag">normalizeSessionPeerId</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>channel、peerKind、peerId、threadId?</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>agent:&lt;id&gt;:&lt;channel&gt;:&lt;kind&gt;:&lt;peerId&gt;</code>;thread → 加 <code>:thread:&lt;id&gt;</code>,Telegram topic → <code>:topic:&lt;id&gt;</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>群組是多方、按空間隔離;這些 key 永不等於 <code>:main</code>,故 <code>lastRoutePolicy="session"</code></div>
+        <div class="field f-out"><span class="fl">輸出</span>每對話空間一個獨立 session key</div>
+        <div class="field f-edge"><span class="fl">邊界</span>Signal 群組/Matrix room 是 case-preserving(id 不可小寫)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>執行前取 session write lock<span class="stag">acquireTimeoutMs</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>欲寫入的 session 檔</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>檔案層級鎖(process-aware);等待上限 <code>session.writeLock.acquireTimeoutMs</code> 預設 <strong>60000ms</strong>,逾時回報忙碌</div>
+        <div class="field f-why"><span class="fl">設計思維</span>連繞過 in-process 佇列、或來自其他 process 的寫入都攔得到 → 保證單寫者、transcript 不錯亂</div>
+        <div class="field f-out"><span class="fl">輸出</span>取得鎖,開始寫 transcript</div>
+        <div class="field f-edge"><span class="fl">邊界</span>預設不可重入;任何 transcript 改寫/壓縮/截斷都須先取同一把鎖</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong><a onclick="go('c-channels')">路由</a>算出 session key;<a onclick="go('c-identity')">每 agent</a> 有獨立 session store。<strong>下游:</strong><a onclick="go('c-loop')">Agent Loop</a> 以 session lane 序列化並取寫鎖;<a onclick="go('c-context')">Compaction</a> 改寫/建立後繼 transcript;session transcript 本身就是 <a onclick="go('c-memory')">短期記憶</a>。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ session: { writeLock: { acquireTimeoutMs: 60000 },
+             store: "~/.openclaw/agents/{agentId}/sessions" } }</code></pre>
+  <p><span class="src">docs/concepts/session.md, channel-routing.md, src/config/sessions.ts</span></p>
+</section>
+
+<!-- ===== c-memory ===== -->
+<section class="pane" id="c-memory">
+  <div class="page-kicker">元件詳解 · 記憶 L3</div>
+  <h1 class="page">Memory(記憶)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-session')">短期 transcript</a><a onclick="go('c-context')">由 context 注入</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>磁碟上的持久知識:長期 MEMORY.md + 每日筆記 + 可插拔檢索</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">memory_search 工具</a><a onclick="go('c-automation')">dreaming 鞏固</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>Context 視窗有限,但助理必須跨對話記得偏好、決策、事實。同時,把記憶藏在不透明的向量庫裡會讓使用者無法檢視、無法信任。OpenClaw 的設計選擇是:<strong>記憶就是磁碟上的純 Markdown ── 模型只記得被存下來的東西,沒有隱藏狀態</strong>。這讓記憶可讀、可編輯、可版控、可備份。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout key"><span class="ct">memory ≠ context</span>Memory 是持久的(磁碟/後端),之後重新載入;context 是模型某 turn 實際看到的有限視窗。<span class="src">docs/concepts/memory.md, context.md</span></div>
+  <table>
+    <tr><th>檔案</th><th>角色</th><th>載入 context?</th></tr>
+    <tr><td><code>MEMORY.md</code></td><td>長期:持久事實、偏好、決策</td><td>是,每 DM session 開始(bootstrap)</td></tr>
+    <tr><td><code>memory/YYYY-MM-DD.md</code></td><td>每日筆記/工作層</td><td>今+昨自動;其餘建索引供搜尋</td></tr>
+    <tr><td><code>DREAMS.md</code></td><td>Dream Diary(供人審閱)</td><td>否</td></tr>
+  </table>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>注入有上限</h3>
+  <p><code>bootstrapMaxChars</code> 預設 20000、<code>bootstrapTotalMaxChars</code> 預設 60000;超過則磁碟保留完整、截斷注入副本。</p>
+  <h3>Active Memory(主動記憶)</h3>
+  <p>可選的阻斷式記憶子代理,在主回覆<em>之前</em>對合格對話 session 跑。動機:大多記憶系統是被動的(等使用者說「記住」);active memory 給系統<strong>一次有界機會,在主回覆前先浮現相關記憶</strong>。結果以隱藏不可信 prompt 前綴注入。只在互動式持久 chat 跑,不在 headless/heartbeat/子代理跑。</p>
+  <h3>可插拔記憶後端</h3>
+  <div class="scrollwrap"><table>
+    <tr><th></th><th>Builtin (memory-core)</th><th>QMD</th><th>Honcho</th><th>LanceDB</th></tr>
+    <tr><td>儲存</td><td>每 agent SQLite 索引覆蓋 Markdown</td><td>本機 sidecar binary</td><td>專用服務</td><td>LanceDB 向量庫</td></tr>
+    <tr><td>搜尋</td><td>FTS5/BM25+向量+hybrid;CJK trigram</td><td>BM25+向量+rerank</td><td>對觀察語意搜尋</td><td>向量 recall</td></tr>
+    <tr><td>跨 session/使用者建模</td><td>經記憶檔/手動</td><td>可選/手動</td><td><strong>自動 user+agent profile</strong></td><td>自動捕捉</td></tr>
+    <tr><td>依賴</td><td><strong>無</strong></td><td>QMD binary</td><td>plugin</td><td>native @lancedb</td></tr>
+  </table></div>
+  <p><code>plugins.slots.memory</code> 選活躍後端(預設 memory-core,只有一個 plugin 擁有此 slot)。<strong>Memory Wiki</strong> 是伴生知識層,不取代後端。</p>
+  <h3>Memory Search(混合檢索)</h3>
+  <p>向量(語意)+ BM25(精確比對 ID/錯誤字串)並行合併;hybrid 預設 <code>vectorWeight:0.7, textWeight:0.3</code>。明確遠端 provider <strong>fail-closed</strong>(不可用回 unavailable,不悄悄降級成 FTS-only)。</p>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:active memory 兩道閘 + 混合檢索合併</h2>
+    <p class="intro">Active memory 是在主回覆<em>之前</em>跑的阻斷式子代理。它要先過兩道閘才會跑,跑完把回憶以隱藏前綴注入。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">資格判斷</div><div class="sd">兩道閘</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">阻斷式回憶</div><div class="sd">memory_search</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">隱藏前綴注入</div><div class="sd">不可信脈絡</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">★</div><div class="sl">主回覆</div><div class="sd">混合檢索</div></div>
+    </div>
+    <h4>兩道閘決策細節</h4>
+    <div class="dflow">
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>plugin 啟用 + agent ∈ config.agents + chatType 允許 + 互動式持久 session?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">全部是</span><span class="dres">跑阻斷式子代理 → 回憶結果?<br><span class="dwin g">有</span> 注入隱藏 <code>&lt;active_memory_plugin&gt;</code> system context &nbsp;/&nbsp; <span class="dwin r">NONE</span> 不注入</span></div>
+          <div class="dbranch no"><span class="dtag">任一否</span><span class="dres">headless 一次性 / heartbeat / 子代理 / 內部 agent-command → <b>跳過</b>,直接主回覆</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>第一道閘:資格判斷<span class="stag">兩道閘</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>session 種類、agent id、chat type</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>plugin enabled + agent ∈ <code>config.agents</code> + chatType ∈ <code>allowedChatTypes</code> + 為「互動式持久 session」</div>
+        <div class="field f-why"><span class="fl">設計思維</span>只在真人對話時值得花這筆 latency;背景/一次性執行不需要</div>
+        <div class="field f-out"><span class="fl">輸出</span>合格 → 進子代理;否則跳過</div>
+        <div class="field f-edge"><span class="fl">邊界</span>headless 一次性、heartbeat、子代理、內部 agent-command 一律不跑</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>阻斷式子代理回憶<span class="stag">queryMode</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>使用者訊息(依 <code>queryMode</code>:message/recent/full)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>用回憶工具(memory-core 預設 <code>memory_search/memory_get</code>;LanceDB slot 則 <code>memory_recall</code>);有 timeout + circuit breaker</div>
+        <div class="field f-why"><span class="fl">設計思維</span>「在主回覆前先有一次有界機會浮現相關記憶」── 補上「被動記憶」錯過的自然時機</div>
+        <div class="field f-out"><span class="fl">輸出</span>相關摘要 或 <code>NONE</code></div>
+        <div class="field f-edge"><span class="fl">邊界</span>連續 timeout 觸發 circuit breaker 冷卻;model 解析不出 → 跳過該 turn</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>以隱藏前綴注入<span class="stag">不可信 prompt 前綴</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>回憶摘要</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>包成 <code>&lt;active_memory_plugin&gt;</code> 區塊,標為「不可信 metadata,勿當指令」</div>
+        <div class="field f-why"><span class="fl">設計思維</span>記憶內容可能被污染,標記為不可信避免 prompt injection 升級成指令</div>
+        <div class="field f-out"><span class="fl">輸出</span>主回覆在含此隱藏脈絡下生成(不顯示給使用者)</div>
+        <div class="field f-edge"><span class="fl">邊界</span><code>/trace raw</code> 才看得到此前綴</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">★</span>memory_search 混合檢索合併<span class="stag">hybrid merge</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>查詢字串</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>向量路徑 + BM25 路徑<strong>並行</strong>,加權合併 <code>vectorWeight:0.7 / textWeight:0.3</code>;可選 MMR 去重、時間衰減</div>
+        <div class="field f-why"><span class="fl">設計思維</span>向量擅長語意、BM25 擅長精確 ID/錯誤字串,兩者互補;只有一條可用就單獨跑</div>
+        <div class="field f-out"><span class="fl">輸出</span>Top 結果(可帶 <code>Source: path#line</code> 引用)</div>
+        <div class="field f-edge"><span class="fl">邊界</span>明確遠端 provider 不可用 → 回 unavailable(<strong>不</strong>悄悄降級 FTS-only,讓壞設定可見);index 身分變動 → 暫停向量搜尋並警告</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong><a onclick="go('c-session')">session transcript</a> 是短期記憶來源;<a onclick="go('c-context')">context engine</a> 把 MEMORY.md 注入 prompt。<strong>下游:</strong>暴露 <a onclick="go('c-tools')">memory_search/memory_get 工具</a>;<a onclick="go('c-automation')">dreaming</a> 在背景把短期素材晉升到 MEMORY.md;壓縮前的「記憶刷新」靠它落地。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ agents: { defaults: { memorySearch: { query: { hybrid: {
+    vectorWeight: 0.7, textWeight: 0.3,
+    mmr: { enabled: true, lambda: 0.7 },
+    temporalDecay: { enabled: true, halfLifeDays: 30 },
+} } } } } }</code></pre>
+  <p><span class="src">docs/concepts/memory*.md, memory-search.md, reference/memory-config.md, src/memory-host-sdk/</span></p>
+</section>
+
+<!-- ===== c-context ===== -->
+<section class="pane" id="c-context">
+  <div class="page-kicker">元件詳解 · 記憶 L3</div>
+  <h1 class="page">Context Engine & 壓縮 Compaction</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-session')">session 訊息</a><a onclick="go('c-memory')">記憶/bootstrap</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>決定每 turn 模型看到什麼,並在視窗滿時摘要</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-runtime')">送進模型</a><a onclick="go('c-loop')">觸發重試</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>模型每 turn 只能看有限 token,但對話會無限增長、記憶/工具 schema 都要佔位。必須有個元件<strong>在每次呼叫前決定「放什麼進有限視窗」</strong>,並在快滿時<strong>把舊歷史摘要掉而不丟失資訊</strong>。否則對話一長就會溢位失敗、或無腦截斷造成脈絡斷裂。Context engine 與 compaction 就是這個「視窗預算管理者」。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <p>Context engine <strong>可插拔</strong>(<code>plugins.slots.contextEngine</code>),內建 <code>legacy</code> 為預設。它在每次模型執行參與四個點。Compaction 把較舊對話摘要成持久摘要,<strong>完整歷史仍留磁碟</strong> ── 只改變模型下一 turn 看到的內容。</p>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>Context engine 四點生命週期</h3>
+  <div class="grid c2">
+    <div class="card tight"><h4>① Ingest</h4>新訊息加入時呼叫,引擎可儲存/建索引</div>
+    <div class="card tight"><h4>② Assemble</h4>每次執行前呼叫,回傳符合 token budget 的有序訊息(+ 選擇性 systemPromptAddition)</div>
+    <div class="card tight"><h4>③ Compact</h4>視窗滿或 <code>/compact</code> 時摘要舊歷史</div>
+    <div class="card tight"><h4>④ After turn</h4>持久化狀態、觸發背景壓縮、更新索引</div>
+  </div>
+  <div class="callout warn"><span class="ct">故障隔離(quarantine)</span>若非 legacy 引擎缺失/驗證失敗/拋例外,OpenClaw 隔離它並降級回 legacy,讓回覆繼續。<span class="fp">src/context-engine/quarantine-health.ts</span></div>
+  <h3>Compaction 兩個觸發</h3>
+  <ol>
+    <li><strong>Overflow recovery</strong>:provider 回 context-overflow → 壓縮 → 重試。</li>
+    <li><strong>Threshold maintenance</strong>:turn 成功後,當 <code>contextTokens &gt; contextWindow − reserveTokens</code>。</li>
+  </ol>
+  <div class="callout note"><span class="ct">壓縮前的記憶刷新</span>壓縮前跑一個靜默「現在寫記憶」turn(回覆以 NO_REPLY 開頭),提醒 agent 把重要脈絡存進記憶檔。<code>reserveTokensFloor</code> 預設 20000:低於此會被自動頂高。</div>
+  <h3>Session Pruning(與壓縮互補)</h3>
+  <p>每次 LLM 呼叫前修剪舊<strong>工具結果</strong>(僅 in-memory,<em>不</em>改磁碟)。動機是 <strong>Anthropic prompt caching</strong>:cache TTL 過期後重新快取整個 prompt,修剪縮小快取寫入直接降成本。Anthropic profile 自動啟用。</p>
+  <table><tr><th></th><th>Pruning</th><th>Compaction</th></tr>
+    <tr><td>對象</td><td>工具結果</td><td>整段對話</td></tr>
+    <tr><td>是否存磁碟</td><td>否(per-request)</td><td>是(transcript)</td></tr></table>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:組裝 → 壓縮判斷 → quarantine fallback</h2>
+    <p class="intro">Context engine 介面在 <span class="fp">src/context-engine/types.ts</span>;壓縮設定在 <code>applyAgentCompactionSettingsFromConfig</code>(<span class="fp">src/agents/agent-settings.ts</span>);quarantine 在 <span class="fp">src/context-engine/registry.ts</span>。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">assemble</div><div class="sd">填滿視窗預算</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">壓縮判斷</div><div class="sd">overflow / threshold</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">記憶刷新</div><div class="sd">soft threshold</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">compact</div><div class="sd">keep/drop</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">✦</div><div class="sl">quarantine</div><div class="sd">失敗降級 legacy</div></div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>Assemble:決定模型看到什麼<span class="stag">assemble()</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span><code>{messages, tokenBudget, availableTools, citationsMode, model}</code></div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>由 host 能力 <code>"assemble-before-prompt"</code> 把關;回傳實際送出的有序 messages + <code>estimatedTokens</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>解耦「磁碟上有什麼」與「模型看到什麼」;<code>promptAuthority:"preassembly_may_overflow"</code> 讓 overflow 預檢取 max(組裝, 未開窗歷史)估計,避免開窗視圖藏住溢位</div>
+        <div class="field f-out"><span class="fl">輸出</span>組好的 prompt;可選 <code>contextProjection</code>(per_turn / thread_bootstrap)</div>
+        <div class="field f-edge"><span class="fl">邊界</span>generic CLI backend 不滿足此能力 → 該類引擎在執行前 fail-closed</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>壓縮觸發判斷(兩條路)<span class="stag">overflow / threshold</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>provider 回應 或 turn 後的用量</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>① reactive:provider 回 <code>request_too_large</code>/<code>context length exceeded</code> 等簽章 → 壓縮+重試;② proactive:<code>contextTokens &gt; contextWindow − reserveTokens</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>overflow 失敗時<strong>保留 session 映射</strong>不悄悄換新 session id ── 讓 operator 自行 retry/<code>/compact</code>/<code>/new</code></div>
+        <div class="field f-out"><span class="fl">輸出</span>觸發壓縮或正常結束</div>
+        <div class="field f-edge"><span class="fl">邊界</span>另有 <code>maxActiveTranscriptBytes</code>(turn 起點)與 <code>midTurnPrecheck</code>(工具迴圈)兩個 opt-in 觸發</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2.5</span>reserveTokensFloor bump + 小視窗 cap<span class="stag">agent-settings.ts</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>設定的 <code>reserveTokens</code>、模型視窗</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>max(reserveTokens, reserveTokensFloor)</code>,floor 預設 <strong>20000</strong>;再 <code>min(floor, maxReserve)</code> 防超過視窗</div>
+        <div class="field f-why"><span class="fl">設計思維</span>留足多 turn「家務」(寫記憶)空間;小視窗模型不加 cap 會「每個 prompt 都被判溢位 → 無限壓縮迴圈」</div>
+        <div class="field f-out"><span class="fl">輸出</span>有效 reserveTokens(範例 16384 會被頂到 20000)</div>
+        <div class="field f-edge"><span class="fl">邊界</span>設 <code>reserveTokensFloor:0</code> 可停用</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>壓縮前記憶刷新(靜默 turn)<span class="stag">memoryFlush</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>使用量跨過 soft threshold(預設 <strong>4000</strong> tokens,低於壓縮門檻)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>跑「現在寫記憶」指令,輸出以 <code>NO_REPLY</code> 開頭(使用者看不到)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>在壓縮前先把重要脈絡落地到記憶檔,避免摘要造成不可逆的脈絡流失</div>
+        <div class="field f-out"><span class="fl">輸出</span>寫 <code>memory/YYYY-MM-DD.md</code>;記 <code>memoryFlushCompactionCount</code>,每壓縮週期一次</div>
+        <div class="field f-edge"><span class="fl">邊界</span>CLI backend 跳過;workspace 唯讀跳過;model 覆寫不繼承 fallback 鏈</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">4</span>Compact:保留 vs 丟棄<span class="stag">firstKeptEntryId</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>較舊對話</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>未來 turn 看到 = 摘要 + <code>firstKeptEntryId</code> 之後的訊息;chunk 切割保持 tool call 與 toolResult 配對</div>
+        <div class="field f-why"><span class="fl">設計思維</span>切點落在工具區塊內 → 邊界移到 tool-call 訊息;會溢位的尾端 tool result 以未摘要尾巴保留;完整歷史仍留磁碟</div>
+        <div class="field f-out"><span class="fl">輸出</span>transcript 寫入 compaction entry;<code>truncateAfterCompaction</code> 則建後繼 JSONL</div>
+        <div class="field f-edge"><span class="fl">邊界</span>手動 <code>/compact</code> 無 keep budget → 硬檢查點,從新摘要單獨續</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">✦</span>引擎失敗 → quarantine 降級<span class="stag">registry.ts</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>對非 legacy 引擎的任一 guarded 方法呼叫</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>呼叫拋例外 → <code>recordContextEngineQuarantine</code>(first-failure-wins),之後路由到 default 引擎</div>
+        <div class="field f-why"><span class="fl">設計思維</span>引擎壞掉不能讓回覆停擺 → 隔離該引擎、降級 legacy;<code>compact</code>/<code>prepareSubagentSpawn</code> 有副作用故 re-throw 不靜默 fallback</div>
+        <div class="field f-out"><span class="fl">輸出</span>本 process 餘生改用 legacy;log 根因</div>
+        <div class="field f-edge"><span class="fl">邊界</span>abort signal 一律拋(caller 意圖,不算引擎錯);re-register 自動清除 quarantine</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong>從 <a onclick="go('c-session')">session</a> 取訊息、注入 <a onclick="go('c-memory')">記憶/bootstrap</a>。<strong>下游:</strong>組好的 context 送給 <a onclick="go('c-runtime')">runtime/模型</a>;overflow 時請 <a onclick="go('c-loop')">Agent Loop</a> 重試;Codex runtime 下 OpenClaw 把 context 投射進 Codex turn。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ compaction: { enabled: true, reserveTokens: 16384, keepRecentTokens: 20000 },
+  contextPruning: { mode: "cache-ttl", ttl: "5m" } }</code></pre>
+  <p><span class="src">docs/concepts/context.md, context-engine.md, compaction.md, session-pruning.md, src/context-engine/</span></p>
+</section>
+
+<!-- ===== c-tools ===== -->
+<section class="pane" id="c-tools">
+  <div class="page-kicker">元件詳解 · 能力 L4</div>
+  <h1 class="page">Tools(工具)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">工具迴圈呼叫</a><a onclick="go('c-skills')">skills 教用法</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>型別化的可呼叫動作 + 多層權限篩選</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-substrate')">node/sandbox 執行</a><a onclick="go('c-security')">policy/approvals</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>「會聊天」的助理沒用 ── OpenClaw 的標語是「actually does things」。要做事就需要<strong>可呼叫的動作</strong>:跑指令、開瀏覽器、查網路、發訊息、生成媒體。但把任意能力交給 LLM 很危險,所以同時需要<strong>多層權限篩選</strong>,確保模型只看得到、用得到被允許的工具。Tools 層就是「能力 + 約束」的合體。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <p>工具是<strong>模型可呼叫的型別化函式</strong>。可見工具以結構化 function definition 送給模型 ── 但只有<strong>通過篩選管線</strong>的工具才會被看到。</p>
+  <div class="flow">
+    <div class="step"><div class="sl">profile</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sl">allow/deny</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sl">provider</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sl">sandbox</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sl">channel/agent</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sl">模型看到的工具</div></div>
+  </div>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>內建工具清單(分類)</h3>
+  <table>
+    <tr><th>類別</th><th>代表工具</th></tr>
+    <tr><td>Runtime</td><td><code>exec</code> <code>process</code> <code>code_execution</code></td></tr>
+    <tr><td>Files</td><td><code>read</code> <code>write</code> <code>edit</code> <code>apply_patch</code></td></tr>
+    <tr><td>Web</td><td><code>web_search</code> <code>x_search</code> <code>web_fetch</code></td></tr>
+    <tr><td>Browser</td><td><code>browser</code>(單一工具、多 action)</td></tr>
+    <tr><td>Messaging / Sessions</td><td><code>message</code> · <code>sessions_*</code> <code>subagents</code> <code>goal</code></td></tr>
+    <tr><td>Automation / Media</td><td><code>cron</code> · <code>image_generate</code> <code>music_generate</code> <code>tts</code></td></tr>
+    <tr><td>大型 catalog</td><td><code>tool_search_code</code> <code>tool_search</code> <code>tool_call</code></td></tr>
+  </table>
+  <h3>權限模式</h3>
+  <p><code>tools.exec.mode</code>:<code>deny</code>/<code>allowlist</code>/<code>ask</code>/<strong><code>auto</code>(建議:allowlist 命中即跑,未命中走原生 auto reviewer 再到人類)</strong>/<code>full</code>(YOLO)。權限模式(<em>怎麼</em>核准)與 <code>tools.exec.host</code>(<em>在哪</em>跑:auto/sandbox/gateway/node)分開。工具篩選 8 層,每層只能進一步限制、絕不加回。</p>
+  <h3>Tool Search(動態工具載入)<span class="pill exp">實驗性</span></h3>
+  <p>把每個 schema 都送給模型會讓請求變大變慢易誤選。Tool Search 讓 agent 不必事先看到每個 schema 即可探索並呼叫大型 catalog。三模式:<code>code</code>(預設,隔離 Node subprocess 跑短 JS,透過 <code>openclaw.tools</code> bridge)、<code>tools</code>、<code>directory</code>。每個真實呼叫都跨 bridge 回 Gateway,正常 policy/approval/hook/logging 照常(fail-closed)。</p>
+  <h3>Subagents / 委派</h3>
+  <p>從現有執行衍生的<strong>背景 agent 執行</strong>,各自獨立 session,完成時 announce 回請求者 chat。<code>sessions_spawn</code>(非阻斷)、<code>sessions_yield</code>(等待原語,別輪詢)。預設 <code>maxSpawnDepth:1</code>;子代理移除 message/session/system 工具,context 僅注入 AGENTS.md+TOOLS.md。</p>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:工具可見度 8 層管線 + exec 權限</h2>
+    <p class="intro">由 <code>applyToolPolicyPipeline</code>(<span class="fp">src/agents/tool-policy-pipeline.ts</span>)逐層套用。結構不變式:每層用 <code>filterToolsByPolicy</code> 過濾<strong>上一層的輸出</strong>,所以<strong>任何一層只能進一步收窄,絕不能把前層砍掉的工具加回來</strong>。matcher 規則:<code>deny</code> 永遠勝 → 空 <code>allow</code> = 允許全部未被 deny 的。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">profile</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">provider profile</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3–4</div><div class="sl">global / provider allow-deny</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">5–6</div><div class="sl">agent / agent-provider</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">7</div><div class="sl">sandbox</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">8</div><div class="sl">subagent</div></div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1–2</span>Profile + Provider profile<span class="stag">resolveEffectiveToolPolicy</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>全部 bundled/core 工具</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>agentTools?.profile ?? globalTools?.profile</code>;<code>alsoAllow</code> 在<strong>此階段</strong>合併(避免過早過濾);再交集 provider profile</div>
+        <div class="field f-why"><span class="fl">設計思維</span>profile 是最廣的「具名能力包」;先放寬(alsoAllow)再收窄,順序才正確</div>
+        <div class="field f-out"><span class="fl">輸出</span>工具集 = profile ∩ alsoAllow ∩ provider-profile</div>
+        <div class="field f-edge"><span class="fl">邊界</span>舊 <code>tools.exec/fs</code> 不再隱含放寬 → 警告請改用 <code>alsoAllow</code>(不自動加回)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3–6</span>Global → Provider → Agent → Agent-provider allow/deny<span class="stag">makeToolPolicyMatcher</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>前層輸出</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>四層 <code>pickSandboxToolPolicy</code> 依序交集:<code>tools.*</code> → <code>tools.byProvider</code> → <code>agents.list[].tools.*</code> → agent.byProvider;每層 deny-wins、空 allow=全通過</div>
+        <div class="field f-why"><span class="fl">設計思維</span>由「operator 全域」收窄到「此 agent、此 provider」── 範圍越窄排越後,符合「最後一層最具體」</div>
+        <div class="field f-out"><span class="fl">輸出</span>逐步交集後的工具集</div>
+        <div class="field f-edge"><span class="fl">邊界</span>中途另有 group/toolsBySender 步驟,group id 未經 session/spawn 背書 → 直接 drop(fail-closed)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">7–8</span>Sandbox + Subagent 層<span class="stag">applyFinalEffectiveToolPolicy</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>config 層輸出</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>sandbox 層僅在 <code>sandboxMode==="all"</code> 套用;subagent 層僅在 subagent session 套用,並加 always-deny(<code>gateway/agents_list/session_status/cron/sessions_send</code>;leaf 再 deny <code>subagents/sessions_*</code>)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>sandbox 是容器邊界,其工具清單是硬上限;子代理不得做編排/系統動作,只能透過 announce 鏈回報</div>
+        <div class="field f-out"><span class="fl">輸出</span>模型最終看到的工具集</div>
+        <div class="field f-edge"><span class="fl">邊界</span>明確 allow 的工具會從 always-deny 清單移除</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">!</span>零工具 fail-loud<span class="stag">buildEmptyExplicitToolAllowlistError</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>篩選後的 callable 工具集</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>若有<strong>非空</strong>的明確 allowlist 來源,但 callable 數 = 0 → 拋 Error,並停在模型呼叫前</div>
+        <div class="field f-why"><span class="fl">設計思維</span>設了 <code>allow:["query_db"]</code> 卻沒裝對應 plugin → 應大聲失敗,而非默默變成 text-only agent</div>
+        <div class="field f-out"><span class="fl">輸出</span>明確錯誤訊息(修 allowlist 或啟用 plugin)</div>
+        <div class="field f-edge"><span class="fl">邊界</span>明確 <code>allow:[]</code>(空)<strong>不</strong>報錯 ── 那是刻意停用全部工具</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">exec</span>Exec 權限:host × mode × approvals<span class="stag">resolveExecHostApprovalContext</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>exec 呼叫 + 設定 + host-local approvals 檔</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>host(<code>resolveExecTarget</code>:auto→sandbox 在則 sandbox 否則 gateway)× mode(deny/allowlist/ask/auto/full)× <strong>取較嚴</strong>:<code>minSecurity(config, file)</code>、<code>maxAsk(config, file)</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>「session/config 是請求的契約;host 檔可<strong>收緊</strong>但不可<strong>放寬</strong>」── security 只能降向 deny、ask 只能升向 always</div>
+        <div class="field f-out"><span class="fl">輸出</span>有效 <code>{hostSecurity, hostAsk, askFallback}</code>;deny → 直接拋 <code>exec denied</code></div>
+        <div class="field f-edge"><span class="fl">邊界</span>無 UI → 依 askFallback(預設 deny);strictInlineEval 對 <code>python -c</code> 等不持久化核准;cron headless → inline 拒絕;node host 計畫漂移(command/cwd/file 變動)→ 拒絕</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-loop')">Agent Loop 的工具迴圈</a>呼叫;<a onclick="go('c-skills')">Skills</a> 教模型何時怎麼用。<strong>下游:</strong>exec 可在 <a onclick="go('c-substrate')">sandbox 或 node</a> 執行;權限與 approvals 屬 <a onclick="go('c-security')">Security</a>;工具由 <a onclick="go('c-plugins')">plugins</a> 註冊。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ tools: {
+    exec: { mode: "auto", host: "auto" },
+    alsoAllow: ["browser", "sessions_spawn"],
+    toolSearch: true,
+} }</code></pre>
+  <p><span class="src">docs/tools/index.md, exec.md, permission-modes.md, tool-search.md, subagents.md</span></p>
+</section>
+
+<!-- ===== c-skills ===== -->
+<section class="pane" id="c-skills">
+  <div class="page-kicker">元件詳解 · 能力 L4</div>
+  <h1 class="page">Skills(技能)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">session 開始時快照注入</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>教 agent「何時/如何」用工具的 Markdown 指令包</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">引導使用工具</a><a onclick="go('c-context')">佔用 prompt 預算</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>有了工具,模型還是常常不知道<strong>何時該用、怎麼用、用哪個工作流程</strong>。把這些「操作知識」硬寫進 system prompt 會臃腫且難維護。Skills 的存在是為了<strong>把可重用的工作流程、審查 rubric、指令序列、操作約束模組化成 Markdown 檔</strong>,按需注入,並可由社群分享。Skill ≠ tool:它不註冊函式,只注入指令。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout key"><span class="ct">tool vs skill</span>當 agent 缺少能力 → 加 <strong>tool</strong>;當 agent 有工具但需要可重用的工作流程/約束 → 加 <strong>skill</strong>。Skill 把指令注入 prompt,不註冊可呼叫函式。遵循 AgentSkills 規範。</div>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>SKILL.md 格式</h3>
+  <pre><code>---
+name: image-lab
+description: Generate or edit images via a provider-backed image workflow
+---
+
+When the user asks to generate an image, use the `image_generate` tool...</code></pre>
+  <p>Gating 透過單行 JSON 的 <code>metadata.openclaw</code>:<code>requires.bins</code>(PATH 上執行檔)、<code>requires.env</code>、<code>requires.config</code>、<code>os</code>。</p>
+  <h3>載入順序(高優先在前)</h3>
+  <table>
+    <tr><th>優先</th><th>來源</th><th>路徑</th></tr>
+    <tr><td>1</td><td>Workspace</td><td><code>&lt;workspace&gt;/skills</code></td></tr>
+    <tr><td>2/3</td><td>Project/Personal agent</td><td><code>.agents/skills</code> · <code>~/.agents/skills</code></td></tr>
+    <tr><td>4/5</td><td>Managed / Bundled</td><td><code>~/.openclaw/skills</code> · 隨安裝</td></tr>
+    <tr><td>6</td><td>額外目錄 + plugin skills</td><td><code>skills.load.extraDirs</code></td></tr>
+  </table>
+  <p>執行開始:解析合格清單 → 注入 env/apiKey 到 process.env → 編譯成<strong>緊湊 XML block</strong> 注入 system prompt → 執行後還原環境。Token 成本可預測(每 skill 約 24 token + 欄位長度)── 描述要短。Skill 在 <strong>session 開始時</strong>快照。</p>
+  <h3>Skill Workshop(治理路徑)</h3>
+  <p>建立/更新 workspace skill 的受治理路徑:先建 proposal,<code>apply</code> 時才成 live skill。特性:proposal-first、apply 唯一 live 寫入、no-clobber、hash-bound、scanner-gated、可回滾。</p>
+  <h3>內建技能(~50)</h3>
+  <div class="card tight"><p style="font-family:var(--mono);font-size:11.5px;line-height:1.85;">1password · apple-notes · bear-notes · blogwatcher · camsnap · clawhub · <strong style="color:var(--accent2)">coding-agent</strong> · diagram-maker · gemini · gh-issues · github · gog · healthcheck · imsg · meme-maker · notion · obsidian · openai-whisper · peekaboo · python-debugpy · session-logs · <strong style="color:var(--accent2)">skill-creator</strong> · spotify-player · summarize · taskflow · tmux · trello · weather · xurl … </p></div>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:skill 從磁碟到 prompt</h2>
+    <p class="intro">Skill 在 <strong>session 開始時</strong>快照一次,整個 session 重用。下面是從多來源收集到注入 prompt 的決策鏈。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">6 層收集</div><div class="sd">高優先勝</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">gating 過濾</div><div class="sd">requires/os</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">env 注入</div><div class="sd">process.env</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">編譯 XML</div><div class="sd">注入 system prompt</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">5</div><div class="sl">執行後還原</div><div class="sd">restore env</div></div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>6 層來源收集(高優先在前)<span class="stag">同名高優先勝</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>各來源目錄的 <code>SKILL.md</code></div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>workspace → project agent → personal agent → managed → bundled → extraDirs/plugin;同名 skill <strong>最高來源勝</strong></div>
+        <div class="field f-why"><span class="fl">設計思維</span>讓使用者能用 workspace 版覆蓋 bundled 版(開發/hotfix),無需改 core</div>
+        <div class="field f-out"><span class="fl">輸出</span>去重後的 skill 候選清單</div>
+        <div class="field f-edge"><span class="fl">邊界</span>symlink 解析到 root 外 → 跳過,除非列入 <code>allowSymlinkTargets</code></div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>Gating + allowlist 過濾<span class="stag">metadata.openclaw.requires</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>候選 skill + 環境</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>檢查 <code>requires.bins</code>(PATH)、<code>requires.env</code>、<code>requires.config</code>、<code>os</code>;再套 agent allowlist(<code>agents.list[].skills</code> 非空 = 最終集合)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>缺依賴的 skill 不該出現在 prompt 浪費 token / 誤導模型;per-agent allowlist 控制可見性</div>
+        <div class="field f-out"><span class="fl">輸出</span>合格 skill 清單</div>
+        <div class="field f-edge"><span class="fl">邊界</span><code>agents.list[].skills</code> 非空時<strong>不</strong>與 defaults 合併</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3–4</span>env 注入 + 編譯 XML<span class="stag">緊湊 XML block</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>合格 skill 清單</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>注入 <code>skills.entries.&lt;key&gt;.env/.apiKey</code> 到 <code>process.env</code>;把 skill 編譯成緊湊 XML 注入 system prompt</div>
+        <div class="field f-why"><span class="fl">設計思維</span>token 成本可預測(每 skill ≈ 24 token + 欄位長度)→ 描述要短;只放清單,SKILL.md 全文按需才 read</div>
+        <div class="field f-out"><span class="fl">輸出</span>system prompt 含 skill 指令;env 就緒</div>
+        <div class="field f-edge"><span class="fl">邊界</span>env 注入是 host-scoped 不是 sandbox-scoped ── sandbox 內無效,須走 <code>sandbox.docker.env</code></div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">5</span>執行後還原 + 快照刷新<span class="stag">snapshot</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>執行完成</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>還原原始環境;skill 快照在 session 開始時定版,整 session 重用</div>
+        <div class="field f-why"><span class="fl">設計思維</span>避免 skill 的 env 污染其他執行;快照避免 mid-session 規則漂移</div>
+        <div class="field f-out"><span class="fl">輸出</span>環境復原</div>
+        <div class="field f-edge"><span class="fl">邊界</span>SKILL.md 變更或新遠端 node 連入 → 下個 session(或 watcher 偵測)才生效</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-loop')">Agent Loop</a> 在 session 開始時載入快照。<strong>下游:</strong>注入 system prompt 引導 <a onclick="go('c-tools')">工具</a>使用;佔用 <a onclick="go('c-context')">context 預算</a>;plugin 可隨身攜帶 skills(<a onclick="go('c-plugins')">Plugins</a>);安裝/驗證走 <a onclick="go('c-security')">install policy</a>。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ agents: {
+    defaults: { skills: ["github", "weather"] },
+    list: [ { id: "docs", skills: ["docs-search"] } ],   // 非空 = 最終集合,不與 defaults 合併
+} }</code></pre>
+  <p><span class="src">docs/tools/skills.md, skills-config.md, creating-skills.md, skill-workshop.md, skills/*</span></p>
+</section>
+
+<!-- ===== c-channels ===== -->
+<section class="pane" id="c-channels">
+  <div class="page-kicker">元件詳解 · 對外 L5</div>
+  <h1 class="page">Channels & Chat Interface</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-substrate')">Gateway 維持連線</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>訊息表面的 adapter + 確定性路由 + 前端</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-identity')">選 agent</a><a onclick="go('c-session')">算 session key</a><a onclick="go('c-loop')">觸發執行</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>助理的價值在於「<strong>在你已經在用的地方回應你</strong>」,而不是逼你裝新 App。但 20+ 訊息平台各有不同的事件格式、媒體能力、mention 規則、rate limit。若不把它們統一成一個正規化的 adapter 層,大腦就得知道每個平台的細節。Channels 層的存在是為了<strong>把所有訊息表面翻譯成統一的 inbound/outbound,並讓路由可預測</strong>(模型從不選 channel)。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">在你自己的帳號上 + 確定性回覆</span>OpenClaw 通常住在你自己的訊息帳號(WhatsApp 等沒有獨立 bot)。回覆<strong>確定性</strong>回到訊息來的 channel ── 模型不選 channel。</div>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>支援的 channel(20+)</h3>
+  <div class="scrollwrap"><table>
+    <tr><th>Channel</th><th>傳輸/SDK</th><th>備註</th></tr>
+    <tr><td>WhatsApp</td><td>Baileys + QR</td><td>唯一支援 broadcast group</td></tr>
+    <tr><td>Telegram</td><td>Bot API / grammY</td><td>設定最快;群組+forum topic</td></tr>
+    <tr><td>Slack / Discord</td><td>Bolt / Bot API</td><td>team/guild/role 路由;thread</td></tr>
+    <tr><td>Signal / iMessage / Teams / Matrix / Feishu / LINE / Mattermost</td><td>各平台</td><td>core/bundled/下載式</td></tr>
+    <tr><td>IRC/SMS/Nostr/QQ/WeChat/Zalo/Twitch/Tlon/Synology/Nextcloud</td><td>各式</td><td>core/bundled/external</td></tr>
+    <tr><td>WebChat</td><td>Gateway WS</td><td>內部 UI;<em>非</em>可設定 outbound</td></tr>
+  </table></div>
+  <h3>路由(最具體者勝)</h3>
+  <p>依序:精確 peer → parent peer(thread)→ guild+roles → guild → team → account → channel(<code>*</code>)→ 預設 agent。<strong>Channel Docking</strong> 是「一個 session 的來電轉接」:保持脈絡、改變未來回覆投遞地(需 <code>session.identityLinks</code>)。</p>
+  <h3>訊息生命週期</h3>
+  <pre><code>Inbound → routing/bindings → session key
+  → queue(若執行中) → agent run(串流+工具)
+  → outbound(channel 上限 + chunking)</code></pre>
+  <p>Inbound:去重、debounce、body 分離(<code>BodyForAgent</code>/<code>CommandBody</code>)。活躍度信號:<strong>Presence</strong>(TTL 5min)、<strong>Typing</strong>(never→message→thinking→instant)、<strong>Progress draft</strong>(單一持續更新訊息)。<strong>Ambient room events</strong>:未被 @ 的閒聊當安靜 context;<strong>Bot loop protection</strong>:滑動窗+冷卻防 bot 互回。</p>
+  <h3>前端(都連同一條 Gateway WS)</h3>
+  <div class="grid c3">
+    <div class="card tight"><h4>WebChat</h4>原生 SwiftUI,直連 WS;確定性路由 ── 回覆永遠回 WebChat</div>
+    <div class="card tight"><h4>Control UI / Dashboard</h4>Vite+Lit SPA,Gateway 同 port 提供;chat/設定/cron/skills/approvals/MCP</div>
+    <div class="card tight"><h4>TUI</h4>終端 UI;Gateway 模式或 Local 模式(直接用 embedded runtime)</div>
+  </div>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:路由如何挑出「正好一個 agent」</h2>
+    <p class="intro">這是使用者點名的範例。核心函式 <code>resolveAgentRoute()</code>(<span class="fp">src/routing/resolve-route.ts</span>)把所有 binding 預先依 <code>(channel, accountId)</code> 過濾並分桶,然後跑一個<strong>有序的 tier 迴圈</strong>。每個 tier 用 <code>tier.candidates.find(c =&gt; tier.predicate(c) &amp;&amp; matchesBindingScope(c.match, scope))</code> 找<strong>第一個</strong>(source order)同時通過「形狀檢查」與「scope 檢查」的 binding。<strong>首個命中的 tier 勝出並 return;否則 fall through 到下一 tier。</strong>「最具體者勝」就是靠 tier 的排列順序實現的。</p>
+
+    <div class="flow">
+      <div class="step"><div class="sn">0</div><div class="sl">正規化+建索引</div><div class="sd">分桶保 source order</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">1–3</div><div class="sl">peer tier</div><div class="sd">精確→父→萬用</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4–6</div><div class="sl">guild/team tier</div><div class="sd">role→guild→team</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">7–8</div><div class="sl">account/channel</div><div class="sd">逐步放寬</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">9</div><div class="sl">choose()</div><div class="sd">預設+收尾</div></div>
+    </div>
+    <h4>整體決策樹(8 層 + 預設)</h4>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">1◇</span>有 peer 且某 binding.peer 精確命中?<span class="qmeta">tier1 binding.peer</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">選該 agent <span class="dwin">matchedBy: binding.peer</span><span class="dnote"> 最高 specificity:指名確切對話</span></span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">fall through 到下一 tier</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">2◇</span>有 parentPeer 且其 binding.peer 命中?<span class="qmeta">tier2 binding.peer.parent</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">選父頻道綁定的 agent<span class="dnote"> thread/topic 繼承父頻道綁定</span></span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">fall through 到下一 tier</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">3◇</span>有 peer 且 wildcard(peer.id:"*")命中 kind?<span class="qmeta">tier3 binding.peer.wildcard</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">選該 agent<span class="dnote"> 「這 channel 所有群組 → agent X」</span></span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">fall through 到下一 tier</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">4◇</span>有 guildId 且 member 有任一符合 role?<span class="qmeta">tier4 binding.guild+roles</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">選該 agent<span class="dnote"> role-scoped 比 guild-wide 更精確(any-of role)</span></span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">fall through 到下一 tier</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">5◇</span>有 guildId(無 role 限制的 binding)?<span class="qmeta">tier5 binding.guild</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">選該 agent</span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">fall through 到下一 tier</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">6◇</span>有 teamId(Slack workspace)?<span class="qmeta">tier6 binding.team</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">選該 agent</span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">fall through 到下一 tier</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">7◇</span>有指名此 account 的 binding(≠"*")?<span class="qmeta">tier7 binding.account</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">選該 agent</span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">fall through 到下一 tier</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">8◇</span>有 channel-wide binding(accountPattern:"*")?<span class="qmeta">tier8 binding.channel</span></div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">命中</span><span class="dres">選該 agent</span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">fall through 到下一 tier</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq final"><span class="qi">▶</span>全部 miss → 預設 agent</div>
+        <div class="dbranches">
+          <div class="dbranch cs"><span class="dtag">default</span><span class="dres"><span class="dwin">matchedBy: default</span> = agents.list[].default → 第一個 → <code>"main"</code></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">0</span>前置:正規化輸入 + 建候選索引<span class="stag">resolveAgentRoute()</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>原始 <code>{channel, accountId?, peer?, parentPeer?, guildId?, teamId?, memberRoleIds?}</code></div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>全部 <code>normalizeToken/normalizeId</code>;binding 依 <code>(channel,accountId)</code> 預過濾並分桶成 <code>byPeer/byGuild/byTeam…</code>,且以 <strong>source order</strong> 合併</div>
+        <div class="field f-why"><span class="fl">設計思維</span>分桶是 O(1) 查找的效能層,但保留 <code>order</code> 欄位,使語意仍是「第一個宣告的符合 binding 勝」</div>
+        <div class="field f-out"><span class="fl">輸出</span>有序 candidates + 分桶 index;若有 route cache 命中直接回傳副本</div>
+        <div class="field f-edge"><span class="fl">邊界</span>設了 <code>identityLinks</code> 或開 debug → 停用 cache(key 可能變動)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>Tier 1 — 精確 peer<span class="stag">matchedBy: binding.peer</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>具體的 <code>peer{kind,id}</code></div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>match.peer.state==="valid"</code> 且 scope 檢查要求 <code>scope.peer.id===match.peer.id</code> 且 <code>peerKindMatches(kind)</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>指名確切對話 = 最高 specificity,所以排第一。<code>peerKindMatches</code> 把 group/channel 視為可互換(各平台廣播式群組命名不一)</div>
+        <div class="field f-out"><span class="fl">輸出</span>命中 → <code>choose(agentId,"binding.peer",session)</code> 並 return</div>
+        <div class="field f-edge"><span class="fl">邊界</span>無命中 → fall through 到 Tier 2</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>Tier 2 — 父 peer 繼承<span class="stag">scopePeer = parentPeer</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span><code>parentPeer</code>(thread/topic 的父頻道)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>同 Tier 1 的精確 peer predicate,但 scope 的 peer 換成 <strong>parentPeer</strong></div>
+        <div class="field f-why"><span class="fl">設計思維</span>thread 本身常無綁定,但其父頻道有 → 用父 peer 重跑精確比對,讓 thread 透明繼承父綁定;排在 Tier 1 之下,thread 專屬綁定仍優先</div>
+        <div class="field f-out"><span class="fl">輸出</span>命中 → 選父頻道綁定的 agent</div>
+        <div class="field f-edge"><span class="fl">邊界</span>無 parentPeer → 此 tier <code>enabled:false</code> 跳過</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>Tier 3 — peer 萬用字元<span class="stag">peer.id:"*"</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>具體 peer + <code>byPeerWildcard</code> 桶</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>match.peer.state==="wildcard-kind"</code>;scope 只要求 <code>peerKindMatches</code>(kind 對、任何 id)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>「這 channel 所有群組 → agent X」免列舉 id;比精確 id 弱,但仍綁 peer-kind,故高於 guild/team</div>
+        <div class="field f-out"><span class="fl">輸出</span>命中 → 選該 agent</div>
+        <div class="field f-edge"><span class="fl">邊界</span>fall through 到 Tier 4</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">4</span>Tier 4 — guild + roles(Discord)<span class="stag">any-of role</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span><code>guildId</code> 且 <code>memberRoleIds.length&gt;0</code></div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>hasGuildConstraint &amp;&amp; hasRolesConstraint</code>;guild 經 <code>scopeIdMatches</code>,再 <code>hasAnyRouteBindingRole</code>(<code>roles.some(r=&gt;memberRoleIds.has(r))</code>)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>role-scoped 比 guild-wide 更精確(「VIP role → premium agent」);role 是 any-of,呼應 Discord 角色授權方式</div>
+        <div class="field f-out"><span class="fl">輸出</span>命中 → 選該 agent</div>
+        <div class="field f-edge"><span class="fl">邊界</span>無 guild 或無 role → 跳過</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">5–8</span>Tier 5~8 — guild / team / account / channel<span class="stag">逐步放寬</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>依序:<code>guildId</code> / <code>teamId</code> / 此 account / 任何 account</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>Tier5 guild 無 role;Tier6 <code>hasTeamConstraint</code>;Tier7 <code>accountPattern≠"*"</code>;Tier8 <code>accountPattern==="*"</code></div>
+        <div class="field f-why"><span class="fl">設計思維</span>specificity 遞減 ── guild-wide → workspace-wide → 特定 account 實例 → 整個 channel。越廣排越後</div>
+        <div class="field f-out"><span class="fl">輸出</span>第一個命中即 return 對應 agent</div>
+        <div class="field f-edge"><span class="fl">邊界</span>全部 miss → 進入預設</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">9</span>預設 + choose() 收尾<span class="stag">pickFirstExistingAgentId</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>勝出的 agentId(或預設)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>choose()</code> 先 <code>pickFirstExistingAgentId</code> 確認 agent 存在,再 <code>buildAgentSessionKey</code> 算 sessionKey,<code>deriveLastRoutePolicy</code> 定 main/session</div>
+        <div class="field f-why"><span class="fl">設計思維</span>binding 指到不存在的 agent(打錯字)→ 靜默退回預設,而非路由到死掉的 workspace</div>
+        <div class="field f-out"><span class="fl">輸出</span><code>ResolvedAgentRoute{agentId, sessionKey, mainSessionKey, lastRoutePolicy, matchedBy}</code></div>
+        <div class="field f-edge"><span class="fl">邊界</span>main DM owner-pin:非擁有者 DM 不覆寫主 session 的 lastRoute;<code>createIfMissing:false</code> 不為觀察到的訊息憑空建 session</div>
+      </div>
+    </div>
+    <p class="stepnote">延伸:選定 agent 後,session key 由 <code>buildAgentPeerSessionKey</code> 推導 ── DM 在 <code>dmScope:"main"</code>(預設)下收斂成 <code>agent:&lt;id&gt;:main</code>;群組則永遠是 <code>agent:&lt;id&gt;:&lt;channel&gt;:group:&lt;id&gt;</code>(必要時加 <code>:topic/:thread</code>)。詳見 <a onclick="go('c-session')">Session</a> 的逐步推演。</p>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong><a onclick="go('c-substrate')">Gateway</a> 維持所有 channel 連線。<strong>下游:</strong>inbound 經路由挑 <a onclick="go('c-identity')">agent</a>、算 <a onclick="go('c-session')">session key</a>、觸發 <a onclick="go('c-loop')">Agent Loop</a>;新 channel 由 <a onclick="go('c-plugins')">channel plugin SDK</a> 加入;群組/DM policy 屬 <a onclick="go('c-security')">access 控制</a>。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ messages: { inbound: { debounceMs: 2000,
+                          byChannel: { whatsapp: 5000, slack: 1500 } },
+              groupChat: { visibleReplies: "message_tool" } },
+  channels: { discord: { streaming: { mode: "progress" } } } }</code></pre>
+  <p><span class="src">docs/channels/*, concepts/messages.md, presence.md, web/*, plugins/sdk-channel-plugins.md</span></p>
+</section>
+
+<!-- ===== c-automation ===== -->
+<section class="pane" id="c-automation">
+  <div class="page-kicker">元件詳解 · 治理 L6</div>
+  <h1 class="page">Automation & Learning(自動化與學習)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-substrate')">Gateway 排程器</a><a onclick="go('c-identity')">AGENTS.md standing orders</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>讓 agent 主動行動,以及「學習」的真正含義</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-loop')">觸發 agent turn</a><a onclick="go('c-memory')">寫回記憶</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>只會被動回覆的助理價值有限 ── 真正有用的助理要能<strong>主動</strong>(定時檢查、自然跟進、執行常設程序)。同時,人們期待 AI 會「越用越聰明」。OpenClaw 必須回答兩個問題:① 怎麼讓 agent 自主行動而不失控?② 「學習」到底是什麼?這層存在就是為了提供分層的自主機制,並把「學習」明確定義為<strong>狀態累積</strong>而非權重微調。</p>
+  </div>
+
+  <div class="callout danger"><span class="ct"><span class="secnum">2</span>核心概念:沒有模型權重學習</span>OpenClaw 的「學習」<strong>從不是 fine-tuning</strong>。模型被當作無狀態、不可信、每 session 全新的 principal。所謂學習 = <strong>記憶 + skills + config + standing orders 的累積</strong> + dreaming 背景鞏固。</div>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>自動化分類(決策指南)</h3>
+  <div class="scrollwrap"><table>
+    <tr><th>機制</th><th>時機</th><th>建任務記錄?</th><th>最適合</th></tr>
+    <tr><td><strong>Cron</strong></td><td>精確(cron 式/一次性 --at)</td><td>總是</td><td>報告、提醒、背景工作</td></tr>
+    <tr><td><strong>Heartbeat</strong></td><td>約略(預設每 30min)</td><td>從不</td><td>收件匣、行事曆、通知</td></tr>
+    <tr><td><strong>Commitments</strong></td><td>經 heartbeat 投遞</td><td>否</td><td>自然跟進(「明天面試」)</td></tr>
+    <tr><td><strong>Background Tasks</strong></td><td>(活動帳本)</td><td>是帳本本身</td><td>追蹤 ACP/subagent/cron 執行</td></tr>
+    <tr><td><strong>Task Flow</strong></td><td>(編排器)</td><td>協調 tasks</td><td>多步驟管線</td></tr>
+    <tr><td><strong>Standing Orders</strong></td><td>每 session 注入</td><td>否</td><td>持久授權/政策</td></tr>
+  </table></div>
+  <h3>Cron ── Gateway 排程器</h3>
+  <p>跑在 <strong>Gateway process 內,不是模型</strong>。任務+狀態+歷史持久在 SQLite。型別:<code>--at</code>/<code>--every</code>/<code>--cron</code>。執行風格:main/isolated/current/named。預設 <code>maxConcurrentRuns:8</code>、重試 3 次 backoff [60s,120s,300s]。<code>--command</code> payload 跑確定性 shell <strong>作為 operator-admin 自動化</strong>(非 agent 的 tools.exec)。</p>
+  <h3>Standing Orders ── 永久操作授權</h3>
+  <p>自主性原語:授予 agent 對一個「程式」的常設授權,四部分(Scope/Triggers/Approval gates/Escalation)。住在 AGENTS.md。模式:<strong>standing orders 定義「做什麼」;cron 定義「何時」</strong>。以 Execute-Verify-Report 紀律強制。</p>
+  <h3>Commitments / Task Flow</h3>
+  <p><strong>Commitments</strong>(選用,預設關):回覆後隱藏背景 LLM pass 找跟進機會,經 heartbeat 投遞,限同 agent+channel ── 是操作記憶,介於記憶與自動化之間。<strong>Task Flow</strong>:多步驟耐久編排(managed/mirrored 兩同步模式),狀態在 SQLite,跨重啟存活。</p>
+  <h3>Dreaming ── 背景記憶鞏固</h3>
+  <p><code>memory-core</code> 的背景鞏固,<strong>選用、預設關</strong>。每 sweep 三階段:Light(整理)→ REM(反思)→ <strong>Deep(評分並晉升耐久候選到 MEMORY.md)</strong>。只有 Deep 寫 MEMORY.md,以 minScore/minRecallCount/minUniqueQueries 把關。Shadow-trial 僅供報告。預設每日 3AM,搭 heartbeat 跑。</p>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:選哪個自動化機制 + dreaming 晉升判斷</h2>
+    <p class="intro">兩條決策鏈:① 一個自主需求該用哪種機制;② dreaming 如何決定哪些短期素材晉升為長期記憶。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">機制選擇</div><div class="sd">cron/heartbeat/…</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">dreaming sweep</div><div class="sd">light→REM→deep</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">Deep 晉升判斷</div><div class="sd">6 信號評分</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">↳</div><div class="sl">寫 MEMORY.md</div><div class="sd">過閘才落地</div></div>
+    </div>
+    <h4>機制選擇決策樹</h4>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>需要精確時間點?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres"><span class="dwin">Cron</span> <code>--at</code>/<code>--every</code>/<code>--cron</code>,建任務記錄</span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">續判</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>是「定期批次察覺」(收件匣/行事曆)?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres"><span class="dwin">Heartbeat</span> 約 30min,不建記錄,滿 context</span></div>
+          <div class="dbranch no"><span class="dtag">否 ↓</span><span class="dres">續判</span></div>
+        </div>
+      </div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>是對話中浮現的自然跟進?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">是</span><span class="dres"><span class="dwin">Commitment</span> 經 heartbeat 投遞,限同 agent+channel</span></div>
+          <div class="dbranch no"><span class="dtag">否</span><span class="dres">多步驟耐久流程 → <span class="dwin">Task Flow</span>(SQLite,跨重啟);持久授權「程式」→ <span class="dwin">Standing Orders</span>(AGENTS.md 定義做什麼;cron 定義何時)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>機制選擇<span class="stag">automation/index</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>自主任務的性質(時機/是否需記錄/是否多步)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>精確時間→cron;模糊批次→heartbeat;自然跟進→commitment;多步耐久→task flow;常設授權→standing orders</div>
+        <div class="field f-why"><span class="fl">設計思維</span>不同自主形態有不同的觀測性/持久性需求,硬塞同一機制會錯位</div>
+        <div class="field f-out"><span class="fl">輸出</span>對應機制觸發 agent turn</div>
+        <div class="field f-edge"><span class="fl">邊界</span>command cron 跑確定性 shell 作 operator-admin 自動化(非 agent tools.exec,需 admin)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>Dreaming sweep:三階段順序<span class="stag">light→REM→deep</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>近期短期素材(每日筆記、recall 記錄)</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>Light(整理/去重,不寫)→ REM(萃取主題,不寫)→ Deep(評分晉升,<strong>寫 MEMORY.md</strong>)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>分階段讓「整理」與「晉升」解耦;只有 Deep 動 MEMORY.md,降低污染長期記憶風險</div>
+        <div class="field f-out"><span class="fl">輸出</span>DREAMS.md 敘事 + 機器狀態;Deep 把候選寫入 MEMORY.md</div>
+        <div class="field f-edge"><span class="fl">邊界</span>預設每日 3AM 一個 cron,搭 heartbeat 跑;heartbeat 不發則 dreaming <code>blocked</code></div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>Deep 晉升判斷(評分把關)<span class="stag">6 加權信號</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>候選短期片段</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>6 信號加權(Relevance 0.30 / Frequency 0.24 / Query diversity 0.15 / Recency 0.15 / Consolidation 0.10 / Conceptual richness 0.06),並過 <code>minScore/minRecallCount/minUniqueQueries</code> 閘</div>
+        <div class="field f-why"><span class="fl">設計思維</span>多信號避免單一指標(如純頻率)誤晉升雜訊;閘確保只有夠強的訊號落地</div>
+        <div class="field f-out"><span class="fl">輸出</span>通過者 append 到 MEMORY.md</div>
+        <div class="field f-edge"><span class="fl">邊界</span>shadow-trial 結果<strong>僅供報告</strong> ── 能重排候選但絕不自動晉升;diary/report artifact 排除於晉升外</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong>排程器在 <a onclick="go('c-substrate')">Gateway</a> 內;standing orders 來自 <a onclick="go('c-identity')">AGENTS.md</a>。<strong>下游:</strong>每個 cron/heartbeat 觸發一個 <a onclick="go('c-loop')">agent turn</a>;dreaming 把素材晉升到 <a onclick="go('c-memory')">MEMORY.md</a>;hooks 由 <a onclick="go('c-plugins')">plugins</a> 提供;command cron 需 <a onclick="go('c-security')">operator.admin</a>。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ plugins: { entries: { "memory-core": {
+    subagent: { allowModelOverride: true },
+    config: { dreaming: { enabled: true, frequency: "0 3 * * *" } },
+} } } }</code></pre>
+  <p><span class="src">docs/automation/*, concepts/commitments.md, dreaming.md</span></p>
+</section>
+
+<!-- ===== c-plugins ===== -->
+<section class="pane" id="c-plugins">
+  <div class="page-kicker">元件詳解 · 治理 L6</div>
+  <h1 class="page">Plugins / Extensions</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-substrate')">Gateway 啟動載入</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>「一切皆 plugin」的擴充模型:capability + 擁有權邊界</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-channels')">channel</a><a onclick="go('c-runtime')">runtime/provider</a><a onclick="go('c-tools')">tools</a><a onclick="go('c-memory')">memory 後端</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>OpenClaw 要支援 20+ channel、數十家模型 provider、多種記憶後端、各式工具 ── 若全塞進 core,core 會臃腫到無法維護,且每加一個整合都動到核心。設計理念因此是:<strong>core 保持精簡,可選能力以 plugin 出貨</strong>(VISION.md)。Plugins 層的存在是為了提供一個 capability 契約,讓 channel/provider/工具/記憶都能以統一方式插拔。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout key"><span class="ct">plugin = 擁有權邊界;capability = core 契約</span>每個原生 plugin 對型別化 capability 註冊。<strong>channel、模型 provider、媒體/語音/搜尋 provider、甚至探索服務都是 plugin。</strong></div>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>四層載入管線</h3>
+  <div class="flow">
+    <div class="step"><div class="sn">1</div><div class="sl">Manifest 探索</div><div class="sd">讀 openclaw.plugin.json,<strong>不執行</strong>程式碼</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">2</div><div class="sl">啟用+驗證</div><div class="sd">enabled/blocked/slot</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">3</div><div class="sl">Runtime 載入</div><div class="sd"><strong>in-process</strong> require,註冊進 registry</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">4</div><div class="sl">表面消費</div><div class="sd">tools/channels/providers/hooks</div></div>
+  </div>
+  <div class="callout danger"><span class="ct">執行模型與信任</span>原生 plugin <strong>in-process 與 Gateway 一起跑、未 sandbox</strong> ── 惡意原生 plugin 等同 process 內任意程式碼執行。這正是為何安全模型是「單一可信操作者」。用 <code>plugins.allow</code> 釘住可信 id。</div>
+  <h3>Manifest 與 Hooks</h3>
+  <p><code>openclaw.plugin.json</code> 必備,JSON5,程式碼載入<em>前</em>讀。關鍵欄位:<code>id</code>、<code>configSchema</code>、<code>kind</code>(memory/context-engine 為 exclusive slot)、<code>activation</code>、<code>contracts</code>(靜態擁有權快照)。Plugin hooks 經 <code>api.on(name, handler, {priority})</code> 註冊,依優先序遞減執行(見 <a onclick="go('c-loop')">Agent Loop 的 hook 點</a>)。</p>
+  <h3>Inventory</h3>
+  <div class="grid c3">
+    <div class="card tight" style="text-align:center"><div style="font-size:28px;font-weight:800;color:var(--green)">72</div>Core-bundled</div>
+    <div class="card tight" style="text-align:center"><div style="font-size:28px;font-weight:800;color:var(--blue)">55</div>官方外部套件</div>
+    <div class="card tight" style="text-align:center"><div style="font-size:28px;font-weight:800;color:var(--purple)">3</div>僅 source-checkout</div>
+  </div>
+  <p>值得注意:<strong>memory-core 是 bundled</strong>,而 <strong>discord/slack/whatsapp/matrix 是官方外部</strong>(安裝+gateway 重啟)。兩風格:<strong>Code plugins</strong>(深層 runtime 擴展)vs <strong>Bundle-style</strong>(包裝 skills/MCP/設定,介面更小、邊界更好,能用時優先)。</p>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:plugin 4 層載入管線</h2>
+    <p class="intro">關鍵安全設計:<strong>metadata 探索與 runtime 載入分離</strong> ── 先讀 manifest 決定要不要載,確認後才執行 plugin 程式碼(in-process)。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">manifest 探索</div><div class="sd">不執行碼</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">啟用驗證</div><div class="sd">enabled/slot</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">in-process 載入</div><div class="sd">register</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">表面消費</div><div class="sd">tools/channels…</div></div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>Manifest 探索(不執行碼)<span class="stag">openclaw.plugin.json</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>各來源的 <code>openclaw.plugin.json</code></div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>JSON5 解析 manifest 取 <code>id/configSchema/kind/activation/contracts</code> ── <strong>程式碼載入前</strong>讀</div>
+        <div class="field f-why"><span class="fl">設計思維</span>先看 manifest 才決定要不要載,避免為了知道一個 plugin 是什麼而先執行它的程式碼</div>
+        <div class="field f-out"><span class="fl">輸出</span><code>PluginMetadataSnapshot</code>(純 metadata,無已載模組)</div>
+        <div class="field f-edge"><span class="fl">邊界</span>重複 id 的 precedence:config-selected &gt; bundled &gt; global install &gt; workspace</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>啟用 + 驗證(含 exclusive slot)<span class="stag">plugins.allow/slots</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>snapshot + config</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>檢查 enabled/disabled/blocked;<code>plugins.deny</code> 勝 <code>allow</code>;exclusive slot(memory/context-engine)只一個勝出</div>
+        <div class="field f-why"><span class="fl">設計思維</span><code>plugins.allow</code> 釘住可信 id ── 因為下一步是 in-process 執行,等於信任邊界</div>
+        <div class="field f-out"><span class="fl">輸出</span>確定要載入的 plugin 清單</div>
+        <div class="field f-edge"><span class="fl">邊界</span><code>activation.onStartup</code> 未設則不在啟動載入</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>Runtime 載入(in-process)<span class="stag">require → registry</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>確定清單</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>原生 plugin 經 <code>require</code> <strong>in-process</strong> 載入,註冊進中央 registry</div>
+        <div class="field f-why"><span class="fl">設計思維</span>in-process 才能提供深層 runtime hook/provider;代價是它與 Gateway 同權限,屬可信運算基礎(TCB)</div>
+        <div class="field f-out"><span class="fl">輸出</span>capability 註冊完成</div>
+        <div class="field f-edge"><span class="fl">邊界</span>惡意原生 plugin = process 內任意程式碼執行 ── 沒有 sandbox 保護</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">4</span>表面消費<span class="stag">tools/channels/providers/hooks</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>填好的 registry</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>tools/channels/providers/hooks/HTTP route/CLI 從 registry 讀取使用;<code>contracts.tools</code> 須與 runtime <code>registerTool</code> 相符</div>
+        <div class="field f-why"><span class="fl">設計思維</span>runtime 載入與 metadata 快取分離,避免 stale runtime 藏在 cache 後</div>
+        <div class="field f-out"><span class="fl">輸出</span>plugin 能力對全系統可用</div>
+        <div class="field f-edge"><span class="fl">邊界</span>config/inventory/安裝變動 → 重建 snapshot;安裝通常需 gateway 重啟</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-substrate')">Gateway</a> 啟動時載入。<strong>下游:</strong>plugin 提供 <a onclick="go('c-channels')">channels</a>、<a onclick="go('c-runtime')">runtime/provider</a>、<a onclick="go('c-tools')">tools</a>、<a onclick="go('c-memory')">memory 後端</a>、<a onclick="go('c-context')">context engine</a>、hooks;in-process 信任使它與 <a onclick="go('c-security')">Security</a> 的 TCB 緊密相關。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ plugins: {
+    allow: ["memory-core", "browser", "@openclaw/discord"],  // 釘住可信 id
+    slots: { memory: "memory-core", contextEngine: "legacy" },
+} }</code></pre>
+  <p>發現/出處/安全審查在 ClawHub。<span class="src">docs/plugins/architecture.md, manifest.md, hooks.md, plugin-inventory.md, VISION.md</span></p>
+</section>
+
+<!-- ===== c-security ===== -->
+<section class="pane" id="c-security">
+  <div class="page-kicker">元件詳解 · 治理 L6</div>
+  <h1 class="page">Security(安全模型)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-substrate')">Gateway bind/auth</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>橫切的信任模型:邊界、認證、secrets、威脅模型</span></div>
+    <div class="relbox down"><div class="rl">約束對象</div><a onclick="go('c-tools')">exec/approvals</a><a onclick="go('c-plugins')">in-process 信任</a><a onclick="go('c-channels')">access 控制</a></div>
+  </div>
+
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2>
+    <p>一個能跑 shell、開瀏覽器、發訊息、裝 plugin 的 agent 是極強大也極危險的東西。若沒有清楚界定「誰是可信的、邊界在哪、什麼算漏洞」,使用者要嘛綁手綁腳、要嘛門戶大開。Security 層的存在是為了<strong>明確定義信任模型(誰可信)與邊界(在哪設防),並誠實揭露殘餘風險</strong>,讓強大與安全之間是「明確、操作者可控的取捨」(VISION.md)。</p>
+  </div>
+
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout danger"><span class="ct">不是多租戶</span>OpenClaw 是給<strong>可信操作者</strong>的本機優先基礎設施,<em>不是</em>單一 gateway 上對抗性使用者之間的共享多租戶邊界。已認證的 Gateway 呼叫者 = 該實例的可信操作者。Session id 是<strong>路由控制,不是授權邊界</strong>。<span class="src">SECURITY.md</span></div>
+
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <h3>什麼不是漏洞(以排除定義邊界)</h3>
+  <ul>
+    <li><strong>單獨的 prompt injection</strong> 不是漏洞(須跨越 policy/auth/approval/sandbox/tool 邊界)。</li>
+    <li>可信安裝的惡意 plugin 做特權事 = 已記載行為。</li>
+    <li>共享 gateway 上的 per-user 隔離期待 = 範圍外。</li>
+    <li>Agent/模型<strong>不是可信 principal</strong> ── 安全來自主機/設定信任、auth、tool policy、sandbox、exec approvals。</li>
+  </ul>
+  <h3>威脅模型(MITRE ATLAS)</h3>
+  <p>5 個信任邊界:① Channel Access(device 配對 1h DM/5m node grace、AllowFrom、token/password/Tailscale auth)② Session Isolation ③ Tool Execution(Docker sandbox 或 host exec-approvals;SSRF = DNS pinning+IP 封鎖)④ External Content(抓取內容包在 XML tag+告示)⑤ Supply Chain(ClawHub)。</p>
+  <div class="callout warn"><span class="ct">P0 威脅與殘餘風險(誠實揭露)</span>直接 prompt injection(「只偵測、不阻擋」)、惡意 skill 安裝、credential harvesting。Token <strong>明文儲存</strong>;無 rate limiting。命名安全檔:<span class="fp">src/gateway/auth.ts</span> <span class="fp">src/infra/net/ssrf.ts</span> <span class="fp">src/security/external-content.ts</span> <span class="fp">src/infra/exec-approvals.ts</span></div>
+  <h3>認證:兩個不同的層</h3>
+  <div class="grid c2">
+    <div class="card tight"><h4>Gateway 連線 auth</h4><code>gateway.auth.mode</code>:none/token/password/trusted-proxy。Device 配對:首次需核准,loopback 自動核准,scope 升級需重新核准。</div>
+    <div class="card tight"><h4>模型 provider auth</h4>OAuth+API key per provider。Auth profile 現存於每 agent SQLite。OAuth profile 預設不可攜。</div>
+  </div>
+  <h3>Secrets ── SecretRef</h3>
+  <p>選用、附加式,讓憑證不必明文。三來源:<code>env</code>/<code>file</code>/<code>exec</code>。解析成記憶體 runtime 快照(啟動 eager、fail-fast、reload 原子交換 last-known-good)。整合:1Password/Bitwarden/Vault/pass/sops。</p>
+  <div class="callout danger"><span class="ct">關鍵警告</span>「SecretRef <em>不是</em> process 隔離邊界。」若明文仍在 agent 可讀檔案,agent 能用 file/shell 工具讀到。OAuth/輪替憑證刻意排除於 SecretRef 解析。</div>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:一個 inbound 通過 5 道信任邊界</h2>
+    <p class="intro">ATLAS 威脅模型定義 5 道信任邊界。一個外部訊息要實際造成風險,必須<strong>跨越</strong>某道邊界 ── 這也是「為何單獨的 prompt injection 不算漏洞」的根據。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">Channel Access</div><div class="sd">配對/auth/allowFrom</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">Session Isolation</div><div class="sd">key 分桶</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">Tool Execution</div><div class="sd">sandbox/approvals</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">External Content</div><div class="sd">XML 包裹</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">5</div><div class="sl">Supply Chain</div><div class="sd">ClawHub</div></div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>Channel Access<span class="stag">src/gateway/auth.ts</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>連入的 client/node + 訊息 sender</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>device 配對(1h DM / 5m node grace)、<code>allowFrom</code>、auth 模式(token/password/Tailscale)</div>
+        <div class="field f-why"><span class="fl">設計思維</span>第一道防線 ── 已認證的呼叫者即視為可信 operator(非多租戶)</div>
+        <div class="field f-out"><span class="fl">輸出</span>通過 → 進入會話處理</div>
+        <div class="field f-edge"><span class="fl">邊界</span>共享密鑰路徑授予全部預設 scope;窄化 <code>x-openclaw-scopes</code> 被忽略</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>Session Isolation<span class="stag">session key</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>路由算出的 session key</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span><code>session key = agent:channel:peer</code> 分桶</div>
+        <div class="field f-why"><span class="fl">設計思維</span>session id 是<strong>路由控制不是授權邊界</strong> ── 隔離脈絡,但不假設它能擋對抗性使用者</div>
+        <div class="field f-out"><span class="fl">輸出</span>該對話的脈絡與並行範圍</div>
+        <div class="field f-edge"><span class="fl">邊界</span>共享 gateway 上的 per-user 隔離期待 = 範圍外(非多租戶)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">3</span>Tool Execution<span class="stag">exec-approvals / ssrf</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>模型發起的工具/exec 呼叫</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>Docker sandbox 或 host exec-approvals(取較嚴);SSRF 防護 = DNS pinning + IP 封鎖</div>
+        <div class="field f-why"><span class="fl">設計思維</span>這是 prompt injection 真正能造成傷害的關卡 ── 必須跨越此邊界才算漏洞</div>
+        <div class="field f-out"><span class="fl">輸出</span>核准 → 執行;否則拒絕</div>
+        <div class="field f-edge"><span class="fl">邊界</span>exec-approval 綁定確切 command/cwd/file 快照;直接 prompt injection「只偵測不阻擋」(殘餘風險)</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">4</span>External Content<span class="stag">src/security/external-content.ts</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>抓取的 URL / email / webhook 內容</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>包在 XML tag + 安全告示中再給模型</div>
+        <div class="field f-why"><span class="fl">設計思維</span>明確標示「這是外部不可信內容」,降低被當指令執行的機率</div>
+        <div class="field f-out"><span class="fl">輸出</span>模型看到標記過的外部內容</div>
+        <div class="field f-edge"><span class="fl">邊界</span>標記是緩解非保證 ── 仍需後續工具/approval 邊界把關</div>
+      </div>
+    </div>
+
+    <div class="stepcard"><div class="hd"><span class="sidx">5</span>Supply Chain<span class="stag">ClawHub</span></div>
+      <div class="fields">
+        <div class="field f-in"><span class="fl">輸入</span>第三方 skill / plugin 安裝</div>
+        <div class="field f-basis"><span class="fl">判斷依據</span>ClawHub:GitHub 帳號年齡驗證、路徑淨化、50MB 上限、必備 SKILL.md、regex 審核;<code>security.installPolicy</code> 可 fail-closed 擋安裝</div>
+        <div class="field f-why"><span class="fl">設計思維</span>安裝的程式碼最終 in-process 跑,等於信任邊界 ── 視第三方 skill/plugin 為不可信程式碼</div>
+        <div class="field f-out"><span class="fl">輸出</span>通過政策才安裝</div>
+        <div class="field f-edge"><span class="fl">邊界</span>regex 審核「易被繞過」;惡意 plugin 做特權事 = 已記載行為(非漏洞)</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">它如何連到鄰居(橫切)</span><strong>第一道邊界</strong>是 <a onclick="go('c-substrate')">Gateway 的 bind/auth</a>。<strong>約束對象:</strong><a onclick="go('c-tools')">tool policy 與 exec approvals</a>、<a onclick="go('c-plugins')">plugin 的 in-process 信任(TCB)</a>、<a onclick="go('c-channels')">channel 的 DM/group access 控制</a>、<a onclick="go('c-automation')">command cron 的 operator.admin</a>。</div>
+
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>{ gateway: { auth: { mode: "token" } },
+  secrets: { providers: { vault: { source: "exec", command: "/usr/bin/vault" } } },
+  plugins: { allow: ["memory-core", "browser"] } }</code></pre>
+  <p><span class="src">SECURITY.md, docs/security/THREAT-MODEL-ATLAS.md, gateway/authentication.md, secrets.md, auth-credential-semantics.md</span></p>
+</section>
+
+</main>
+
+<footer>
+  <p>本文件由研讀 OpenClaw 開源 repo(<a href="https://github.com/openclaw/openclaw">github.com/openclaw/openclaw</a>)的 <code>docs/</code>、<code>src/</code>、<code>extensions/</code> 與部署檔整理而成。三條路徑(訊息旅程 / 由下而上 / 元件詳解)指向同一組元件;每個主張皆標註來源(<span class="src">docs/...</span>、<span class="fp">src/...</span>)以利查證。版本對應 repo 約 2026 年快照。</p>
+  <p>🦞 <strong>EXFOLIATE! EXFOLIATE!</strong> · 為 Cathay DDT_MLE openclaw_design 整理</p>
+</footer>
+
+<script>
+const COMP = new Set(['comp-home','c-substrate','c-identity','c-runtime','c-loop','c-session','c-memory','c-context','c-tools','c-skills','c-channels','c-automation','c-plugins','c-security']);
+function go(id){
+  if(!document.getElementById(id)) return;
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));
+  // tier-1 active: component panes map to the 元件詳解 button (comp-home)
+  const t1 = COMP.has(id) ? 'comp-home' : id;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t1));
+  // sub-nav visibility + active
+  const sub=document.getElementById('subtabs');
+  if(COMP.has(id)){ sub.classList.add('show'); }
+  else { sub.classList.remove('show'); }
+  document.querySelectorAll('#subtabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+  history.replaceState(null,'','#'+id);
+}
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.tab);});
+document.getElementById('subtabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.tab);});
+window.addEventListener('DOMContentLoaded',()=>{const h=location.hash.slice(1);if(h&&document.getElementById(h))go(h);});
+</script>
+</body>
+</html>

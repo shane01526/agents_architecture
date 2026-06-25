@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code 架構詳解 · 12 Harness 機制 + 幕後揭密</title>
+<style>
+:root{
+  --bg:#0f1115; --bg2:#161922; --panel:#1b1f2a; --panel2:#222736;
+  --ink:#e7ecf3; --ink-dim:#a4adbe; --ink-faint:#6b7488;
+  --line:#2a3040; --line2:#363d50;
+  --accent:#d97757; --accent2:#e89878; --accent-d:#b85c3c;
+  --cc:#d97757; --cc2:#e89878;
+  --gold:#e8c468; --gold2:#f3d98a;
+  --green:#3fb98c; --blue:#4f9cf0; --purple:#a880f0; --yellow:#e8c468; --red:#e26d6d;
+  --mono:"SFMono-Regular",ui-monospace,"Cascadia Code","Consolas",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.68;font-size:15px;}
+a{color:var(--accent2);text-decoration:none;cursor:pointer;}
+a:hover{text-decoration:underline;}
+code{font-family:var(--mono);font-size:.86em;background:#0c0e13;border:1px solid var(--line);border-radius:5px;padding:.08em .4em;color:#ffcda8;}
+pre{margin:0;}
+pre code{display:block;background:#0a0c11;border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;color:#cdd6e6;line-height:1.55;font-size:13px;}
+header.top{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,#12141b 72%,rgba(18,20,27,.93));border-bottom:1px solid var(--line);backdrop-filter:blur(8px);}
+.top-inner{max-width:1180px;margin:0 auto;padding:13px 26px 4px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.logo{font-size:21px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:10px;}
+.logo .claw{color:var(--cc);}
+.logo small{font-weight:500;font-size:12px;color:var(--ink-faint);letter-spacing:0;}
+nav.tabs{max-width:1180px;margin:0 auto;padding:8px 18px 0;display:flex;gap:5px;flex-wrap:wrap;}
+nav.tabs button{appearance:none;border:1px solid transparent;background:none;color:var(--ink-dim);font-family:var(--sans);font-size:14px;font-weight:700;padding:11px 17px;cursor:pointer;border-radius:9px 9px 0 0;transition:.15s;white-space:nowrap;display:flex;align-items:center;gap:7px;}
+nav.tabs button .ic{font-size:15px;}
+nav.tabs button:hover{color:var(--ink);background:var(--panel);}
+nav.tabs button.active{color:var(--accent);background:var(--bg2);border-color:var(--line);border-bottom-color:var(--bg2);position:relative;top:1px;}
+nav.tabs button.star.active{color:var(--gold);}
+nav.tabs button.expo.active{color:var(--red);}
+nav.subtabs{max-width:1180px;margin:0 auto;padding:8px 20px 10px;display:none;gap:5px;flex-wrap:wrap;background:var(--bg2);border-bottom:1px solid var(--line);}
+nav.subtabs.show{display:flex;}
+nav.subtabs button{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink-dim);font-family:var(--sans);font-size:12.5px;font-weight:600;padding:6px 11px;cursor:pointer;border-radius:20px;transition:.13s;}
+nav.subtabs button:hover{color:var(--ink);border-color:var(--line2);}
+nav.subtabs button.active{color:#fff;background:var(--accent-d);border-color:var(--accent);}
+nav.subtabs .grp{font-size:11px;color:var(--ink-faint);align-self:center;font-weight:700;letter-spacing:.5px;margin:0 2px 0 8px;}
+main{max-width:1180px;margin:0 auto;padding:32px 26px 90px;}
+.pane{display:none;animation:fade .32s ease;}
+.pane.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+h1.page{font-size:29px;margin:0 0 4px;font-weight:800;letter-spacing:.3px;}
+.page-kicker{font-size:12.5px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:6px;}
+.page-kicker.gold{color:var(--gold);} .page-kicker.red{color:var(--red);}
+.page-sub{color:var(--ink-dim);font-size:15px;margin:0 0 24px;max-width:880px;}
+h2{font-size:20px;margin:38px 0 13px;padding-top:12px;font-weight:750;border-top:1px solid var(--line);color:#fff;}
+.pane h2:first-of-type{border-top:none;padding-top:0;}
+h3{font-size:16px;margin:24px 0 9px;font-weight:700;color:var(--accent2);}
+h4{font-size:14px;margin:16px 0 7px;font-weight:700;color:var(--ink);}
+p{margin:10px 0;}
+ul,ol{margin:10px 0;padding-left:22px;}
+li{margin:5px 0;}
+.lead{font-size:16px;color:var(--ink);background:linear-gradient(90deg,rgba(217,119,87,.12),transparent);border-left:3px solid var(--accent);padding:13px 17px;border-radius:0 8px 8px 0;margin:18px 0;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:19px 21px;margin:16px 0;}
+.card.tight{padding:14px 17px;}
+.grid{display:grid;gap:15px;}
+.grid.c2{grid-template-columns:1fr 1fr;}
+.grid.c3{grid-template-columns:repeat(3,1fr);}
+@media(max-width:860px){.grid.c2,.grid.c3{grid-template-columns:1fr;}}
+.callout{border-radius:10px;padding:12px 16px;margin:15px 0;font-size:14px;border:1px solid;}
+.callout .ct{font-weight:700;display:block;margin-bottom:3px;font-size:13px;letter-spacing:.3px;}
+.callout.note{background:rgba(79,156,240,.08);border-color:rgba(79,156,240,.4);} .callout.note .ct{color:var(--blue);}
+.callout.warn{background:rgba(232,196,104,.08);border-color:rgba(232,196,104,.4);} .callout.warn .ct{color:var(--yellow);}
+.callout.key{background:rgba(63,185,140,.08);border-color:rgba(63,185,140,.4);} .callout.key .ct{color:var(--green);}
+.callout.danger{background:rgba(226,109,109,.08);border-color:rgba(226,109,109,.4);} .callout.danger .ct{color:var(--red);}
+.callout.cc{background:rgba(217,119,87,.1);border-color:rgba(217,119,87,.45);} .callout.cc .ct{color:var(--cc2);}
+table{border-collapse:collapse;width:100%;margin:15px 0;font-size:13.5px;display:block;overflow-x:auto;}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top;}
+th{background:var(--panel2);color:#fff;font-weight:700;white-space:nowrap;}
+td{color:var(--ink-dim);} td strong,td code{color:var(--ink);}
+tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.4px;vertical-align:middle;}
+.pill.flag{background:rgba(168,128,240,.16);color:var(--purple);border:1px solid rgba(168,128,240,.4);}
+.pill.cc{background:rgba(217,119,87,.16);color:var(--cc2);border:1px solid rgba(217,119,87,.4);}
+.fp{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);background:#0c0e13;border:1px solid var(--line);padding:1px 6px;border-radius:4px;}
+.src{font-size:12px;color:var(--ink-faint);font-style:italic;}
+.secnum{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent-d);color:#fff;font-size:13px;font-weight:800;margin-right:9px;vertical-align:middle;}
+.s-why h2{color:var(--yellow);}
+.section-why{background:rgba(232,196,104,.05);border:1px solid rgba(232,196,104,.25);border-radius:12px;padding:4px 18px 14px;margin:18px 0;}
+.section-why h2{border-top:none;padding-top:14px;}
+.relbar{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap;margin:6px 0 22px;}
+.relbar .relbox{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 14px;}
+.relbar .relbox .rl{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--ink-faint);text-transform:uppercase;margin-bottom:5px;}
+.relbar .relbox.up{border-left:3px solid var(--blue);}
+.relbar .relbox.self{border-left:3px solid var(--accent);}
+.relbar .relbox.down{border-left:3px solid var(--green);}
+.relbar a{font-size:13px;display:inline-block;margin:1px 8px 1px 0;}
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:16px 0;}
+.flow .step{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:11px 13px;}
+.flow .arrow{display:flex;align-items:center;color:var(--accent);font-size:19px;padding:0 5px;}
+.flow .step .sn{font-size:11px;color:var(--accent);font-weight:700;}
+.flow .step .sl{font-weight:700;font-size:13.5px;margin:2px 0;}
+.flow .step .sd{font-size:11.5px;color:var(--ink-dim);}
+.station{display:grid;grid-template-columns:54px 1fr;gap:0;margin:0;}
+.station .rail{position:relative;display:flex;flex-direction:column;align-items:center;}
+.station .dot{width:34px;height:34px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);color:var(--accent);font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:2;flex:0 0 auto;}
+.station .line{width:2px;flex:1;background:var(--line2);margin:2px 0;}
+.station:last-child .line{display:none;}
+.station .body{padding:0 0 26px 18px;}
+.station .body h3{margin-top:2px;color:#fff;font-size:17px;}
+.station .body .what{color:var(--ink-dim);}
+.deep{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:700;background:rgba(217,119,87,.13);border:1px solid rgba(217,119,87,.4);color:var(--accent2);padding:4px 11px;border-radius:20px;}
+.deep:hover{text-decoration:none;background:rgba(217,119,87,.24);}
+.deep.gold{background:rgba(232,196,104,.13);border-color:rgba(232,196,104,.45);color:var(--gold2);}
+.layer{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px 19px;margin:13px 0;border-left:4px solid var(--accent);}
+.layer .ltag{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);}
+.layer h3{margin:2px 0 6px;color:#fff;}
+.layer .need{font-size:13.5px;color:var(--yellow);background:rgba(232,196,104,.06);border-radius:7px;padding:7px 11px;margin:8px 0;}
+.layer.l0{border-left-color:#8a93a8;} .layer.l1{border-left-color:var(--purple);}
+.layer.l2{border-left-color:var(--accent);} .layer.l3{border-left-color:var(--blue);}
+.layer.l4{border-left-color:var(--green);} .layer.l5{border-left-color:#e08bc4;}
+.layer.l6{border-left-color:var(--red);}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px;margin:10px 0;}
+.kv dt{font-weight:700;color:var(--accent2);font-family:var(--mono);font-size:12.5px;}
+.kv dd{margin:0;color:var(--ink-dim);}
+.spine{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;margin:16px 0;}
+.spine .row{display:flex;gap:9px;flex-wrap:wrap;margin:8px 0;}
+.spine .blk{flex:1;min-width:140px;background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:10px 12px;cursor:pointer;transition:.13s;}
+.spine .blk:hover{border-color:var(--accent);transform:translateY(-1px);}
+.spine .blk.hl{border-color:var(--accent);box-shadow:0 0 0 1px rgba(217,119,87,.35) inset;}
+.spine .blk .bt{font-weight:700;font-size:13px;}
+.spine .blk .bd{font-size:11px;color:var(--ink-faint);}
+.spine .bar{background:rgba(232,196,104,.07);border:1px dashed rgba(232,196,104,.45);border-radius:9px;padding:7px 12px;font-size:12px;color:var(--yellow);text-align:center;margin:8px 0;}
+.pathcards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:22px 0;}
+@media(max-width:860px){.pathcards{grid-template-columns:1fr;}}
+.pathcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;cursor:pointer;transition:.15s;}
+.pathcard:hover{border-color:var(--accent);transform:translateY(-2px);}
+.pathcard.gold:hover{border-color:var(--gold);} .pathcard.red:hover{border-color:var(--red);}
+.pathcard .pe{font-size:30px;}
+.pathcard h3{margin:8px 0 4px;color:#fff;}
+.pathcard .who{font-size:12.5px;color:var(--green);font-weight:700;margin-bottom:6px;}
+.pathcard p{font-size:13.5px;color:var(--ink-dim);margin:6px 0 0;}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink-dim);margin:12px 0;}
+footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:12.5px;}
+.scrollwrap{overflow-x:auto;}
+.big-num{font-size:13px;color:var(--accent);font-weight:700;}
+.compgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:13px;margin:18px 0;}
+.compgrid .ci{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 15px;cursor:pointer;transition:.14s;}
+.compgrid .ci:hover{border-color:var(--accent);transform:translateY(-2px);}
+.compgrid .ci .cn{font-size:11px;color:var(--accent);font-weight:700;}
+.compgrid .ci h4{margin:3px 0 4px;color:#fff;}
+.compgrid .ci p{font-size:12.5px;color:var(--ink-dim);margin:0;}
+.s-steps h2{color:var(--blue);}
+.section-steps{background:rgba(79,156,240,.045);border:1px solid rgba(79,156,240,.25);border-radius:12px;padding:4px 18px 16px;margin:18px 0;}
+.section-steps h2{border-top:none;padding-top:14px;}
+.section-steps .intro{font-size:13.5px;color:var(--ink-dim);margin:6px 0 14px;}
+.stepcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:13px 0;overflow:hidden;}
+.stepcard>.hd{background:var(--panel2);border-bottom:1px solid var(--line2);padding:9px 14px;font-weight:750;font-size:14.5px;color:#fff;display:flex;align-items:center;gap:9px;}
+.stepcard>.hd .sidx{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:13px;background:var(--blue);color:#0a0c11;font-size:12.5px;font-weight:800;}
+.stepcard>.hd .stag{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink-faint);}
+.stepcard .fields{display:grid;grid-template-columns:repeat(5,1fr);gap:0;}
+@media(max-width:900px){.stepcard .fields{grid-template-columns:1fr;}}
+.stepcard .field{padding:10px 13px;border-right:1px solid var(--line);font-size:12.5px;line-height:1.55;}
+.stepcard .field:last-child{border-right:none;}
+@media(max-width:900px){.stepcard .field{border-right:none;border-bottom:1px solid var(--line);}.stepcard .field:last-child{border-bottom:none;}}
+.stepcard .field .fl{display:block;font-size:10.5px;font-weight:800;letter-spacing:.4px;margin-bottom:5px;text-transform:uppercase;}
+.stepcard .field.f-in{border-top:2px solid var(--blue);} .stepcard .field.f-in .fl{color:var(--blue);}
+.stepcard .field.f-basis{border-top:2px solid var(--yellow);} .stepcard .field.f-basis .fl{color:var(--yellow);}
+.stepcard .field.f-why{border-top:2px solid var(--accent);} .stepcard .field.f-why .fl{color:var(--accent2);}
+.stepcard .field.f-out{border-top:2px solid var(--green);} .stepcard .field.f-out .fl{color:var(--green);}
+.stepcard .field.f-edge{border-top:2px solid var(--red);} .stepcard .field.f-edge .fl{color:var(--red);}
+.stepcard .field code{font-size:11px;padding:0 3px;}
+.dflow{margin:16px 0;}
+.dnode{margin:0 0 10px;}
+.dq{display:flex;align-items:baseline;gap:8px;background:rgba(232,196,104,.07);border:1px solid rgba(232,196,104,.32);border-radius:9px;padding:9px 13px;font-weight:700;font-size:13px;color:#fff;}
+.dq .qi{color:var(--yellow);font-weight:800;flex:0 0 auto;}
+.dq .qmeta{font-weight:500;color:var(--ink-faint);font-size:11px;font-family:var(--mono);margin-left:auto;}
+.dq.final{background:rgba(217,119,87,.1);border-color:rgba(217,119,87,.4);}
+.dq.final .qi{color:var(--accent);}
+.dbranches{margin:7px 0 0 16px;display:flex;flex-direction:column;gap:6px;border-left:2px solid var(--line2);padding-left:14px;}
+.dbranch{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;line-height:1.5;}
+.dtag{flex:0 0 auto;font-weight:800;font-size:10.5px;letter-spacing:.2px;padding:3px 9px;border-radius:20px;margin-top:1px;white-space:nowrap;}
+.dbranch.yes .dtag{background:rgba(63,185,140,.16);color:var(--green);border:1px solid rgba(63,185,140,.4);}
+.dbranch.no  .dtag{background:rgba(255,255,255,.03);color:var(--ink-faint);border:1px solid var(--line2);}
+.dbranch.cs  .dtag{background:rgba(79,156,240,.14);color:var(--blue);border:1px solid rgba(79,156,240,.4);}
+.dres{flex:1;color:var(--ink-dim);}
+.dres b{color:var(--ink);}
+.dres code{font-size:11px;}
+.dwin{display:inline-block;background:rgba(217,119,87,.14);border:1px solid rgba(217,119,87,.4);color:var(--accent2);border-radius:6px;padding:1px 8px;font-weight:700;font-family:var(--mono);font-size:11.5px;}
+.dwin.g{background:rgba(63,185,140,.12);border-color:rgba(63,185,140,.4);color:var(--green);}
+.dwin.r{background:rgba(226,109,109,.12);border-color:rgba(226,109,109,.4);color:var(--red);}
+.dnote{font-size:11px;color:var(--ink-faint);font-style:italic;}
+.stepnote{font-size:12.5px;color:var(--ink-faint);font-style:italic;margin:8px 0 0;}
+.implgroup{margin:22px 0;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:6px 20px 10px;}
+.implgroup.red{border-left-color:var(--red);} .implgroup.gold{border-left-color:var(--gold);}
+.implgroup>.gh{font-size:16px;font-weight:750;color:var(--accent2);padding:12px 0 10px;border-bottom:1px solid var(--line2);margin-bottom:4px;}
+.implgroup.red>.gh{color:var(--red);} .implgroup.gold>.gh{color:var(--gold2);}
+.implrow{display:grid;grid-template-columns:250px 1fr;gap:8px 26px;padding:15px 4px;border-bottom:1px solid rgba(54,61,80,.45);border-radius:8px;transition:background .13s;}
+.implrow:last-child{border-bottom:none;}
+.implrow:hover{background:rgba(255,255,255,.022);}
+@media(max-width:760px){.implrow{grid-template-columns:1fr;gap:6px;}}
+.implrow .it{font-weight:700;font-size:14.5px;color:#fff;line-height:1.5;}
+.implrow .it code{font-size:12.5px;display:inline-block;margin:1px 0;color:var(--accent2);background:rgba(217,119,87,.08);border-color:rgba(217,119,87,.25);}
+.implrow .ix{font-size:14px;color:var(--ink-dim);line-height:1.68;}
+.implrow .ix code{font-size:12.5px;}
+.implrow .ix a{display:inline-block;margin-top:4px;font-size:12.5px;font-weight:700;white-space:nowrap;background:rgba(217,119,87,.1);border:1px solid rgba(217,119,87,.35);color:var(--accent2);padding:2px 10px;border-radius:20px;}
+.implrow .ix a:hover{background:rgba(217,119,87,.2);text-decoration:none;}
+.mechgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:18px 0;}
+.mechcard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:11px;padding:15px 16px;}
+.mechcard h4{margin:0 0 6px;color:var(--accent2);}
+.mechcard p{font-size:13px;color:var(--ink-dim);margin:5px 0;}
+.cmpcol-c{color:var(--cc2)!important;} .cmpcol-h{color:var(--gold2)!important;} .cmpcol-o{color:var(--accent2)!important;}
+.hbtn{padding:6px 14px;border:1px solid var(--line2);border-radius:20px;background:var(--panel);color:var(--ink-dim);font-size:12.5px;font-weight:700;cursor:pointer;flex:0 0 auto;text-decoration:none;transition:.13s;}
+.hbtn:hover{color:#fff;border-color:var(--accent);text-decoration:none;}
+.hbtn.cmp{border-color:rgba(168,128,240,.5);color:var(--purple);}
+.hbtn.cmp:hover{background:rgba(168,128,240,.14);border-color:var(--purple);color:#fff;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="logo"><span class="claw">✳</span> Claude Code <small>架構詳解 · 12 Harness 機制 + 幕後揭密(逆向研究)</small></div>
+    <div class="hdr-actions" style="display:flex;align-items:center;gap:12px;margin-left:auto;flex:0 0 auto;">
+      <button class="hbtn cmp" onclick="go('compare')" title="三框架逐元件對比">⚖️ 比較</button>
+      <div class="docswitch" title="切換框架介紹" style="display:flex;border:1px solid var(--line2);border-radius:20px;overflow:hidden;font-size:12.5px;font-weight:700;flex:0 0 auto;">
+        <a href="openclaw-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-right:1px solid var(--line2);">🦞 OpenClaw</a>
+        <a href="hermes-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-right:1px solid var(--line2);">☤ Hermes</a>
+        <span style="padding:6px 12px;background:var(--cc);color:#0a0c11;">✳ Claude Code</span>
+      </div>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="intro" class="active"><span class="ic">🧭</span>導讀</button>
+    <button data-tab="journey"><span class="ic">🚶</span>路徑一 · query 生命週期</button>
+    <button data-tab="bottomup"><span class="ic">🏗️</span>路徑二 · 由下而上</button>
+    <button data-tab="comp-home"><span class="ic">📚</span>元件詳解</button>
+    <button data-tab="harness" class="star"><span class="ic">★</span>12 Harness 機制</button>
+    <button data-tab="expose" class="expo"><span class="ic">🔍</span>幕後揭密</button>
+    <button data-tab="compare"><span class="ic">⚖️</span>三框架比較</button>
+  </nav>
+  <nav class="subtabs" id="subtabs">
+    <span class="grp">總覽</span>
+    <button data-tab="comp-home">元件地圖</button>
+    <span class="grp">大腦</span>
+    <button data-tab="c-loop">Agent Loop</button>
+    <button data-tab="c-tools">Tools</button>
+    <button data-tab="c-perms">權限系統</button>
+    <span class="grp">記憶</span>
+    <button data-tab="c-context">脈絡壓縮</button>
+    <button data-tab="c-session">Session 持久化</button>
+    <span class="grp">擴展</span>
+    <button data-tab="c-subagent">Sub-Agent/Swarm</button>
+    <button data-tab="c-mcp">MCP</button>
+    <button data-tab="c-bridge">Bridge</button>
+    <span class="grp">底層</span>
+    <button data-tab="c-state">State/Flags</button>
+    <button data-tab="c-telemetry">遙測/遠端控制</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ================= 導讀 ================= -->
+<section class="pane active" id="intro">
+  <div class="page-kicker">START HERE · 導讀</div>
+  <h1 class="page">用三條思路理解 Claude Code</h1>
+  <p class="page-sub">Claude Code 是 Anthropic 官方的 <strong>CLI coding agent</strong>(終端機裡的程式設計代理)。本文件不是官方文件,而是基於一份<strong>公開逆向研究 repo</strong>(<code>sanbuphy/learn-coding-agent</code>,研究對象 Claude Code v2.1.88)整理而成,聚焦它如何把「最小 agent loop」一層層包成生產級的 harness。</p>
+
+  <div class="callout danger"><span class="ct">⚠️ 重要免責聲明</span>本文件內容<strong>全部來自第三方逆向研究與社群討論</strong>(非 Anthropic 官方資料),對應 <strong>Claude Code v2.1.88</strong> 的程式碼快照,可能與目前版本不符、也可能有誤。檔名/變數名僅供理解架構,<strong>請勿當成官方事實或用於商業用途</strong>。原 repo 亦聲明僅供技術研究與教育交流。</div>
+
+  <div class="lead">
+    <strong>一句話心智模型:Claude Code = 一個最小 agent loop + 12 層生產級 harness。</strong>核心就是 README 講的那個迴圈 ── <code>User → messages[] → Claude API → response → (stop_reason==tool_use?) → 執行工具 → append 結果 → loop</code>。真正讓它「能用在真實開發」的,是圍繞這個 loop 疊上的權限、串流、並行、壓縮、sub-agent、持久化、MCP… 共 12 層機制。
+  </div>
+
+  <h2>本文件的三條路徑 + 兩個重點專章</h2>
+  <div class="pathcards">
+    <div class="pathcard" onclick="go('journey')"><div class="pe">🚶</div><h3>路徑一 · query 生命週期</h3><div class="who">想知道「一次提問實際發生什麼」</div><p>跟著一次 query 走完:解析輸入 → 組系統 prompt → 串流呼叫 Claude API → tool_use → 並行工具執行 + 權限檢查 → append 結果 → loop。</p></div>
+    <div class="pathcard" onclick="go('bottomup')"><div class="pe">🏗️</div><h3>路徑二 · 由下而上</h3><div class="who">想建立「分層架構」直覺</div><p>從 Entry 層往上疊:入口 → 狀態/權限 → 大腦(query.ts)→ 脈絡/持久化 → 能力(40+ tools)→ 對外(bridge/SDK)→ 治理與擴展。</p></div>
+    <div class="pathcard" onclick="go('comp-home')"><div class="pe">📚</div><h3>元件詳解</h3><div class="who">想深入單一 component</div><p>10 個元件,每頁固定 5 段(為什麼存在/核心概念/運作機制/逐步推演/關係/範例)。</p></div>
+  </div>
+  <div class="pathcards">
+    <div class="pathcard gold" onclick="go('harness')"><div class="pe">★</div><h3>12 Progressive Harness 機制</h3><div class="who">本文件教學主軸</div><p>從 s01「THE LOOP」到 s12「WORKTREE ISOLATION」,逐層說明一個生產級 agent harness 在基本 loop 之上需要什麼、為何這樣疊。</p></div>
+    <div class="pathcard red" onclick="go('expose')"><div class="pe">🔍</div><h3>幕後揭密(5 份分析)</h3><div class="who">研究 repo 的爭議發現</div><p>遙測與隱私、模型代號(Capybara/Tengu/Numbat)、卧底模式、遠端控制與 killswitch、未來路線圖(KAIROS)。皆附免責與爭議標註。</p></div>
+  </div>
+
+  <h2>核心:最小 agent loop</h2>
+  <pre><code>                    THE CORE LOOP
+    User ──> messages[] ──> Claude API ──> response
+                                          │
+                                stop_reason == "tool_use"?
+                               /                          \
+                             yes                           no
+                              │                             │
+                        execute tools                   return text
+                        append tool_result
+                        loop back ───────────────> messages[]
+
+    這就是最小 agent loop。Claude Code 用一層生產級 harness 包住它:
+    權限、串流、並行、壓縮、sub-agent、持久化、MCP。</code></pre>
+
+  <h2>架構脊椎(點任一塊可深入)</h2>
+  <div class="spine">
+    <div class="bar">治理橫切:permission rules + hooks · feature flags(編譯期 DCE)· telemetry · remote managed settings · undercover mode</div>
+    <div class="row">
+      <div class="blk" onclick="go('c-loop')"><div class="bt">Entry → Query Engine</div><div class="bd">cli/main/REPL · QueryEngine · query.ts(785KB)</div></div>
+      <div class="blk hl" onclick="go('c-loop')"><div class="bt">大腦 Agent Loop</div><div class="bd">while-true · stop_reason · AsyncGenerator 串流</div></div>
+      <div class="blk" onclick="go('c-tools')"><div class="bt">Tool 系統</div><div class="bd">buildTool 工廠 · 40+ 工具 · StreamingToolExecutor</div></div>
+    </div>
+    <div class="row">
+      <div class="blk" onclick="go('c-perms')"><div class="bt">權限系統</div><div class="bd">hooks → rules → prompt → checkPermissions</div></div>
+      <div class="blk" onclick="go('c-context')"><div class="bt">脈絡壓縮</div><div class="bd">autoCompact / snipCompact / contextCollapse</div></div>
+      <div class="blk" onclick="go('c-session')"><div class="bt">Session 持久化</div><div class="bd">JSONL append-only · resume/fork</div></div>
+    </div>
+    <div class="row">
+      <div class="blk" onclick="go('c-subagent')"><div class="bt">Sub-Agent / Swarm</div><div class="bd">fork/worktree/remote · coordinator 自主claim</div></div>
+      <div class="blk" onclick="go('c-mcp')"><div class="bt">MCP</div><div class="bd">stdio/sse/http/ws/sdk · OAuth</div></div>
+      <div class="blk" onclick="go('c-telemetry')"><div class="bt">遙測 / 遠端控制</div><div class="bd">1P+Datadog · accept-or-die · killswitch</div></div>
+    </div>
+  </div>
+
+  <div class="grid c3">
+    <div class="callout cc"><span class="ct">定位差異</span><strong>Claude Code</strong> 是「<strong>官方 CLI coding agent</strong>」── 跑在終端、編輯你 repo 裡的程式、接 IDE/Desktop。不像 OpenClaw/Hermes 主打「住在訊息軟體裡的個人助理」。</div>
+    <div class="callout note"><span class="ct">12 層 harness 是重點</span>本 repo 最有教學價值的是把「能跑的 agent」與「能用的 agent」之間那 12 層差距講清楚。<a onclick="go('harness')">→ 看專章</a></div>
+    <div class="callout warn"><span class="ct">逆向研究的爭議面</span>研究也揭露了遙測無法 opt-out、卧底模式、accept-or-die killswitch 等透明度爭議。<a onclick="go('expose')">→ 幕後揭密</a></div>
+  </div>
+  <div class="legend">
+    <span><span class="pill cc">Claude Code</span></span>
+    <span><span class="pill flag">feature flag</span></span>
+    <span><span class="fp">src/path.ts</span> repo 檔案路徑(v2.1.88 快照)</span>
+    <span><span class="deep">深入 →</span> 跳到元件/專章</span>
+  </div>
+  <p class="src">資料來源:<code>sanbuphy/learn-coding-agent</code> README + <code>docs/en/01–05</code>(遙測/代號/卧底/遠端控制/路線圖)。Stats:~1,884 個 .ts/.tsx、~512K 行、最大檔 <code>query.ts</code>(~785KB)、40+ 內建工具、80+ slash 指令、Bun 編譯。</p>
+</section>
+
+<!-- ================= 路徑一:query 生命週期 ================= -->
+<section class="pane" id="journey">
+  <div class="page-kicker">路徑一 · 動態視角</div>
+  <h1 class="page">🚶 一次 query 的生命週期</h1>
+  <p class="page-sub">跟著一次使用者提問,走完 README「Data Flow」描述的完整路徑。每站附「深入 →」連到元件詳解。<span class="src">來源:README「Data Flow: A Single Query Lifecycle」</span></p>
+
+  <div class="callout note"><span class="ct">入口先決定模式</span>互動式 REPL(<code>main.tsx</code>)或無頭/SDK(<code>QueryEngine.ts</code>)都呼叫同一個核心 <code>query()</code>(<code>query.ts</code>,785KB 最大檔)。整條鏈是 <strong>AsyncGenerator 串流</strong> ── 從 API 到消費端全程串流。</div>
+
+  <div class="station"><div class="rail"><div class="dot">1</div><div class="line"></div></div><div class="body">
+    <h3>processUserInput ── 解析輸入</h3>
+    <p class="what">解析 <code>/</code> 開頭的 slash 指令(80+ 個),把使用者輸入組成 <code>UserMessage</code>。若是指令(如 <code>/compact</code>、<code>/resume</code>)走指令處理路徑;否則進 agent loop。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → Query Engine</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">2</div><div class="line"></div></div><div class="body">
+    <h3>fetchSystemPromptParts ── 組系統 prompt</h3>
+    <p class="what">把工具描述組成 prompt sections,載入 <code>CLAUDE.md</code> 記憶(逐目錄 lazy 載入)。系統 prompt 包含工具清單、權限說明、專案記憶。</p>
+    <a class="deep" onclick="go('c-tools')">深入 → Tool prompt</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">3</div><div class="line"></div></div><div class="body">
+    <h3>recordTranscript ── 持久化使用者訊息</h3>
+    <p class="what">把 user message 寫到磁碟 JSONL(<code>~/.claude/projects/&lt;hash&gt;/sessions/&lt;id&gt;.jsonl</code>)。使用者訊息是<strong>阻塞寫入</strong>(await,為了崩潰可復原)。</p>
+    <a class="deep" onclick="go('c-session')">深入 → Session 持久化</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">4</div><div class="line"></div></div><div class="body">
+    <h3>normalizeMessagesForAPI ── 整理 + 必要時壓縮</h3>
+    <p class="what">剝掉 UI-only 欄位;若 token 數超過門檻,先 <code>autoCompact()</code> 摘要舊訊息騰出空間。</p>
+    <a class="deep" onclick="go('c-context')">深入 → 脈絡壓縮</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">5</div><div class="line"></div></div><div class="body">
+    <h3>Claude API(streaming)── 呼叫模型</h3>
+    <p class="what"><code>POST /v1/messages</code> 帶 tools + 系統 prompt;串流事件 <code>message_start → content_block_delta → message_stop</code>。text block 即時 yield 給消費端(SDK/REPL)。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → Agent Loop</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">6</div><div class="line"></div></div><div class="body">
+    <h3>tool_use? → StreamingToolExecutor ── 並行工具執行</h3>
+    <p class="what">回應若含 tool_use:把工具分區成「concurrency-safe(可並行)vs serial(須序列)」,並行跑安全的。每個工具先過 <code>canUseTool()</code> 權限檢查(hooks + rules + UI prompt)。</p>
+    <a class="deep" onclick="go('c-tools')">深入 → Tools</a> &nbsp;<a class="deep" onclick="go('c-perms')">深入 → 權限</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">7</div><div class="line"></div></div><div class="body">
+    <h3>canUseTool → tool.call → append tool_result</h3>
+    <p class="what">權限 DENY → append error tool_result、繼續 loop;ALLOW → <code>tool.call()</code> 執行(Bash/Read/Edit…)→ push 結果到 messages[]、recordTranscript → <strong>loop 回到第 5 站再呼叫 API</strong>。</p>
+    <a class="deep" onclick="go('c-perms')">深入 → checkPermissions</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">8</div></div><div class="body">
+    <h3>stop_reason != tool_use ── 收尾</h3>
+    <p class="what">當模型不再要工具:yield 最終 result message(含 text、usage、cost、session_id)。assistant 訊息以 <strong>fire-and-forget</strong> 寫入(順序保留佇列),不阻塞。</p>
+    <a class="deep" onclick="go('c-session')">深入 → 持久化策略</a>
+  </div></div>
+
+  <div class="callout gold" style="margin-top:24px"><span class="ct">下一步</span>這條 loop 是基礎;<a onclick="go('harness')">★ 12 Harness 機制</a>會說明這條 loop 之上還疊了哪 12 層才成為生產級 agent。</div>
+</section>
+
+<!-- ================= 路徑二:由下而上 ================= -->
+<section class="pane" id="bottomup">
+  <div class="page-kicker">路徑二 · 結構視角</div>
+  <h1 class="page">🏗️ 由下而上建構心智模型</h1>
+  <p class="page-sub">從入口層往上疊,每層先講「為何需要這層」。對應 README 的「Architecture Overview」(Entry → Query Engine → Tools/Services/State)。</p>
+
+  <div class="layer l0"><div class="ltag">L0 · 入口</div><h3>Entry 層(cli / main / REPL / QueryEngine)</h3>
+    <div class="need">為何需要這層:同一個 agent 要能被「互動式終端」與「無頭/SDK/IDE」兩種方式啟動,需要把入口與核心迴圈分開。</div>
+    <p><code>cli.tsx → main.tsx → REPL.tsx</code>(互動);或 <code>QueryEngine.ts</code>(headless/SDK)。兩條都通到同一個 <code>query()</code>。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → Agent Loop</a>
+  </div>
+  <div class="layer l1"><div class="ltag">L1 · 狀態與權限</div><h3>AppState Store + Permission Context</h3>
+    <div class="need">為何需要這層:agent 會跑危險指令,必須有一個集中的狀態保存「什麼能自動做、什麼要問、檔案怎麼 undo」。</div>
+    <p><code>AppStateStore</code>(React Context + selector 訂閱):<code>toolPermissionContext</code>(mode + allow/deny/ask rules)、<code>fileHistory</code>(undo 快照)、<code>mainLoopModel</code>、<code>fastMode</code>。</p>
+    <a class="deep" onclick="go('c-state')">深入 → State</a> &nbsp;<a class="deep" onclick="go('c-perms')">深入 → 權限</a>
+  </div>
+  <div class="layer l2"><div class="ltag">L2 · 大腦</div><h3>query.ts ── agent loop</h3>
+    <div class="need">為何需要這層:把「呼叫模型 → 檢查 stop_reason → 跑工具 → append → 再呼叫」這條迴圈做成可串流、可中斷、可壓縮的權威路徑。</div>
+    <p>785KB 最大檔;<code>StreamingToolExecutor</code> 並行工具、<code>autoCompact()</code> 壓縮、<code>runTools()</code> 編排。全程 AsyncGenerator 串流。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → Agent Loop</a>
+  </div>
+  <div class="layer l3"><div class="ltag">L3 · 脈絡與持久化</div><h3>Compact 三策略 + Session JSONL</h3>
+    <div class="need">為何需要這層:context 視窗有限,且崩潰/重開要能接回 ── 需要壓縮機制與 append-only 持久化。</div>
+    <p>壓縮:autoCompact(摘要)/ snipCompact(修剪)/ contextCollapse(重構)。持久化:每 session 一個 JSONL,支援 <code>--continue</code>/<code>--resume</code>/<code>--fork-session</code>。</p>
+    <a class="deep" onclick="go('c-context')">脈絡壓縮</a> &nbsp;<a class="deep" onclick="go('c-session')">Session 持久化</a>
+  </div>
+  <div class="layer l4"><div class="ltag">L4 · 能力</div><h3>40+ Tools + 權限 + MCP + Skills</h3>
+    <div class="need">為何需要這層:agent 要能讀寫檔案、跑 shell、查網路、接外部工具,且每個動作都要可被授權把關。</div>
+    <p><code>buildTool()</code> 工廠造出統一介面的 40+ 工具;每次呼叫過 permission 管線;MCP 接外部工具生態;Skill/LSP 按需注入知識。</p>
+    <a class="deep" onclick="go('c-tools')">Tools</a> &nbsp;<a class="deep" onclick="go('c-mcp')">MCP</a>
+  </div>
+  <div class="layer l5"><div class="ltag">L5 · 對外</div><h3>Bridge + SDK/headless + Slash 指令</h3>
+    <div class="need">為何需要這層:Claude Code 不只是終端 ── 要能被 Desktop/Web 遠端驅動、被程式以 SDK 嵌入、被 80+ 指令操作。</div>
+    <p>Bridge 層(JWT/work secret、session lifecycle)連 Claude Desktop/Remote;Agent SDK(types/sessions);commands/(80+ slash 指令)。</p>
+    <a class="deep" onclick="go('c-bridge')">Bridge</a>
+  </div>
+  <div class="layer l6"><div class="ltag">L6 · 治理與擴展</div><h3>Sub-Agent/Swarm · Feature Flags · 遙測 · 遠端控制</h3>
+    <div class="need">為何需要這層:大任務要拆給多 agent、功能要能漸進開關與 A/B、企業要能遠端管控與觀測。</div>
+    <p>Sub-agent/swarm(fork/worktree/remote);<code>feature()</code> 編譯期 DCE + GrowthBook runtime;遙測(1P+Datadog);remote managed settings + killswitch。</p>
+    <a class="deep" onclick="go('c-subagent')">Sub-Agent</a> &nbsp;<a class="deep" onclick="go('c-state')">Flags</a> &nbsp;<a class="deep" onclick="go('c-telemetry')">遙測/遠端控制</a>
+  </div>
+</section>
+
+<!-- ================= 元件地圖 ================= -->
+<section class="pane" id="comp-home">
+  <div class="page-kicker">元件詳解 · 問題導向</div>
+  <h1 class="page">📚 元件地圖</h1>
+  <p class="page-sub">10 個元件,每頁固定 5 段:<strong>① 為什麼存在 ② 核心概念 ③ 運作機制 ③.5 逐步推演 ④ 與其他元件的關係 ⑤ 範例/設定</strong>。12 harness 與幕後揭密是獨立專章。</p>
+  <h2>大腦</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-loop')"><div class="cn">L2</div><h4>Agent Loop & Query Engine</h4><p>while-true loop;stop_reason;AsyncGenerator 串流;3 入口</p></div>
+    <div class="ci" onclick="go('c-tools')"><div class="cn">L4</div><h4>Tool 系統</h4><p>buildTool 工廠;Tool 介面四面向;40+ 工具;並行執行</p></div>
+    <div class="ci" onclick="go('c-perms')"><div class="cn">L1</div><h4>權限系統</h4><p>hooks→rules→prompt→checkPermissions;PermissionMode</p></div>
+  </div>
+  <h2>記憶</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-context')"><div class="cn">L3</div><h4>脈絡壓縮</h4><p>autoCompact/snipCompact/contextCollapse;compact_boundary</p></div>
+    <div class="ci" onclick="go('c-session')"><div class="cn">L3</div><h4>Session 持久化</h4><p>JSONL append-only;resume/continue/fork;fire-and-forget</p></div>
+  </div>
+  <h2>擴展</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-subagent')"><div class="cn">L6</div><h4>Sub-Agent & Swarm</h4><p>default/fork/worktree/remote;SendMessage/Task/Team;coordinator</p></div>
+    <div class="ci" onclick="go('c-mcp')"><div class="cn">L4</div><h4>MCP 整合</h4><p>stdio/sse/http/ws/sdk;OAuth/XAA;mcp__server__tool</p></div>
+    <div class="ci" onclick="go('c-bridge')"><div class="cn">L5</div><h4>Bridge 層</h4><p>Desktop/Web↔CLI;JWT/work secret;session lifecycle;backoff</p></div>
+  </div>
+  <h2>底層</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-state')"><div class="cn">L1/L6</div><h4>State & Feature Flags</h4><p>AppState store;feature() 編譯期 DCE;GrowthBook;USER_TYPE</p></div>
+    <div class="ci" onclick="go('c-telemetry')"><div class="cn">L6</div><h4>遙測 & 遠端控制</h4><p>1P+Datadog;無 opt-out;每小時輪詢;accept-or-die;killswitch</p></div>
+  </div>
+  <div class="callout gold"><span class="ct">★ 別錯過</span>本框架的教學招牌 ── <a onclick="go('harness')">12 Progressive Harness 機制</a>;以及逆向研究的爭議發現 ── <a onclick="go('expose')">🔍 幕後揭密</a>。</div>
+</section>
+
+<!-- ===== c-loop ===== -->
+<section class="pane" id="c-loop">
+  <div class="page-kicker">元件詳解 · 大腦</div>
+  <h1 class="page">Agent Loop & Query Engine</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-perms')">入口/指令解析</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>query.ts 的 while-true 迴圈 + QueryEngine 串流生命週期</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">工具執行</a><a onclick="go('c-context')">壓縮</a><a onclick="go('c-session')">持久化</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>把一次提問變成「行動 + 回覆」並維持可串流、可中斷、可壓縮,需要一條權威的迴圈。同一條迴圈要同時服務互動式 REPL 與無頭 SDK ── 所以抽出 QueryEngine 包住 query()。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">while-true + stop_reason + AsyncGenerator</span>核心是「呼叫 API → 看 <code>stop_reason</code> → 若 <code>tool_use</code> 就跑工具、append、再呼叫;否則回 text」。整條 <code>submitMessage(prompt) → AsyncGenerator&lt;SDKMessage&gt;</code> 全程串流。<span class="fp">query.ts(785KB)、QueryEngine.ts</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>三入口</strong>:<code>cli.tsx→main.tsx→REPL.tsx</code>(互動)/ <code>QueryEngine.ts</code>(headless/SDK)。</li>
+    <li><strong>QueryEngine 子步驟</strong>:<code>fetchSystemPromptParts</code>(組 prompt)、<code>processUserInput</code>(指令)、<code>query()</code>(主迴圈)、<code>yield SDKMessage</code>(串流給消費端)。</li>
+    <li><strong>迴圈內</strong>:<code>StreamingToolExecutor</code>(並行工具)、<code>autoCompact()</code>(壓縮)、<code>runTools()</code>(編排)。</li>
+    <li><strong>設計 pattern</strong>:AsyncGenerator 串流、Builder/Factory(buildTool)、Discriminated Unions(Message 型別)、AsyncLocalStorage(per-agent context 隔離)。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:迴圈一輪</h2>
+    <p class="intro">這就是路徑一的精簡版,聚焦迴圈內部決策。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">組訊息</div><div class="sd">normalize + 壓縮</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">串流呼叫 API</div><div class="sd">message_start…stop</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">stop_reason?</div><div class="sd">tool_use / text</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">跑工具→append</div><div class="sd">loop</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">5</div><div class="sl">yield 最終</div><div class="sd">text+usage+cost</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>判 stop_reason<span class="stag">query.ts</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>API 串流回應</div><div class="field f-basis"><span class="fl">判斷依據</span><code>stop_reason == "tool_use"</code> ?</div><div class="field f-why"><span class="fl">設計思維</span>用單一條件分流「續跑工具」或「結束」,迴圈保持極簡</div><div class="field f-out"><span class="fl">輸出</span>進工具分支 或 yield 最終</div><div class="field f-edge"><span class="fl">邊界</span>text block 邊串流邊 yield,不等整輪結束</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>並行工具 + 回灌<span class="stag">StreamingToolExecutor</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>tool_use blocks</div><div class="field f-basis"><span class="fl">判斷依據</span>分區 concurrency-safe vs serial;安全的並行跑</div><div class="field f-why"><span class="fl">設計思維</span>並行省 wall-clock,有副作用的序列保正確</div><div class="field f-out"><span class="fl">輸出</span>tool_result append 進 messages[],loop 回 API</div><div class="field f-edge"><span class="fl">邊界</span>每工具先過 <a onclick="go('c-perms')">canUseTool</a></div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>入口/指令解析觸發。<strong>下游:</strong>跑 <a onclick="go('c-tools')">工具</a>(經 <a onclick="go('c-perms')">權限</a>)、叫 <a onclick="go('c-context')">壓縮</a>、寫 <a onclick="go('c-session')">session</a>;sub-agent 由迴圈 spawn(<a onclick="go('c-subagent')">Sub-Agent</a>)。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// 最小迴圈(概念)
+while (true) {
+  const res = await callClaudeAPI(messages, tools)
+  if (res.stop_reason !== "tool_use") return res.text
+  const results = await runTools(res.tool_uses)   // 並行 + 權限
+  messages.push(...results)                        // append → loop
+}</code></pre>
+</section>
+
+<!-- ===== c-tools ===== -->
+<section class="pane" id="c-tools">
+  <div class="page-kicker">元件詳解 · 大腦/能力</div>
+  <h1 class="page">Tool 系統</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">迴圈呼叫工具</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>buildTool 工廠 + 統一 Tool 介面 + 40+ 工具</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-perms')">權限把關</a><a onclick="go('c-mcp')">MCP 工具</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>「加一個工具 = 加一個 handler」是這架構的核心可擴展性。要讓 40+ 工具行為一致(驗證/權限/渲染/AI 描述),需要一個統一介面 + 工廠提供安全預設。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">buildTool(definition) → Tool</span>每個工具註冊進 dispatch map,迴圈不變。<code>buildTool()</code> 工廠給安全預設。<span class="fp">Tool.ts、tools.ts</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <p>每個工具實作四個面向:</p>
+  <div class="grid c2">
+    <div class="card tight"><h4>Lifecycle</h4><code>validateInput()</code>(早退壞參數)、<code>checkPermissions()</code>(工具自身授權)、<code>call()</code>(執行)</div>
+    <div class="card tight"><h4>Capabilities</h4><code>isEnabled()</code>(feature gate)、<code>isConcurrencySafe()</code>(可並行?)、<code>isReadOnly()</code>、<code>isDestructive()</code>、<code>interruptBehavior()</code></div>
+    <div class="card tight"><h4>Rendering(React/Ink)</h4><code>renderToolUseMessage()</code>、<code>renderToolResultMessage()</code>、進度/分組渲染</div>
+    <div class="card tight"><h4>AI-facing</h4><code>prompt()</code>(給 LLM 的描述)、<code>description()</code>、<code>mapToolResultToAPI()</code></div>
+  </div>
+  <h3>40+ 工具分類(節錄)</h3>
+  <div class="scrollwrap"><table>
+    <tr><th>類別</th><th>工具</th></tr>
+    <tr><td>檔案</td><td>FileReadTool · FileEditTool · FileWriteTool · NotebookEditTool</td></tr>
+    <tr><td>搜尋</td><td>GlobTool · GrepTool(ripgrep)· ToolSearchTool</td></tr>
+    <tr><td>執行</td><td>BashTool · PowerShellTool</td></tr>
+    <tr><td>Web</td><td>WebFetchTool · WebSearchTool</td></tr>
+    <tr><td>Agent/Task</td><td>AgentTool · SendMessageTool · TeamCreate/Delete · TaskCreate/Get/Update/List/Stop/Output</td></tr>
+    <tr><td>MCP</td><td>MCPTool · ListMcpResourcesTool · ReadMcpResourceTool</td></tr>
+    <tr><td>規劃/工作流</td><td>EnterPlanMode/ExitPlanMode · EnterWorktree/ExitWorktree · TodoWriteTool</td></tr>
+    <tr><td>互動/系統</td><td>AskUserQuestionTool · BriefTool · ConfigTool · SkillTool · LSPTool · ScheduleCronTool · SleepTool</td></tr>
+  </table></div>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:工具 dispatch</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">模型 tool_call</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">agent-loop 工具?</div><div class="sd">todo/memory/…</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">pre-hook</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">registry.dispatch</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">5</div><div class="sl">post-hook</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>解析 + 攔截<span class="stag">handle_function_call</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>name + args</div><div class="field f-basis"><span class="fl">判斷依據</span>agent-loop 工具(todo/memory/session_search/delegate)直接處理;否則進 registry</div><div class="field f-why"><span class="fl">設計思維</span>需要 agent 層狀態的工具不走一般 dispatch</div><div class="field f-out"><span class="fl">輸出</span>結果字串</div><div class="field f-edge"><span class="fl">邊界</span>例外包成 JSON error,模型恆收良構回應</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>執行 + 渲染<span class="stag">buildTool</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>驗證過的參數</div><div class="field f-basis"><span class="fl">判斷依據</span>async 橋接;依 isConcurrencySafe 決定並行/序列</div><div class="field f-why"><span class="fl">設計思維</span>統一介面 → 加工具只加 handler,迴圈不動</div><div class="field f-out"><span class="fl">輸出</span>tool_result + Ink UI 渲染</div><div class="field f-edge"><span class="fl">邊界</span>destructive/readonly 影響並行與權限</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-loop')">迴圈</a> 呼叫。<strong>下游:</strong>每次呼叫過 <a onclick="go('c-perms')">權限管線</a>;<a onclick="go('c-mcp')">MCP</a> 工具經 MCPTool 包裝進同一介面;sub-agent 經 AgentTool(<a onclick="go('c-subagent')">Sub-Agent</a>)。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>const MyTool = buildTool({
+  name: "my_tool",
+  isConcurrencySafe: () => true,
+  isReadOnly: () => true,
+  async *call(input) { /* … */ yield result },
+  prompt: () => "描述給 LLM 看的工具用途",
+})</code></pre>
+</section>
+
+<!-- ===== c-perms ===== -->
+<section class="pane" id="c-perms">
+  <div class="page-kicker">元件詳解 · 治理</div>
+  <h1 class="page">權限系統</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-tools')">工具呼叫前</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>多層權限管線:hooks → rules → prompt → checkPermissions</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-state')">rules 來自 AppState</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>agent 能跑 Bash、刪檔、改系統設定 ── 極危險。必須在每次工具執行前有一道可由使用者/企業設定的把關,且能自動允許安全的、攔截危險的。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">多層,逐層決定</span>順序:<code>validateInput</code> → PreToolUse hooks(使用者 shell 腳本可 approve/deny/改參數)→ permission rules(allow/deny/ask)→ 互動 prompt → <code>checkPermissions</code>(工具自身,如路徑沙箱)。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>三種 rule</strong>:<code>alwaysAllowRules</code> / <code>alwaysDenyRules</code> / <code>alwaysAskRules</code>(來源:settings、CLI args、session 決定)。</li>
+    <li><strong>PermissionMode</strong>:default / plan / 等模式存在 <code>toolPermissionContext</code>(AppState)。</li>
+    <li><strong>無 rule 命中</strong> → 互動 prompt(Allow Once / Allow Always / Deny)。</li>
+    <li><strong>checkPermissions()</strong> → 工具自身邏輯(如路徑 sandbox)。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:一次權限判斷</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>validateInput 通過?<span class="qmeta">tool</span></div>
+        <div class="dbranches"><div class="dbranch no"><span class="dtag">否</span><span class="dres">早退,不進權限檢查</span></div><div class="dbranch yes"><span class="dtag">是</span><span class="dres">進 PreToolUse hooks</span></div></div></div>
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>PreToolUse hook 決定?</div>
+        <div class="dbranches"><div class="dbranch cs"><span class="dtag">approve/deny/改參數</span><span class="dres">使用者 shell 腳本(settings.json hooks)可直接決定</span></div><div class="dbranch yes"><span class="dtag">放行</span><span class="dres">進 rules 比對</span></div></div></div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>命中哪種 rule?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">allow</span><span class="dres">自動執行 → <code>checkPermissions()</code> → <code>tool.call()</code></span></div>
+          <div class="dbranch no"><span class="dtag">deny</span><span class="dres">append error tool_result,繼續 loop</span></div>
+          <div class="dbranch cs"><span class="dtag">ask / 無命中</span><span class="dres">互動 prompt:Allow Once / Allow Always / Deny</span></div>
+        </div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-tools')">工具迴圈</a> 在 <code>canUseTool()</code> 觸發。<strong>下游:</strong>rules/mode 存在 <a onclick="go('c-state')">AppState</a>;企業可經 <a onclick="go('c-telemetry')">remote managed settings</a> 推送 killswitch 改寫權限。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// settings.json
+{ "permissions": {
+    "allow": ["Read", "Grep", "Bash(npm test)"],
+    "deny": ["Bash(rm -rf*)"],
+    "ask": ["Write", "Edit"] },
+  "hooks": { "PreToolUse": [ /* shell 腳本 */ ] } }</code></pre>
+</section>
+
+<!-- ===== c-context ===== -->
+<section class="pane" id="c-context">
+  <div class="page-kicker">元件詳解 · 記憶</div>
+  <h1 class="page">脈絡壓縮(Compact)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">迴圈呼叫前檢查</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>三策略壓縮 + compact_boundary 標記</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-session')">寫入 transcript</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>長對話會塞滿 context 視窗。需要在快滿時把舊訊息摘要/修剪/重構,騰出空間又不丟關鍵脈絡。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">三策略</span><strong>autoCompact</strong>(超門檻 → 摘要舊訊息)、<strong>snipCompact</strong>(移除 zombie 訊息與過時標記,<code>HISTORY_SNIP</code> flag)、<strong>contextCollapse</strong>(重構脈絡提效,<code>CONTEXT_COLLAPSE</code> flag)。<span class="fp">services/compact/</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <p>視窗結構:系統 prompt → 對話歷史(<code>[壓縮摘要]</code> + <code>[compact_boundary 標記]</code> + <code>[近期訊息原文]</code>)→ 當前 turn。</p>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:autoCompact 流程</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">超 token 門檻?</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">取 boundary 後舊訊息</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">API 摘要</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">[摘要]+[boundary]+[近期]</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>觸發 + 摘要<span class="stag">getMessagesAfterCompactBoundary</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>messages[] + token 數</div><div class="field f-basis"><span class="fl">判斷依據</span>超門檻 → 取 compact_boundary 後的舊訊息送 API 摘要</div><div class="field f-why"><span class="fl">設計思維</span>近期訊息保原文(高保真),只壓舊的</div><div class="field f-out"><span class="fl">輸出</span>compact 摘要 + boundary 標記 + 近期原文</div><div class="field f-edge"><span class="fl">邊界</span>snip/collapse 由 feature flag 控制</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-loop')">迴圈</a> 在 normalize 時檢查觸發。<strong>下游:</strong>boundary 標記寫進 <a onclick="go('c-session')">session JSONL</a>;策略開關屬 <a onclick="go('c-state')">feature flags</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// session JSONL 中的壓縮標記
+{"type":"system","subtype":"compact_boundary", ...}
+// 手動觸發:/compact</code></pre>
+</section>
+
+<!-- ===== c-session ===== -->
+<section class="pane" id="c-session">
+  <div class="page-kicker">元件詳解 · 記憶</div>
+  <h1 class="page">Session 持久化</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">每訊息 recordTranscript</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>append-only JSONL + resume/continue/fork</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-context')">壓縮標記寫入</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>對話要能崩潰復原、跨次接續、分叉重來。需要 append-only 的逐則記錄與明確的 resume 流程。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">每 session 一個 JSONL</span><code>~/.claude/projects/&lt;hash&gt;/sessions/&lt;session-id&gt;.jsonl</code>,append-only:user / assistant / progress / system(compact_boundary)。</div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>Resume 流程</strong>:<code>getLastSessionLog()</code> → 解析 JSONL → 重建 messages[]。<code>--continue</code>(cwd 最後一個)/ <code>--resume &lt;id&gt;</code>(指定)/ <code>--fork-session</code>(新 id 複製歷史)。</li>
+    <li><strong>持久化策略(關鍵)</strong>:user 訊息 <strong>await 阻塞寫</strong>(崩潰可復原);assistant 訊息 <strong>fire-and-forget</strong>(順序保留佇列);progress 行 inline 寫(下次 query dedup);result yield / cowork 時 flush。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:寫入策略</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>要寫的是哪種訊息?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">user</span><span class="dres"><b>await 阻塞寫</b> → 確保崩潰可復原</span></div>
+          <div class="dbranch cs"><span class="dtag">assistant</span><span class="dres"><b>fire-and-forget</b>(順序保留佇列)→ 不阻塞回應</span></div>
+          <div class="dbranch no"><span class="dtag">progress</span><span class="dres">inline 寫,下次 query 去重</span></div>
+        </div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-loop')">迴圈</a> 每步 recordTranscript。<strong>下游:</strong><a onclick="go('c-context')">壓縮</a> 把 compact_boundary 寫進同一 JSONL;resume 重建迴圈狀態。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>claude --continue            # cwd 最後一個 session
+claude --resume &lt;id&gt;          # 指定 session
+claude --fork-session         # 新 id、複製歷史</code></pre>
+</section>
+
+<!-- ===== c-subagent ===== -->
+<section class="pane" id="c-subagent">
+  <div class="page-kicker">元件詳解 · 擴展</div>
+  <h1 class="page">Sub-Agent & Swarm</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">AgentTool 由迴圈呼叫</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>四種 spawn 模式 + 多 agent 協作(swarm)</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-session')">各自 messages[]/file cache</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>大任務塞同一個對話會污染 context。把子任務拆給子 agent,各自有乾淨的 messages[],主對話保持清爽;更大的工作則交給多 agent 團隊。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">四種 spawn 模式</span><code>default</code>(同進程、共享對話)/ <code>fork</code>(子進程、全新 messages[]、共享 file cache)/ <code>worktree</code>(隔離 git worktree + fork)/ <code>remote</code>(經 bridge 到 Remote/容器)。<span class="fp">AgentTool/、forkSubagent.ts</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>通訊</strong>:<code>SendMessageTool</code>(agent 間訊息)、<code>TaskCreate/Update</code>(共享任務板)、<code>TeamCreate/Delete</code>(團隊生命週期)。</li>
+    <li><strong>Swarm 模式</strong>(feature-gated):Lead agent + 多個 teammate,各自 claim task;共享任務板與訊息 inbox,隔離 messages[]/file cache/cwd。</li>
+    <li><strong>Task ID 前綴</strong>:b=bash、a=agent、r=remote、t=team(prefix + 8 字元)。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:選哪種 spawn</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>子任務需要什麼隔離?</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">共享脈絡</span><span class="dres"><code>default</code>:同進程、共享對話</span></div>
+          <div class="dbranch cs"><span class="dtag">乾淨脈絡</span><span class="dres"><code>fork</code>:子進程、全新 messages[]、共享 file cache</span></div>
+          <div class="dbranch cs"><span class="dtag">隔離目錄</span><span class="dres"><code>worktree</code>:獨立 git worktree + fork</span></div>
+          <div class="dbranch no"><span class="dtag">遠端/容器</span><span class="dres"><code>remote</code>:經 bridge 到 Claude Code Remote</span></div>
+        </div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-loop')">迴圈</a> 經 AgentTool spawn。<strong>下游:</strong>remote 模式走 <a onclick="go('c-bridge')">Bridge</a>;swarm/coordinator 受 <a onclick="go('c-state')">feature flag</a>(COORDINATOR_MODE)控制;這對應 <a onclick="go('harness')">harness s04/s09–s12</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// SPAWN 模式:default / fork / worktree / remote
+// 通訊:SendMessageTool · TaskCreate/Update · TeamCreate/Delete
+// Swarm(feature-gated):Lead + Teammates 各自 claim task</code></pre>
+</section>
+
+<!-- ===== c-mcp ===== -->
+<section class="pane" id="c-mcp">
+  <div class="page-kicker">元件詳解 · 擴展</div>
+  <h1 class="page">MCP 整合</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-state')">settings 設定 server</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>消費外部 MCP server,工具進同一介面</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">MCPTool 包裝</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>不必為每個外部系統寫原生工具 ── 透過 MCP(Model Context Protocol)接外部工具生態,啟動時自動探索並註冊。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">五種傳輸 + 統一命名</span>server 探索:<code>stdio</code>(子進程)/ <code>sse</code>(HTTP EventSource)/ <code>http</code>(Streamable)/ <code>ws</code> / <code>sdk</code>(in-process)。工具命名 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>。<span class="fp">MCPConnectionManager.tsx</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>生命週期</strong>:connect → initialize → list tools → 經 MCPTool 呼叫 → disconnect/reconnect(backoff)。</li>
+    <li><strong>認證</strong>:OAuth 2.0(McpOAuthConfig)、Cross-App Access(XAA / SEP-990)、API key via headers。</li>
+    <li><strong>註冊</strong>:加前綴避免衝突、動態 schema、權限 passthrough 回 Claude Code、資源列表(ListMcpResourcesTool)。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:server 工具進註冊表</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">探索</div><div class="sd">5 傳輸</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">connect+initialize</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">list tools</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">前綴+註冊</div><div class="sd">mcp__x__y</div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>server 設定來自 <a onclick="go('c-state')">settings</a>。<strong>下游:</strong>MCP 工具經 MCPTool 進 <a onclick="go('c-tools')">統一工具介面</a>,呼叫時一樣過 <a onclick="go('c-perms')">權限</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// settings.json
+{ "mcpServers": {
+    "github": { "command": "npx", "args": ["-y","@modelcontextprotocol/server-github"] },
+    "linear": { "url": "https://mcp.linear.app/mcp", "auth": "oauth" } } }</code></pre>
+</section>
+
+<!-- ===== c-bridge ===== -->
+<section class="pane" id="c-bridge">
+  <div class="page-kicker">元件詳解 · 對外</div>
+  <h1 class="page">Bridge 層(Desktop / Remote)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">CLI 進程被驅動</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>Claude Desktop/Web ↔ CLI 的 HTTP 橋接</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-subagent')">remote sub-agent</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>Claude Code 不只是終端 ── 要能被 Desktop/Web/Cowork 遠端驅動。Bridge 層負責「桌面 App 開一個 CLI session、relay 訊息、管理 token」。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">Desktop ↔ CLI over HTTP</span>Bridge client(Desktop)經 HTTP 連 <code>bridgeMain.ts</code>(session manager);後者 spawn CLI、poll status、relay msgs、capacityWake。<span class="fp">bridge/</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>協定</strong>:JWT 認證、work secret 交換、session 生命週期(create/run/stop)、token refresh scheduler。</li>
+    <li><strong>Backoff</strong>:連線 2s→2m;generation 500ms→30s。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:遠端 session</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">Desktop 連 bridge</div><div class="sd">JWT</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">work secret 交換</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">spawn CLI session</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">relay 訊息</div><div class="sd">poll/backoff</div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>Desktop/Web client。<strong>下游:</strong>spawn 的 CLI 跑 <a onclick="go('c-loop')">agent loop</a>;<a onclick="go('c-subagent')">remote sub-agent</a> 也走此橋。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// bridgeMain.ts: session manager(spawn CLI / poll / relay / capacityWake)
+// 認證:JWT + work secret;backoff: conn 2s→2m, gen 500ms→30s</code></pre>
+</section>
+
+<!-- ===== c-state ===== -->
+<section class="pane" id="c-state">
+  <div class="page-kicker">元件詳解 · 底層</div>
+  <h1 class="page">State & Feature Flags</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><span>App 啟動初始化</span></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>AppState store + 編譯期/runtime 功能旗標</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-perms')">權限 rules</a><a onclick="go('c-subagent')">swarm gate</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>需要集中的可觀測狀態(權限、模型、fastMode、檔案 undo),以及「功能漸進開關 + A/B 實驗」的旗標機制 ── 還要能在編譯期把未啟用功能整段移除(瘦身 + 防洩漏)。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">AppState + feature() DCE + GrowthBook</span>AppState store(React Context、selector 訂閱、immer 更新)。<code>feature('FLAG')</code> 在 Bun 編譯期做 <strong>dead-code elimination</strong>(false → 整段從 bundle 剝除);GrowthBook 做 runtime A/B。<span class="fp">state/AppStateStore.ts</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>AppState 欄位</strong>:<code>toolPermissionContext</code>(mode + allow/deny/ask rules)、<code>fileHistory</code>(undo)、<code>attribution</code>、<code>mainLoopModel</code>、<code>fastMode</code>、<code>speculation</code>。</li>
+    <li><strong>編譯期旗標(節錄)</strong>:COORDINATOR_MODE、HISTORY_SNIP、CONTEXT_COLLAPSE、DAEMON、AGENT_TRIGGERS、VOICE_MODE、KAIROS、PROACTIVE…(20+)。<span class="pill flag">flag</span></li>
+    <li><strong>Runtime gate</strong>:<code>process.env.USER_TYPE === 'ant'</code>(內部功能)、GrowthBook flags(runtime 實驗)。</li>
+  </ul>
+  <div class="callout warn"><span class="ct">編譯期 DCE 的雙重作用</span>未啟用功能不只「關掉」,而是<strong>整段從外部 build 移除</strong> ── 既瘦身,也讓內部功能/卧底模式等不會出現在公開 bundle 裡(見 <a onclick="go('expose')">幕後揭密</a>)。</div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>下游:</strong>權限 rules(<a onclick="go('c-perms')">權限系統</a>)、swarm/壓縮策略的開關(<a onclick="go('c-subagent')">Sub-Agent</a>/<a onclick="go('c-context')">壓縮</a>)、內部功能(<a onclick="go('c-telemetry')">遙測/遠端</a>)都讀這層。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>if (feature('VOICE_MODE')) { /* 只有 flag=true 才會進 bundle */ }
+// runtime: USER_TYPE === 'ant' → 內部功能;GrowthBook → A/B</code></pre>
+</section>
+
+<!-- ===== c-telemetry ===== -->
+<section class="pane" id="c-telemetry">
+  <div class="page-kicker">元件詳解 · 底層 / 治理</div>
+  <h1 class="page">遙測 & 遠端控制</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-state')">每事件附狀態</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>兩 sink 遙測 + 每小時遠端設定輪詢 + killswitch</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-perms')">可遠端改寫權限</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>Anthropic/企業需要觀測使用、確保合規、能緊急停用危險功能。這層做遙測上報與遠端管控 ── 也是逆向研究中爭議最大的部分。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout danger"><span class="ct">兩 sink + 無 UI opt-out</span>1P(<code>api.anthropic.com/api/event_logging/batch</code>,OTel+protobuf,200/批、10s flush)+ Datadog(64 種事件)。<strong>第一方 logging 沒有 UI 可關</strong>;<code>OTEL_LOG_TOOL_DETAILS=1</code> 會開啟完整工具輸入捕捉。<span class="fp">services/analytics/</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>每事件附帶</strong>:環境指紋(平台/arch/node/terminal/CI/WSL/distro/VCS/版本)、process metrics(uptime/rss/heap/CPU)、repo hash。</li>
+    <li><strong>Remote managed settings</strong>:<code>GET /api/claude_code/settings</code> 每小時輪詢(timeout 10s、5 retries);Console(API key)全適用,OAuth 限 Enterprise/Team。</li>
+    <li><strong>Accept-or-die</strong>:遠端設定含「危險變更」時跳阻塞對話框,<strong>拒絕 = 應用 <code>gracefulShutdownSync(1)</code> 直接退出</strong>。</li>
+    <li><strong>Killswitch(6+)</strong>:bypass permissions、fast mode、voice mode、analytics sink 等可被遠端關閉;GrowthBook 可在未經同意下改任何使用者行為。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:遠端設定輪詢</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>每小時輪詢設定;server 可達?</div>
+        <div class="dbranches"><div class="dbranch yes"><span class="dtag">可達</span><span class="dres">取得遠端設定 → 檢查是否含危險變更</span></div><div class="dbranch no"><span class="dtag">不可達</span><span class="dres">用磁碟快取設定(graceful degradation)</span></div></div></div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>含危險變更?使用者選擇?</div>
+        <div class="dbranches"><div class="dbranch yes"><span class="dtag">accept</span><span class="dres">套用新設定(可能關閉某些功能)</span></div><div class="dbranch no"><span class="dtag">reject</span><span class="dres"><span class="dwin r">應用直接退出</span>(exit code 1)</span></div></div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>事件附 <a onclick="go('c-state')">AppState/環境</a>。<strong>下游:</strong>remote settings 可改寫 <a onclick="go('c-perms')">權限</a>、關閉功能;完整爭議見 <a onclick="go('expose')">🔍 幕後揭密</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// 部分可控環境變數(節錄)
+OTEL_LOG_TOOL_DETAILS=1     # 開啟完整工具輸入捕捉
+// remote settings: GET /api/claude_code/settings(每小時、accept-or-die)</code></pre>
+  <p class="src">本頁內容對應 docs/en/01(遙測)與 04(遠端控制),為第三方逆向研究,非官方。</p>
+</section>
+
+<!-- ================= ★ 12 HARNESS ================= -->
+<section class="pane" id="harness">
+  <div class="page-kicker gold">★ 教學主軸</div>
+  <h1 class="page">★ 12 Progressive Harness 機制</h1>
+  <p class="page-sub">這是本 repo 最有教學價值的部分:一個生產級 AI agent 在「基本 loop」之上,逐層需要哪 12 個機制。每一層都建立在前一層之上。<span class="src">來源:README「The 12 Progressive Harness Mechanisms」</span></p>
+
+  <div class="callout gold"><span class="ct">核心命題</span>「One loop & Bash is all you need」可以做出能跑的 agent;但要做出<strong>能用在真實開發</strong>的 agent,你需要在那條 loop 之上疊 11 層 harness:工具分派、規劃、子代理、按需知識、壓縮、持久任務、背景任務、團隊、協定、自主、worktree 隔離。</p></div>
+
+  <div class="flow">
+    <div class="step"><div class="sn">s01-s03</div><div class="sl">單 agent 基礎</div><div class="sd">loop·dispatch·planning</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">s04-s06</div><div class="sl">脈絡管理</div><div class="sd">subagent·knowledge·compress</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">s07-s08</div><div class="sl">任務持久化</div><div class="sd">tasks·background</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">s09-s12</div><div class="sl">多 agent 協作</div><div class="sd">teams·protocol·autonomous·worktree</div></div>
+  </div>
+
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">01</div><div class="line"></div></div><div class="body"><h3>THE LOOP ── 「一個 loop + Bash 就夠了」</h3><p class="what"><code>query.ts</code> 的 while-true:呼叫 Claude API、檢查 stop_reason、執行工具、append 結果。<strong>這是一切的基礎。</strong><a class="deep gold" onclick="go('c-loop')">→ Agent Loop</a></p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">02</div><div class="line"></div></div><div class="body"><h3>TOOL DISPATCH ── 「加工具 = 加一個 handler」</h3><p class="what"><code>Tool.ts + tools.ts</code>:每個工具註冊進 dispatch map,loop 不變。<code>buildTool()</code> 工廠給安全預設。<a class="deep gold" onclick="go('c-tools')">→ Tools</a></p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">03</div><div class="line"></div></div><div class="body"><h3>PLANNING ── 「沒計畫的 agent 會漂移」</h3><p class="what"><code>EnterPlanMode/ExitPlanMode + TodoWriteTool</code>:先列步驟再執行。據稱完成率翻倍。</p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">04</div><div class="line"></div></div><div class="body"><h3>SUB-AGENTS ── 「拆大任務;每子任務乾淨脈絡」</h3><p class="what"><code>AgentTool + forkSubagent.ts</code>:每個子 agent 拿到全新 messages[],主對話保持清爽。<a class="deep gold" onclick="go('c-subagent')">→ Sub-Agent</a></p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">05</div><div class="line"></div></div><div class="body"><h3>KNOWLEDGE ON DEMAND ── 「需要時才載知識」</h3><p class="what"><code>SkillTool + memdir/</code>:透過 tool_result 注入(而非塞系統 prompt);<code>CLAUDE.md</code> 逐目錄 lazy 載入。</p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">06</div><div class="line"></div></div><div class="body"><h3>CONTEXT COMPRESSION ── 「脈絡會滿;騰出空間」</h3><p class="what"><code>services/compact/</code> 三層:autoCompact(摘要)+ snipCompact(修剪)+ contextCollapse(重構)。<a class="deep gold" onclick="go('c-context')">→ 壓縮</a></p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">07</div><div class="line"></div></div><div class="body"><h3>PERSISTENT TASKS ── 「大目標 → 小任務 → 落地」</h3><p class="what"><code>TaskCreate/Update/Get/List</code>:檔案式任務圖,有狀態追蹤、依賴、持久化。</p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">08</div><div class="line"></div></div><div class="body"><h3>BACKGROUND TASKS ── 「慢操作丟背景;agent 繼續想」</h3><p class="what"><code>DreamTask + LocalShellTask</code>:daemon 執行緒跑指令,完成時注入通知。</p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">09</div><div class="line"></div></div><div class="body"><h3>AGENT TEAMS ── 「一個人做不完 → 委派給隊友」</h3><p class="what"><code>TeamCreate/Delete + InProcessTeammateTask</code>:持久隊友 + 非同步信箱。</p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">10</div><div class="line"></div></div><div class="body"><h3>TEAM PROTOCOLS ── 「共享溝通規則」</h3><p class="what"><code>SendMessageTool</code>:一個 request-response 模式驅動所有 agent 間協商。</p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">11</div><div class="line"></div></div><div class="body"><h3>AUTONOMOUS AGENTS ── 「隊友自己掃描並認領任務」</h3><p class="what"><code>coordinator/coordinatorMode.ts</code>:idle cycle + auto-claim,不必 lead 逐一指派。<a class="deep gold" onclick="go('c-subagent')">→ Swarm</a></p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">12</div></div><div class="body"><h3>WORKTREE ISOLATION ── 「每個在自己的目錄工作」</h3><p class="what"><code>EnterWorktreeTool/ExitWorktreeTool</code>:task 管目標、worktree 管目錄,以 ID 綁定。</p></div></div>
+
+  <div class="callout gold" style="margin-top:22px"><span class="ct">收束:loop + 11 層 = 生產級 agent</span>s01 是「能跑」;s02–s12 是把它變「能用」── 工具可擴展、會規劃、能拆分、知識按需、脈絡可控、任務落地、背景並行、多 agent 協作自主隔離。<strong>這 12 層正是任何想自建 coding agent 的人該照抄的骨架。</strong></div>
+</section>
+
+<!-- ================= 🔍 幕後揭密 ================= -->
+<section class="pane" id="expose">
+  <div class="page-kicker red">🔍 逆向研究發現</div>
+  <h1 class="page">🔍 幕後揭密(5 份分析)</h1>
+  <p class="page-sub">研究 repo 從 v2.1.88 程式碼挖出的「不在官方文件裡」的機制。<strong>這些是第三方觀察、非官方確認,可能過時或有誤。</strong></p>
+
+  <div class="callout danger"><span class="ct">⚠️ 再次聲明</span>以下全部來自公開逆向研究與社群討論,<strong>非 Anthropic 官方</strong>,對應 v2.1.88 快照。列出是為了完整呈現該 repo 的研究內容與其引發的<strong>透明度討論</strong>,不代表認同或保證正確。請勿據此做任何商業/法律判斷。</div>
+
+  <div class="implgroup red">
+    <div class="gh">① 遙測與隱私</div>
+    <div class="implrow"><div class="it">兩個 sink</div><div class="ix">1P(<code>api.anthropic.com/api/event_logging/batch</code>,OTel+protobuf)+ Datadog(64 種事件)。失敗事件存 <code>~/.claude/telemetry/</code>、quadratic backoff 重試。</div></div>
+    <div class="implrow"><div class="it">每事件附帶</div><div class="ix">環境指紋(平台/arch/node/terminal/套件管理器/CI/WSL/distro/VCS/版本)、process metrics、repo hash。</div></div>
+    <div class="implrow"><div class="it">爭議點</div><div class="ix"><strong>第一方 logging 無 UI opt-out</strong>;<code>OTEL_LOG_TOOL_DETAILS=1</code> 開完整工具輸入捕捉。無證據顯示鍵盤側錄或竊取程式碼,但收集廣度引發隱私疑慮。<a class="deep" onclick="go('c-telemetry')">→ 元件頁</a></div></div>
+  </div>
+
+  <div class="implgroup red">
+    <div class="gh">② 隱藏功能與模型代號</div>
+    <div class="implrow"><div class="it">動物代號</div><div class="ix"><strong>Tengu</strong>(天狗,telemetry/產品前綴,250+ 事件用 <code>tengu_*</code>)、<strong>Capybara</strong>(水豚,Sonnet 系 v8)、<strong>Fennec</strong>(耳廓狐 → Opus 4.6)、<strong>Numbat</strong>(袋食蟻獸,下一個模型)。</div></div>
+    <div class="implrow"><div class="it">代號保護</div><div class="ix"><code>scripts/excluded-strings.txt</code> 掃描洩漏;某些 species 用 <code>String.fromCharCode()</code> 編碼避開 canary(衝突的正是 capybara)。</div></div>
+    <div class="implrow"><div class="it">內 vs 外使用者</div><div class="ix">feature flag 用隨機詞對(如 <code>tengu_frond_boric</code>)隱藏用途;內部使用者(<code>USER_TYPE==='ant'</code>)拿到更好的 prompt、驗證 agent、effort anchor。隱藏指令 <code>/btw</code>、<code>/stickers</code>。</div></div>
+  </div>
+
+  <div class="implgroup red">
+    <div class="gh">③ 卧底模式(Undercover Mode)</div>
+    <div class="implrow"><div class="it">是什麼</div><div class="ix">官方員工在外部/開源 repo 貢獻時的安全系統,隱藏 AI 著作與內部資訊,讓貢獻看起來像人類開發者寫的 ── 主要防止內部機密與未發布模型名洩漏。<span class="fp">src/utils/undercover.ts</span></div></div>
+    <div class="implrow"><div class="it">啟用邏輯</div><div class="ix">僅內部(<code>USER_TYPE==='ant'</code>);在<strong>除內部 allowlist 外的所有 repo 預設 ON</strong>;<strong>無 force-OFF</strong>;外部 build 經 DCE 完全移除、永不執行。</div></div>
+    <div class="implrow"><div class="it">給模型的指令</div><div class="ix">「You are operating UNDERCOVER… <strong>Do not blow your cover.</strong>」── commit/PR 不得含代號、未發布版號、內部 repo/工具名、「Claude Code」字樣或任何 AI 提示、Co-Authored-By。要求「像人類開發者一樣只描述程式改了什麼」。</div></div>
+    <div class="implrow"><div class="it">爭議點</div><div class="ix">對開源社群的<strong>透明度</strong>提出疑問:AI 生成的貢獻被刻意抹除署名。<a class="deep" onclick="go('c-state')">→ 為何外部看不到(DCE)</a></div></div>
+  </div>
+
+  <div class="implgroup red">
+    <div class="gh">④ 遠端控制與 Killswitch</div>
+    <div class="implrow"><div class="it">每小時輪詢</div><div class="ix"><code>GET /api/claude_code/settings</code>(timeout 10s、5 retries、間隔 1 小時)。Console(API key)全適用;OAuth 限 Enterprise/Team。</div></div>
+    <div class="implrow"><div class="it">Accept-or-die</div><div class="ix">遠端設定含「危險變更」→ 阻塞對話框;<strong>拒絕 = <code>gracefulShutdownSync(1)</code> 應用直接退出</strong>。只能接受或結束。server 不可達則用磁碟快取。</div></div>
+    <div class="implrow"><div class="it">Killswitch + GrowthBook</div><div class="ix">6+ killswitch(bypass permissions、fast mode、voice mode、analytics sink…)可遠端關閉;GrowthBook flags 可<strong>未經同意改任何使用者行為</strong>。<a class="deep" onclick="go('c-telemetry')">→ 元件頁</a></div></div>
+  </div>
+
+  <div class="implgroup red">
+    <div class="gh">⑤ 未來路線圖(架構洩漏的線索)</div>
+    <div class="implrow"><div class="it">下一個模型:Numbat</div><div class="ix"><code>// @[MODEL LAUNCH]: Remove this section when we launch numbat.</code> 確認 Numbat 代號;<strong>Opus 4.7 / Sonnet 4.8</strong> 開發中。代號鏈:Fennec→Opus 4.6→[Numbat?]、Capybara→Sonnet v8。20+ 個 <code>@[MODEL LAUNCH]</code> 標記列出發布清單。</div></div>
+    <div class="implrow"><div class="it">KAIROS:自主 agent 模式</div><div class="ix">完全自主模式:<code>&lt;tick&gt;</code> heartbeat、推播通知、PR 訂閱(<code>KAIROS</code> flag)。對應 OpenClaw/Hermes 的 heartbeat/proactive 概念。</div></div>
+    <div class="implrow"><div class="it">未上線功能</div><div class="ix">Voice mode(push-to-talk,已就緒但 gated)、17 個未發布工具、PROACTIVE(sleep tool)等。<a class="deep" onclick="go('c-state')">→ Feature Flags</a></div></div>
+  </div>
+
+  <div class="callout warn"><span class="ct">為什麼這些「藏得住」?</span>關鍵在 <a onclick="go('c-state')">feature() 編譯期 DCE</a> + <code>USER_TYPE==='ant'</code> runtime gate ── 內部功能與卧底模式在外部 build 被整段剝除,所以一般使用者的 bundle 裡根本不存在這些碼。逆向研究是從<strong>洩漏的程式碼/字串</strong>反推這些機制的存在。</div>
+</section>
+
+<!-- ================= ⚖️ 比較 ================= -->
+<section class="pane" id="compare">
+  <div class="page-kicker">⚖️ 對照</div>
+  <h1 class="page">三框架比較:Claude Code vs Hermes vs OpenClaw</h1>
+  <p class="page-sub">三者都是「會用工具的 AI agent」,但定位差很多:<strong>Claude Code</strong> = 官方 CLI coding agent(寫程式、接 IDE);<strong>Hermes</strong> = 自我學習的個人助理(住訊息軟體);<strong>OpenClaw</strong> = gateway 控制平面 + 一切皆 plugin 的個人助理。</p>
+
+  <div class="scrollwrap"><table>
+    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
+    <tr><td>定位招牌</td><td><strong>官方 CLI coding agent</strong>(寫程式/接 IDE)</td><td>自我改進的個人助理</td><td>gateway 控制平面 + 一切皆 plugin</td></tr>
+    <tr><td>出品</td><td>Anthropic 官方</td><td>Nous Research</td><td>開源社群</td></tr>
+    <tr><td>Runtime 語言</td><td>TypeScript(Bun 編譯)</td><td>Python</td><td>TypeScript / Node</td></tr>
+    <tr><td>核心迴圈</td><td><code>query.ts</code> while-true(785KB)</td><td><code>run_conversation()</code> 3 API mode</td><td>embedded loop + runtime 家族</td></tr>
+    <tr><td>主要介面</td><td><strong>終端 CLI</strong> + SDK + IDE(經 bridge/SDK)</td><td>多訊息平台 + CLI/TUI + ACP</td><td>20+ 訊息平台 + WebChat/TUI/Control UI</td></tr>
+    <tr><td>自我學習</td><td>無 runtime 自學(<strong>每 session 靠 CLAUDE.md 記憶</strong>);KAIROS 自主模式規劃中</td><td><strong>一等公民</strong>:background review 自動造/改技能 + curator</td><td>memory + dreaming 鞏固(無技能自創)</td></tr>
+    <tr><td>多 agent</td><td>sub-agent(fork/worktree/remote)+ swarm(coordinator)</td><td>delegate_task + Kanban 多進程 worker</td><td>subagents + 並行 specialist lanes</td></tr>
+    <tr><td>外部互通</td><td>消費 MCP;被 IDE/Desktop 經 SDK/bridge 整合</td><td>ACP 雙向 + 消費 MCP</td><td>ACP + MCP + 一切皆 plugin</td></tr>
+    <tr><td>脈絡壓縮</td><td>autoCompact/snipCompact/contextCollapse 三策略</td><td>雙重壓縮(85%/50%)+ Anthropic caching</td><td>可插拔 context engine + compaction</td></tr>
+    <tr><td>權限/安全</td><td>permission rules + PreToolUse hooks + checkPermissions</td><td>DANGEROUS_PATTERNS 核准 + 威脅掃描</td><td>tool policy 8 層 + exec approvals + ATLAS</td></tr>
+    <tr><td>遠端管控</td><td><strong>remote managed settings + accept-or-die killswitch</strong></td><td>無(本機優先)</td><td>無(本機優先、單一可信操作者)</td></tr>
+    <tr><td>遙測</td><td><strong>兩 sink、無 UI opt-out</strong>(官方產品)</td><td>本機;可選 OTel</td><td>本機;OTel/Prometheus plugin</td></tr>
+    <tr><td>RL / 研究角度</td><td>無(產品)</td><td><strong>明確</strong>:trajectory 生成+壓縮訓練模型</td><td>無</td></tr>
+  </table></div>
+
+  <div class="callout cc"><span class="ct">怎麼選</span>要<strong>在終端寫程式、深度 IDE 整合、官方支援</strong> → Claude Code;要<strong>住訊息軟體、越用越懂你、可做 RL 研究</strong> → Hermes;要<strong>極廣 channel/plugin 生態、自架 gateway 控制平面</strong> → OpenClaw。三者本機優先程度不同:Claude Code 有官方遠端管控,另兩者強調本機/自架。</div>
+  <p class="src">Claude Code 欄位基於逆向研究(v2.1.88 快照),Hermes/OpenClaw 欄位基於各自開源 repo。三框架的逐元件深度對比卡見 <a href="hermes-architecture.html#compare">Hermes 文件的比較頁</a>。</p>
+</section>
+
+</main>
+
+<footer>
+  <p>本文件基於公開逆向研究 repo <a href="https://github.com/sanbuphy/learn-coding-agent">sanbuphy/learn-coding-agent</a>(研究對象:Claude Code v2.1.88)的 README 與 <code>docs/en/01–05</code> 整理而成 ── <strong>非 Anthropic 官方資料,僅供技術研究與教育,禁止商業用途,內容可能過時或有誤</strong>。每個主張皆標來源(<span class="src">README / docs</span>、<span class="fp">src/...</span>)。</p>
+  <p>✳ <strong>Claude Code Architecture Study</strong> · 為 Cathay DDT_MLE digital_colleague 整理 · 可與 <code>hermes-architecture.html</code>、<code>openclaw-architecture.html</code> 並排對照(右上切換)</p>
+</footer>
+
+<script>
+const COMP = new Set(['comp-home','c-loop','c-tools','c-perms','c-context','c-session','c-subagent','c-mcp','c-bridge','c-state','c-telemetry']);
+function go(id){
+  if(!document.getElementById(id)) return;
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));
+  const t1 = COMP.has(id) ? 'comp-home' : id;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t1));
+  const sub=document.getElementById('subtabs');
+  if(COMP.has(id)){ sub.classList.add('show'); } else { sub.classList.remove('show'); }
+  document.querySelectorAll('#subtabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+  history.replaceState(null,'','#'+id);
+}
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.tab);});
+document.getElementById('subtabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.tab);});
+window.addEventListener('DOMContentLoaded',()=>{const h=location.hash.slice(1);if(h&&document.getElementById(h))go(h);});
+</script>
+</body>
+</html>
