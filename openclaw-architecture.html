@@ -237,6 +237,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <button data-tab="journey"><span class="ic">🚶</span>路徑一 · 訊息的旅程</button>
     <button data-tab="bottomup"><span class="ic">🏗️</span>路徑二 · 由下而上</button>
     <button data-tab="comp-home"><span class="ic">📚</span>元件詳解</button>
+    <button data-tab="c-concurrency"><span class="ic">🔀</span>任務分配/並行</button>
     <button data-tab="audit"><span class="ic">🔎</span>稽核</button>
   </nav>
   <nav class="subtabs" id="subtabs">
@@ -248,7 +249,6 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <span class="grp">大腦</span>
     <button data-tab="c-loop">Agent Loop</button>
     <button data-tab="c-runtime">Runtime</button>
-    <button data-tab="c-concurrency">任務分配/並行</button>
     <span class="grp">記憶</span>
     <button data-tab="c-session">Session</button>
     <button data-tab="c-memory">Memory</button>
@@ -481,7 +481,6 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
   <div class="compgrid">
     <div class="ci" onclick="go('c-loop')"><div class="cn">L2</div><h4>Agent Loop</h4><p>編排者:執行流程;佇列/lane/寫鎖;串流;逾時;hook 點 ── <strong>在迴圈內選用 Runtime</strong></p></div>
     <div class="ci" onclick="go('c-runtime')"><div class="cn">L2</div><h4>Agent Runtime</h4><p>被迴圈選用:Provider/Model/Runtime/Channel 四層;embedded vs CLI;Codex 擁有權切分</p></div>
-    <div class="ci" onclick="go('c-concurrency')"><div class="cn">L2</div><h4>任務分配 / 並行控制</h4><p>session key 分流 + 兩層 lane(session 序列 / main 並行上限 4);queue 模式(steer/…);write lock</p></div>
   </div>
   <h2>記憶</h2>
   <div class="compgrid">
@@ -2061,7 +2060,7 @@ When the user asks to generate an image, use the `image_generate` tool...</code>
 
 <!-- ================= 元件:任務分配/並行 ================= -->
 <section class="pane" id="c-concurrency">
-  <div class="page-kicker">元件詳解 · 大腦</div>
+  <div class="page-kicker">🔀 任務分配 · 並行控制</div>
   <h1 class="page">任務分配 &amp; 並行控制(Lane 佇列)</h1>
   <div class="relbar">
     <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-channels')">路由算 session key</a></div>
@@ -2134,7 +2133,7 @@ When the user asks to generate an image, use the `image_generate` tool...</code>
 </footer>
 
 <script>
-const COMP = new Set(['comp-home','c-substrate','c-identity','c-runtime','c-loop','c-concurrency','c-session','c-memory','c-context','c-tools','c-skills','c-channels','c-automation','c-plugins','c-security']);
+const COMP = new Set(['comp-home','c-substrate','c-identity','c-runtime','c-loop','c-session','c-memory','c-context','c-tools','c-skills','c-channels','c-automation','c-plugins','c-security']);
 function go(id){
   if(!document.getElementById(id)) return;
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));

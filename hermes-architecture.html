@@ -270,6 +270,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <button data-tab="bottomup"><span class="ic">🏗️</span>路徑二 · 由下而上</button>
     <button data-tab="comp-home"><span class="ic">📚</span>元件詳解</button>
     <button data-tab="selflearn" class="star"><span class="ic">★</span>自我學習迴圈</button>
+    <button data-tab="c-concurrency"><span class="ic">🔀</span>任務分配/並行</button>
     <button data-tab="audit"><span class="ic">🔎</span>稽核</button>
   </nav>
   <nav class="subtabs" id="subtabs">
@@ -291,7 +292,6 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <span class="grp">對外</span>
     <button data-tab="c-gateway">Gateway/平台</button>
     <button data-tab="c-delegation">Delegation/Kanban</button>
-    <button data-tab="c-concurrency">任務分配/並行</button>
     <span class="grp">治理</span>
     <button data-tab="c-cron">Cron/Plugins</button>
     <button data-tab="c-security">Security</button>
@@ -486,7 +486,6 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
   <div class="compgrid">
     <div class="ci" onclick="go('c-gateway')"><div class="cn">L5</div><h4>Gateway & 平台</h4><p>單一 GatewayRunner;多平台;授權/pairing;token lock</p></div>
     <div class="ci" onclick="go('c-delegation')"><div class="cn">L5</div><h4>Delegation & Kanban</h4><p>delegate_task 子代理;Kanban 多進程 worker lanes</p></div>
-    <div class="ci" onclick="go('c-concurrency')"><div class="cn">L5</div><h4>任務分配 / 並行控制</h4><p>gateway session 佇列 + delegate(3 並行)+ Kanban dispatcher 派工</p></div>
   </div>
   <h2>治理</h2>
   <div class="compgrid">
@@ -1689,7 +1688,7 @@ skill_manage(action="write_file", name="docker-deployment", file_path="reference
 
 <!-- ================= 元件:任務分配/並行 ================= -->
 <section class="pane" id="c-concurrency">
-  <div class="page-kicker">元件詳解 · 對外</div>
+  <div class="page-kicker">🔀 任務分配 · 並行控制</div>
   <h1 class="page">任務分配 &amp; 並行(Gateway 佇列 + Kanban)</h1>
   <div class="relbar">
     <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-gateway')">gateway 算 session key</a></div>
@@ -1763,7 +1762,7 @@ skill_manage(action="write_file", name="docker-deployment", file_path="reference
 </footer>
 
 <script>
-const COMP = new Set(['comp-home','c-loop','c-prompt','c-session','c-context','c-memory','c-tools','c-skills','c-acp','c-gateway','c-substrate','c-delegation','c-concurrency','c-cron','c-security']);
+const COMP = new Set(['comp-home','c-loop','c-prompt','c-session','c-context','c-memory','c-tools','c-skills','c-acp','c-gateway','c-substrate','c-delegation','c-cron','c-security']);
 function go(id){
   if(!document.getElementById(id)) return;
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));
