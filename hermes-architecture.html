@@ -218,7 +218,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
 .implrow .ix a:hover{background:rgba(255,122,69,.2);text-decoration:none;}
 .prompt-quote{background:#0a0c11;border:1px solid var(--line);border-left:3px solid var(--purple);border-radius:8px;padding:12px 15px;margin:12px 0;font-size:12.5px;color:#c9d3e3;font-style:italic;line-height:1.6;}
 .prompt-quote .pq-label{display:block;font-style:normal;font-weight:700;font-size:11px;letter-spacing:.4px;color:var(--purple);text-transform:uppercase;margin-bottom:6px;}
-.cmpcol-h{color:var(--gold2)!important;} .cmpcol-o{color:var(--accent2)!important;} .cmpcol-c{color:#e89878!important;}
+.cmpcol-h{color:var(--gold2)!important;} .cmpcol-o{color:var(--accent2)!important;} .cmpcol-c{color:#e89878!important;} .cmpcol-g{color:#7ee787!important;}
 /* ===== header 跨框架動作 chip ===== */
 .hbtn{padding:6px 14px;border:1px solid var(--line2);border-radius:20px;background:var(--panel);color:var(--ink-dim);font-size:12.5px;font-weight:700;cursor:pointer;flex:0 0 auto;text-decoration:none;transition:.13s;}
 .hbtn:hover{color:#fff;border-color:var(--accent);text-decoration:none;}
@@ -261,6 +261,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
         <a href="openclaw-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-right:1px solid var(--line2);">🦞 OpenClaw</a>
         <span style="padding:6px 12px;background:var(--gold);color:#0a0c11;">☤ Hermes</span>
         <a href="claude-code-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-left:1px solid var(--line2);">✳ Claude Code</a>
+        <a href="grok-build-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-left:1px solid var(--line2);">𝕏 Grok Build</a>
       </div>
     </div>
   </div>
@@ -819,26 +820,27 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
 <section class="pane" id="compare">
   <div class="page-kicker">⚖️ 對照</div>
   <h1 class="page">Hermes vs OpenClaw</h1>
-  <p class="page-sub">三者都是「會用工具的 AI agent」。<strong>Hermes</strong> 與 <strong>OpenClaw</strong> 同屬「個人助理 + 常駐 gateway + 多訊息平台」家族、高度趨同(Hermes 甚至內建 <code>hermes claw migrate</code> 從 OpenClaw 匯入);<strong>✳ Claude Code</strong> 則是 Anthropic 官方的 CLI coding agent(寫程式、接 IDE),定位不同。下表三欄並列,再用 8 張卡深比 Hermes vs OpenClaw。</p>
+  <p class="page-sub">四者都是「會用工具的 AI agent」。<strong>Hermes</strong> 與 <strong>OpenClaw</strong> 同屬「個人助理 + 常駐 gateway + 多訊息平台」家族、高度趨同(Hermes 甚至內建 <code>hermes claw migrate</code> 從 OpenClaw 匯入);<strong>✳ Claude Code</strong> 與 <strong>𝕏 Grok Build</strong> 則是官方 CLI coding agent(寫程式、接編輯器),定位相近但實作迥異(Claude Code = TypeScript;Grok Build = Rust 無鎖 actor + 84 crate)。下表四欄並列,再用 8 張卡深比 Hermes vs OpenClaw。</p>
 
   <div class="scrollwrap"><table>
-    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
-    <tr><td>定位招牌</td><td><strong>官方 CLI coding agent</strong>(寫程式/接 IDE)</td><td><strong>自我改進</strong>個人助理</td><td><strong>gateway 控制平面</strong> + 一切皆 plugin</td></tr>
-    <tr><td>出品</td><td>Anthropic 官方</td><td>Nous Research</td><td>開源社群</td></tr>
-    <tr><td>Runtime 語言</td><td>TypeScript(Bun 編譯)</td><td>Python</td><td>TypeScript / Node</td></tr>
-    <tr><td>核心迴圈</td><td><code>query.ts</code> while-true(785KB)</td><td><code>run_conversation()</code> + 3 API mode</td><td>embedded loop + runtime 家族</td></tr>
-    <tr><td>主要介面</td><td><strong>終端 CLI</strong> + SDK + IDE/Desktop(bridge)</td><td>多訊息平台 + CLI/TUI + ACP</td><td>20+ 訊息平台 + WebChat/TUI/Control UI</td></tr>
-    <tr><td><strong>★ 自我學習</strong></td><td>無 runtime 自學(靠 CLAUDE.md 記憶);KAIROS 規劃中</td><td><strong>一等公民</strong>:background review 造/改技能 + memory nudge + FTS5 + Honcho + curator</td><td>memory + dreaming 鞏固(預設關);無技能自創</td></tr>
-    <tr><td>Substrate / 隔離</td><td>本機 CLI;sub-agent worktree/remote;bridge 到 Remote</td><td><strong>6 terminal backend</strong>;Daytona/Modal serverless 休眠</td><td>Gateway 跑本機/VPS/雲/K8s;sandbox 隔離工具</td></tr>
-    <tr><td>多 agent / 編排</td><td>sub-agent(fork/worktree/remote)+ swarm(coordinator)</td><td>delegate_task + <strong>Kanban 多進程 worker</strong></td><td>subagents + 並行 specialist lanes</td></tr>
-    <tr><td>外部互通</td><td>消費 MCP;被 IDE/Desktop 經 SDK/bridge 整合</td><td><strong>ACP 雙向</strong> + 消費 MCP</td><td>ACP + MCP + 一切皆 plugin</td></tr>
-    <tr><td>脈絡壓縮</td><td>autoCompact/snipCompact/contextCollapse</td><td>雙重壓縮(85%/50%)+ Anthropic caching</td><td>可插拔 context engine + compaction</td></tr>
-    <tr><td>權限 / 安全</td><td>permission rules + PreToolUse hooks + checkPermissions</td><td>DANGEROUS_PATTERNS 核准 + 威脅掃描 + egress 隔離</td><td>tool policy 8 層 + exec approvals + ATLAS</td></tr>
-    <tr><td>遠端管控</td><td><strong>remote managed settings + accept-or-die killswitch</strong></td><td>無(本機優先)</td><td>無(單一可信操作者)</td></tr>
-    <tr><td>遙測</td><td><strong>兩 sink、無 UI opt-out</strong></td><td>本機;可選 OTel</td><td>本機;OTel/Prometheus plugin</td></tr>
-    <tr><td>RL / 研究角度</td><td>無(官方產品)</td><td><strong>明確</strong>:trajectory 生成+壓縮訓練模型</td><td>無(產品導向)</td></tr>
+    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-g">𝕏 Grok Build</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
+    <tr><td>定位招牌</td><td><strong>官方 CLI coding agent</strong>(寫程式/接 IDE)</td><td><strong>官方 CLI coding agent</strong>(Rust · actor runtime)</td><td><strong>自我改進</strong>個人助理</td><td><strong>gateway 控制平面</strong> + 一切皆 plugin</td></tr>
+    <tr><td>出品</td><td>Anthropic 官方</td><td>xAI 官方</td><td>Nous Research</td><td>開源社群</td></tr>
+    <tr><td>Runtime 語言</td><td>TypeScript(Bun 編譯)</td><td><strong>Rust</strong>(edition 2024、84-crate workspace)</td><td>Python</td><td>TypeScript / Node</td></tr>
+    <tr><td>核心迴圈</td><td><code>query.ts</code> while-true(785KB)</td><td><code>process_conversation_turn</code>(單執行緒 actor)</td><td><code>run_conversation()</code> + 3 API mode</td><td>embedded loop + runtime 家族</td></tr>
+    <tr><td>狀態模型</td><td>AppState store(React Context)</td><td><strong>無鎖 actor</strong>(SessionActor + ChatStateActor)</td><td>SQLite state.db</td><td>plugin state + context engine</td></tr>
+    <tr><td>主要介面</td><td><strong>終端 CLI</strong> + SDK + IDE/Desktop(bridge)</td><td><strong>終端 TUI</strong> + headless + <strong>ACP</strong>(Zed/Neovim/Emacs)</td><td>多訊息平台 + CLI/TUI + ACP</td><td>20+ 訊息平台 + WebChat/TUI/Control UI</td></tr>
+    <tr><td><strong>★ 自我學習</strong></td><td>無 runtime 自學(靠 CLAUDE.md 記憶);KAIROS 規劃中</td><td>無 runtime 自學(memory 實驗性、SQLite FTS5+vec0)</td><td><strong>一等公民</strong>:background review 造/改技能 + memory nudge + FTS5 + Honcho + curator</td><td>memory + dreaming 鞏固(預設關);無技能自創</td></tr>
+    <tr><td>Substrate / 隔離</td><td>本機 CLI;sub-agent worktree/remote;bridge 到 Remote</td><td>本機 CLI;<strong>OS 沙箱(Landlock/Seatbelt)</strong>;subagent worktree(CoW)</td><td><strong>6 terminal backend</strong>;Daytona/Modal serverless 休眠</td><td>Gateway 跑本機/VPS/雲/K8s;sandbox 隔離工具</td></tr>
+    <tr><td>多 agent / 編排</td><td>sub-agent(fork/worktree/remote)+ swarm(coordinator)</td><td>subagent(<code>task</code> 工具,深度上限 1)+ leader/follower</td><td>delegate_task + <strong>Kanban 多進程 worker</strong></td><td>subagents + 並行 specialist lanes</td></tr>
+    <tr><td>外部互通</td><td>消費 MCP;被 IDE/Desktop 經 SDK/bridge 整合</td><td>消費 MCP;<strong>ACP 被編輯器整合</strong>;Computer Hub 遠端工具</td><td><strong>ACP 雙向</strong> + 消費 MCP</td><td>ACP + MCP + 一切皆 plugin</td></tr>
+    <tr><td>脈絡壓縮</td><td>autoCompact/snipCompact/contextCollapse</td><td><strong>full-replace</strong> + 兩段預燒(85% 門檻)</td><td>雙重壓縮(85%/50%)+ Anthropic caching</td><td>可插拔 context engine + compaction</td></tr>
+    <tr><td>權限 / 安全</td><td>permission rules + PreToolUse hooks + checkPermissions</td><td>permission rules + PreToolUse hooks + <strong>OS 沙箱 + requirements 簽章</strong></td><td>DANGEROUS_PATTERNS 核准 + 威脅掃描 + egress 隔離</td><td>tool policy 8 層 + exec approvals + ATLAS</td></tr>
+    <tr><td>遠端管控</td><td><strong>remote managed settings + accept-or-die killswitch</strong></td><td>requirements.toml(Ed25519 簽章、可 fail-closed)</td><td>無(本機優先)</td><td>無(單一可信操作者)</td></tr>
+    <tr><td>遙測</td><td><strong>兩 sink、無 UI opt-out</strong></td><td>product events + Mixpanel + Sentry + OTLP(<strong>可 opt-out</strong>、secrets 清洗)</td><td>本機;可選 OTel</td><td>本機;OTel/Prometheus plugin</td></tr>
+    <tr><td>RL / 研究角度</td><td>無(官方產品)</td><td>無(官方產品)</td><td><strong>明確</strong>:trajectory 生成+壓縮訓練模型</td><td>無(產品導向)</td></tr>
   </table></div>
-  <div class="callout note"><span class="ct">三框架對照</span>本表已納入 <strong>✳ Claude Code</strong>(基於逆向研究 v2.1.88 快照)。Claude Code 的完整架構解說見 <a href="claude-code-architecture.html">獨立文件</a>(右上切換鈕亦可達)。下方 8 張逐元件深度卡聚焦 <strong>Hermes vs OpenClaw</strong>(兩個最相近的個人助理框架)。</div>
+  <div class="callout note"><span class="ct">四框架對照</span>本表已納入 <strong>✳ Claude Code</strong>(逆向研究 v2.1.88 快照)與 <strong>𝕏 Grok Build</strong>(公開鏡像 commit 2ec0f0c8)兩個官方 CLI coding agent,其完整架構解說各見 <a href="claude-code-architecture.html">Claude Code</a> / <a href="grok-build-architecture.html">Grok Build</a> 獨立文件(右上切換鈕亦可達)。下方 8 張逐元件深度卡聚焦 <strong>Hermes vs OpenClaw</strong>(兩個最相近的個人助理框架)。</div>
 
   <div class="section-steps s-steps"><h2><span class="secnum">深度</span>逐 component 設計對比</h2>
     <p class="intro">上表是「各是什麼」的速覽;以下 8 張卡逐元件講<strong>設計差異 → 為何這樣 → 優劣勢 → 適用情境</strong>。<span class="cmpcol-h">金字 = Hermes</span>、<span class="cmpcol-o">橘字 = OpenClaw</span>。每張卡可點右上「深入」跳到 Hermes 的對應元件詳解。</p>
@@ -941,33 +943,33 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
   </div>
 
   <h2>稽核 / Audit &amp; Log 對照</h2>
-  <p>三者「留什麼 log 給人查核、存哪、給誰看」差很多。核心差異:<strong>OpenClaw / Hermes 本機優先、log 留給操作者自己查</strong>;<strong>Claude Code 除了給你的 session log,還多一層上報 Anthropic 的遙測</strong>(audit 對象包含廠商)。各框架 audit 細節見其文件的 🔎 稽核 分頁。</p>
+  <p>四者「留什麼 log 給人查核、存哪、給誰看」差很多。核心差異:<strong>OpenClaw / Hermes 本機優先、log 留給操作者自己查</strong>;<strong>Claude Code 除了給你的 session log,還多一層上報 Anthropic 的遙測且無法關</strong>;<strong>Grok Build 有 session log + 遙測,但遙測可 opt-out</strong>。各框架 audit 細節見其文件的 🔎 稽核 分頁。</p>
   <div class="scrollwrap"><table>
-    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
-    <tr><td>主要儲存</td><td>session JSONL(<code>~/.claude/projects/…</code>)</td><td><strong>SQLite</strong>(<code>state.db</code>)+ 多個 log 目錄</td><td>JSONL transcript(<code>~/.openclaw/agents/…</code>)</td></tr>
-    <tr><td>對話可全文搜尋</td><td>否(逐檔解析)</td><td><strong>FTS5(內建)</strong></td><td>memory 索引(SQLite)</td></tr>
-    <tr><td>專為人查核的匯出</td><td>session JSONL(無專用 redacted 匯出)</td><td>Kanban <code>tail/runs</code> + curator REPORT.md</td><td><strong><code>/export-trajectory</code> redacted bundle</strong></td></tr>
-    <tr><td>背景/排程的稽核</td><td>—</td><td><strong>Kanban task_runs/task_events + cron output</strong></td><td>gateway.log</td></tr>
-    <tr><td>自我學習的稽核</td><td>—</td><td><strong>curator REPORT.md + DREAMS.md + review 摘要</strong></td><td>dreaming(memory-core)</td></tr>
-    <tr><td>上報外部</td><td><strong>有(1P + Datadog,無 UI opt-out)</strong></td><td>預設無(可選 OTel)</td><td>預設無(可選 OTel/Prometheus)</td></tr>
-    <tr><td>audit 對象</td><td>使用者 <strong>+ Anthropic / 企業</strong></td><td>操作者本人</td><td>操作者本人</td></tr>
+    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-g">𝕏 Grok Build</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
+    <tr><td>主要儲存</td><td>session JSONL(<code>~/.claude/projects/…</code>)</td><td>session 目錄(<code>~/.grok/sessions/…</code>)</td><td><strong>SQLite</strong>(<code>state.db</code>)+ 多個 log 目錄</td><td>JSONL transcript(<code>~/.openclaw/agents/…</code>)</td></tr>
+    <tr><td>對話可全文搜尋</td><td>否(逐檔解析)</td><td>memory 索引(SQLite FTS5+vec0,實驗性)</td><td><strong>FTS5(內建)</strong></td><td>memory 索引(SQLite)</td></tr>
+    <tr><td>專為人查核的匯出</td><td>session JSONL(無專用 redacted 匯出)</td><td>session + rewind points(可回捲)</td><td>Kanban <code>tail/runs</code> + curator REPORT.md</td><td><strong><code>/export-trajectory</code> redacted bundle</strong></td></tr>
+    <tr><td>背景/排程的稽核</td><td>—</td><td>scheduler(loop 任務)+ 背景 task 輸出</td><td><strong>Kanban task_runs/task_events + cron output</strong></td><td>gateway.log</td></tr>
+    <tr><td>自我學習的稽核</td><td>—</td><td>—</td><td><strong>curator REPORT.md + DREAMS.md + review 摘要</strong></td><td>dreaming(memory-core)</td></tr>
+    <tr><td>上報外部</td><td><strong>有(1P + Datadog,無 UI opt-out)</strong></td><td>有(Mixpanel/Sentry/OTLP,<strong>可 opt-out</strong>、secrets 清洗)</td><td>預設無(可選 OTel)</td><td>預設無(可選 OTel/Prometheus)</td></tr>
+    <tr><td>audit 對象</td><td>使用者 <strong>+ Anthropic / 企業</strong></td><td>使用者 + xAI/企業(<strong>遙測可關</strong>)</td><td>操作者本人</td><td>操作者本人</td></tr>
   </table></div>
   <div class="callout note"><span class="ct">一句話</span><strong>OpenClaw</strong> = 可攜的 redacted 稽核束;<strong>Hermes</strong> = 結構化、可回溯的稽核軌跡(Kanban/curator/FTS5);<strong>Claude Code</strong> = session log 給你 + 強制遙測上報廠商。各框架詳情 → 其文件的「🔎 稽核」分頁。</div>
 
   <h2>任務分配 / 並行控制對照</h2>
-  <p>「很多使用者同時打同一個 agent」怎麼處理?三者都以 <strong>session 為並行單位</strong>(不同 session 並行、同 session 序列化),但「任務分配」的主系統差很多。各框架詳情 → 其文件的「任務分配/並行」元件頁。</p>
+  <p>「很多使用者同時打同一個 agent」怎麼處理?四者都以 <strong>session 為並行單位</strong>(不同 session 並行、同 session 序列化),但「任務分配」的主系統差很多。各框架詳情 → 其文件的「任務分配/並行」相關頁。</p>
   <div class="scrollwrap"><table>
-    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
-    <tr><td>設計取向</td><td>單人 + 終端 coding</td><td>多平台助理 + 任務看板</td><td><strong>多 channel/多人服務台</strong></td></tr>
-    <tr><td>並行單位</td><td>session(多半一人一個)</td><td>session</td><td>session(key 分流)</td></tr>
-    <tr><td>同 session 序列化</td><td>單一對話迴圈</td><td>active session 佇列 + 守衛</td><td><strong>session lane + write lock</strong></td></tr>
-    <tr><td>跨 session 並行上限</td><td>通常 1(一人一終端)</td><td>gateway 並行處理</td><td><code>maxConcurrent</code>(預設 4)</td></tr>
-    <tr><td>同對話新訊息進來</td><td>串流中可中斷重導</td><td>佇列 pending + 中斷事件</td><td><strong>queue 模式</strong>(steer/followup/collect/interrupt)</td></tr>
-    <tr><td>「任務分配」主系統</td><td>StreamingToolExecutor + swarm</td><td><strong>Kanban</strong>(assignee→進程,claim/TTL)</td><td>lane 佇列(command-queue)</td></tr>
-    <tr><td>多使用者隔離</td><td>較弱(本就單人;靠多 session/profile)</td><td>session key + bindings(+ Honcho per-peer)</td><td>session key + bindings + access groups</td></tr>
-    <tr><td>大任務拆分並行</td><td>sub-agent/swarm(claim)</td><td>delegate(3)+ Kanban(多進程)</td><td>subagents(lane 8)</td></tr>
+    <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-g">𝕏 Grok Build</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
+    <tr><td>設計取向</td><td>單人 + 終端 coding</td><td>單人 + 終端 coding</td><td>多平台助理 + 任務看板</td><td><strong>多 channel/多人服務台</strong></td></tr>
+    <tr><td>並行單位</td><td>session(多半一人一個)</td><td>session(SessionActor,一 session 一 actor)</td><td>session</td><td>session(key 分流)</td></tr>
+    <tr><td>同 session 序列化</td><td>單一對話迴圈</td><td><strong>actor 命令迴圈</strong>(running_task 單一;pending_inputs 佇列)</td><td>active session 佇列 + 守衛</td><td><strong>session lane + write lock</strong></td></tr>
+    <tr><td>跨 session 並行上限</td><td>通常 1(一人一終端)</td><td>leader 可持多 session(各一 actor)</td><td>gateway 並行處理</td><td><code>maxConcurrent</code>(預設 4)</td></tr>
+    <tr><td>同對話新訊息進來</td><td>串流中可中斷重導</td><td><strong>mid-turn interjection</strong>(插話緩衝,不合併)</td><td>佇列 pending + 中斷事件</td><td><strong>queue 模式</strong>(steer/followup/collect/interrupt)</td></tr>
+    <tr><td>「任務分配」主系統</td><td>StreamingToolExecutor + swarm</td><td><strong>工具層並行</strong>(FuturesUnordered + per-file mutex)+ subagent</td><td><strong>Kanban</strong>(assignee→進程,claim/TTL)</td><td>lane 佇列(command-queue)</td></tr>
+    <tr><td>多使用者隔離</td><td>較弱(本就單人;靠多 session/profile)</td><td>較弱(本就單人;leader 多 session/多 client)</td><td>session key + bindings(+ Honcho per-peer)</td><td>session key + bindings + access groups</td></tr>
+    <tr><td>大任務拆分並行</td><td>sub-agent/swarm(claim)</td><td>subagent(task 工具,深度上限 1)</td><td>delegate(3)+ Kanban(多進程)</td><td>subagents(lane 8)</td></tr>
   </table></div>
-  <div class="callout note"><span class="ct">直接回答「多人同時打同一 agent」</span><strong>OpenClaw 最直接勝任</strong>(session key 分流 + 兩層 lane,專為多人多群組設計);<strong>Hermes 類似</strong>且可用 Honcho 分使用者畫像、Kanban 分派背景工作;<strong>Claude Code 不是為此設計</strong>,需靠每人一個 session/profile 或 Bridge 各開一個 CLI。</div>
+  <div class="callout note"><span class="ct">直接回答「多人同時打同一 agent」</span><strong>OpenClaw 最直接勝任</strong>(session key 分流 + 兩層 lane,專為多人多群組設計);<strong>Hermes 類似</strong>且可用 Honcho 分使用者畫像、Kanban 分派背景工作;<strong>Claude Code 與 Grok Build 都不是為此設計</strong> ── 兩個 CLI coding agent 本質單人單終端,Grok Build 靠 leader 持多 session/多 client、工具層並行則在「一次 turn 內把很多事並行做完」。</div>
 
   <h2>概念對映(來自 <code>hermes claw migrate</code>)</h2>
   <p>Hermes 內建從 OpenClaw 匯入的遷移工具,其 config key 對映正好揭示兩者的概念對應:<span class="src">來源:website/docs/guides/migrate-from-openclaw.md</span></p>

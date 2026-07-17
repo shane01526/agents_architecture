@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grok Build 架構詳解 · Actor Runtime + 84-crate Rust 工作區</title>
+<style>
+:root{
+  --bg:#0f1115; --bg2:#161922; --panel:#1b1f2a; --panel2:#222736;
+  --ink:#e7ecf3; --ink-dim:#a4adbe; --ink-faint:#6b7488;
+  --line:#2a3040; --line2:#363d50;
+  --accent:#7ee787; --accent2:#a0f0a8; --accent-d:#3f9e5a;
+  --gk:#7ee787; --gk2:#a0f0a8;
+  --gold:#e8c468; --gold2:#f3d98a;
+  --green:#3fb98c; --blue:#4f9cf0; --purple:#a880f0; --yellow:#e8c468; --red:#e26d6d;
+  --mono:"SFMono-Regular",ui-monospace,"Cascadia Code","Consolas",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.68;font-size:15px;}
+a{color:var(--accent2);text-decoration:none;cursor:pointer;}
+a:hover{text-decoration:underline;}
+code{font-family:var(--mono);font-size:.86em;background:#0c0e13;border:1px solid var(--line);border-radius:5px;padding:.08em .4em;color:#b7f5c0;}
+pre{margin:0;}
+pre code{display:block;background:#0a0c11;border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;color:#cdd6e6;line-height:1.55;font-size:13px;}
+header.top{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,#12141b 72%,rgba(18,20,27,.93));border-bottom:1px solid var(--line);backdrop-filter:blur(8px);}
+.top-inner{max-width:1180px;margin:0 auto;padding:13px 26px 4px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.logo{font-size:21px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:10px;}
+.logo .claw{color:var(--gk);}
+.logo small{font-weight:500;font-size:12px;color:var(--ink-faint);letter-spacing:0;}
+nav.tabs{max-width:1180px;margin:0 auto;padding:8px 18px 0;display:flex;gap:5px;flex-wrap:wrap;}
+nav.tabs button{appearance:none;border:1px solid transparent;background:none;color:var(--ink-dim);font-family:var(--sans);font-size:14px;font-weight:700;padding:11px 17px;cursor:pointer;border-radius:9px 9px 0 0;transition:.15s;white-space:nowrap;display:flex;align-items:center;gap:7px;}
+nav.tabs button .ic{font-size:15px;}
+nav.tabs button:hover{color:var(--ink);background:var(--panel);}
+nav.tabs button.active{color:var(--accent);background:var(--bg2);border-color:var(--line);border-bottom-color:var(--bg2);position:relative;top:1px;}
+nav.tabs button.star.active{color:var(--gold);}
+nav.tabs button.expo.active{color:var(--blue);}
+nav.subtabs{max-width:1180px;margin:0 auto;padding:8px 20px 10px;display:none;gap:5px;flex-wrap:wrap;background:var(--bg2);border-bottom:1px solid var(--line);}
+nav.subtabs.show{display:flex;}
+nav.subtabs button{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink-dim);font-family:var(--sans);font-size:12.5px;font-weight:600;padding:6px 11px;cursor:pointer;border-radius:20px;transition:.13s;}
+nav.subtabs button:hover{color:var(--ink);border-color:var(--line2);}
+nav.subtabs button.active{color:#fff;background:var(--accent-d);border-color:var(--accent);}
+nav.subtabs .grp{font-size:11px;color:var(--ink-faint);align-self:center;font-weight:700;letter-spacing:.5px;margin:0 2px 0 8px;}
+main{max-width:1180px;margin:0 auto;padding:32px 26px 90px;}
+.pane{display:none;animation:fade .32s ease;}
+.pane.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+h1.page{font-size:29px;margin:0 0 4px;font-weight:800;letter-spacing:.3px;}
+.page-kicker{font-size:12.5px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:6px;}
+.page-kicker.gold{color:var(--gold);} .page-kicker.blue{color:var(--blue);}
+.page-sub{color:var(--ink-dim);font-size:15px;margin:0 0 24px;max-width:880px;}
+h2{font-size:20px;margin:38px 0 13px;padding-top:12px;font-weight:750;border-top:1px solid var(--line);color:#fff;}
+.pane h2:first-of-type{border-top:none;padding-top:0;}
+h3{font-size:16px;margin:24px 0 9px;font-weight:700;color:var(--accent2);}
+h4{font-size:14px;margin:16px 0 7px;font-weight:700;color:var(--ink);}
+p{margin:10px 0;}
+ul,ol{margin:10px 0;padding-left:22px;}
+li{margin:5px 0;}
+.lead{font-size:16px;color:var(--ink);background:linear-gradient(90deg,rgba(126,231,135,.12),transparent);border-left:3px solid var(--accent);padding:13px 17px;border-radius:0 8px 8px 0;margin:18px 0;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:19px 21px;margin:16px 0;}
+.card.tight{padding:14px 17px;}
+.grid{display:grid;gap:15px;}
+.grid.c2{grid-template-columns:1fr 1fr;}
+.grid.c3{grid-template-columns:repeat(3,1fr);}
+@media(max-width:860px){.grid.c2,.grid.c3{grid-template-columns:1fr;}}
+.callout{border-radius:10px;padding:12px 16px;margin:15px 0;font-size:14px;border:1px solid;}
+.callout .ct{font-weight:700;display:block;margin-bottom:3px;font-size:13px;letter-spacing:.3px;}
+.callout.note{background:rgba(79,156,240,.08);border-color:rgba(79,156,240,.4);} .callout.note .ct{color:var(--blue);}
+.callout.warn{background:rgba(232,196,104,.08);border-color:rgba(232,196,104,.4);} .callout.warn .ct{color:var(--yellow);}
+.callout.key{background:rgba(63,185,140,.08);border-color:rgba(63,185,140,.4);} .callout.key .ct{color:var(--green);}
+.callout.danger{background:rgba(226,109,109,.08);border-color:rgba(226,109,109,.4);} .callout.danger .ct{color:var(--red);}
+.callout.gk{background:rgba(126,231,135,.1);border-color:rgba(126,231,135,.45);} .callout.gk .ct{color:var(--gk2);}
+.callout.gold{background:rgba(232,196,104,.08);border-color:rgba(232,196,104,.4);} .callout.gold .ct{color:var(--gold);}
+table{border-collapse:collapse;width:100%;margin:15px 0;font-size:13.5px;display:block;overflow-x:auto;}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top;}
+th{background:var(--panel2);color:#fff;font-weight:700;white-space:nowrap;}
+td{color:var(--ink-dim);} td strong,td code{color:var(--ink);}
+tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.4px;vertical-align:middle;}
+.pill.flag{background:rgba(168,128,240,.16);color:var(--purple);border:1px solid rgba(168,128,240,.4);}
+.pill.gk{background:rgba(126,231,135,.16);color:var(--gk2);border:1px solid rgba(126,231,135,.4);}
+.fp{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);background:#0c0e13;border:1px solid var(--line);padding:1px 6px;border-radius:4px;}
+.src{font-size:12px;color:var(--ink-faint);font-style:italic;}
+.secnum{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent-d);color:#fff;font-size:13px;font-weight:800;margin-right:9px;vertical-align:middle;}
+.s-why h2{color:var(--yellow);}
+.section-why{background:rgba(232,196,104,.05);border:1px solid rgba(232,196,104,.25);border-radius:12px;padding:4px 18px 14px;margin:18px 0;}
+.section-why h2{border-top:none;padding-top:14px;}
+.relbar{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap;margin:6px 0 22px;}
+.relbar .relbox{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 14px;}
+.relbar .relbox .rl{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--ink-faint);text-transform:uppercase;margin-bottom:5px;}
+.relbar .relbox.up{border-left:3px solid var(--blue);}
+.relbar .relbox.self{border-left:3px solid var(--accent);}
+.relbar .relbox.down{border-left:3px solid var(--green);}
+.relbar a{font-size:13px;display:inline-block;margin:1px 8px 1px 0;}
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:16px 0;}
+.flow .step{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:11px 13px;}
+.flow .arrow{display:flex;align-items:center;color:var(--accent);font-size:19px;padding:0 5px;}
+.flow .step .sn{font-size:11px;color:var(--accent);font-weight:700;}
+.flow .step .sl{font-weight:700;font-size:13.5px;margin:2px 0;}
+.flow .step .sd{font-size:11.5px;color:var(--ink-dim);}
+.station{display:grid;grid-template-columns:54px 1fr;gap:0;margin:0;}
+.station .rail{position:relative;display:flex;flex-direction:column;align-items:center;}
+.station .dot{width:34px;height:34px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);color:var(--accent);font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:2;flex:0 0 auto;}
+.station .line{width:2px;flex:1;background:var(--line2);margin:2px 0;}
+.station:last-child .line{display:none;}
+.station .body{padding:0 0 26px 18px;}
+.station .body h3{margin-top:2px;color:#fff;font-size:17px;}
+.station .body .what{color:var(--ink-dim);}
+.deep{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:700;background:rgba(126,231,135,.13);border:1px solid rgba(126,231,135,.4);color:var(--accent2);padding:4px 11px;border-radius:20px;}
+.deep:hover{text-decoration:none;background:rgba(126,231,135,.24);}
+.deep.gold{background:rgba(232,196,104,.13);border-color:rgba(232,196,104,.45);color:var(--gold2);}
+.layer{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px 19px;margin:13px 0;border-left:4px solid var(--accent);}
+.layer .ltag{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);}
+.layer h3{margin:2px 0 6px;color:#fff;}
+.layer .need{font-size:13.5px;color:var(--yellow);background:rgba(232,196,104,.06);border-radius:7px;padding:7px 11px;margin:8px 0;}
+.layer.l0{border-left-color:#8a93a8;} .layer.l1{border-left-color:var(--purple);}
+.layer.l2{border-left-color:var(--accent);} .layer.l3{border-left-color:var(--blue);}
+.layer.l4{border-left-color:var(--green);} .layer.l5{border-left-color:#e08bc4;}
+.layer.l6{border-left-color:var(--red);}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px;margin:10px 0;}
+.kv dt{font-weight:700;color:var(--accent2);font-family:var(--mono);font-size:12.5px;}
+.kv dd{margin:0;color:var(--ink-dim);}
+.spine{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;margin:16px 0;}
+.spine .row{display:flex;gap:9px;flex-wrap:wrap;margin:8px 0;}
+.spine .blk{flex:1;min-width:140px;background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:10px 12px;cursor:pointer;transition:.13s;}
+.spine .blk:hover{border-color:var(--accent);transform:translateY(-1px);}
+.spine .blk.hl{border-color:var(--accent);box-shadow:0 0 0 1px rgba(126,231,135,.35) inset;}
+.spine .blk .bt{font-weight:700;font-size:13px;}
+.spine .blk .bd{font-size:11px;color:var(--ink-faint);}
+.spine .bar{background:rgba(232,196,104,.07);border:1px dashed rgba(232,196,104,.45);border-radius:9px;padding:7px 12px;font-size:12px;color:var(--yellow);text-align:center;margin:8px 0;}
+.pathcards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:22px 0;}
+@media(max-width:860px){.pathcards{grid-template-columns:1fr;}}
+.pathcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;cursor:pointer;transition:.15s;}
+.pathcard:hover{border-color:var(--accent);transform:translateY(-2px);}
+.pathcard.gold:hover{border-color:var(--gold);} .pathcard.blue:hover{border-color:var(--blue);}
+.pathcard .pe{font-size:30px;}
+.pathcard h3{margin:8px 0 4px;color:#fff;}
+.pathcard .who{font-size:12.5px;color:var(--green);font-weight:700;margin-bottom:6px;}
+.pathcard p{font-size:13.5px;color:var(--ink-dim);margin:6px 0 0;}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink-dim);margin:12px 0;}
+footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:12.5px;}
+.scrollwrap{overflow-x:auto;}
+.big-num{font-size:13px;color:var(--accent);font-weight:700;}
+.compgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:13px;margin:18px 0;}
+.compgrid .ci{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 15px;cursor:pointer;transition:.14s;}
+.compgrid .ci:hover{border-color:var(--accent);transform:translateY(-2px);}
+.compgrid .ci .cn{font-size:11px;color:var(--accent);font-weight:700;}
+.compgrid .ci h4{margin:3px 0 4px;color:#fff;}
+.compgrid .ci p{font-size:12.5px;color:var(--ink-dim);margin:0;}
+.s-steps h2{color:var(--blue);}
+.section-steps{background:rgba(79,156,240,.045);border:1px solid rgba(79,156,240,.25);border-radius:12px;padding:4px 18px 16px;margin:18px 0;}
+.section-steps h2{border-top:none;padding-top:14px;}
+.section-steps .intro{font-size:13.5px;color:var(--ink-dim);margin:6px 0 14px;}
+.stepcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:13px 0;overflow:hidden;}
+.stepcard>.hd{background:var(--panel2);border-bottom:1px solid var(--line2);padding:9px 14px;font-weight:750;font-size:14.5px;color:#fff;display:flex;align-items:center;gap:9px;}
+.stepcard>.hd .sidx{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:13px;background:var(--blue);color:#0a0c11;font-size:12.5px;font-weight:800;}
+.stepcard>.hd .stag{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink-faint);}
+.stepcard .fields{display:grid;grid-template-columns:repeat(5,1fr);gap:0;}
+@media(max-width:900px){.stepcard .fields{grid-template-columns:1fr;}}
+.stepcard .field{padding:10px 13px;border-right:1px solid var(--line);font-size:12.5px;line-height:1.55;}
+.stepcard .field:last-child{border-right:none;}
+@media(max-width:900px){.stepcard .field{border-right:none;border-bottom:1px solid var(--line);}.stepcard .field:last-child{border-bottom:none;}}
+.stepcard .field .fl{display:block;font-size:10.5px;font-weight:800;letter-spacing:.4px;margin-bottom:5px;text-transform:uppercase;}
+.stepcard .field.f-in{border-top:2px solid var(--blue);} .stepcard .field.f-in .fl{color:var(--blue);}
+.stepcard .field.f-basis{border-top:2px solid var(--yellow);} .stepcard .field.f-basis .fl{color:var(--yellow);}
+.stepcard .field.f-why{border-top:2px solid var(--accent);} .stepcard .field.f-why .fl{color:var(--accent2);}
+.stepcard .field.f-out{border-top:2px solid var(--green);} .stepcard .field.f-out .fl{color:var(--green);}
+.stepcard .field.f-edge{border-top:2px solid var(--red);} .stepcard .field.f-edge .fl{color:var(--red);}
+.stepcard .field code{font-size:11px;padding:0 3px;}
+.dflow{margin:16px 0;}
+.dnode{margin:0 0 10px;}
+.dq{display:flex;align-items:baseline;gap:8px;background:rgba(232,196,104,.07);border:1px solid rgba(232,196,104,.32);border-radius:9px;padding:9px 13px;font-weight:700;font-size:13px;color:#fff;}
+.dq .qi{color:var(--yellow);font-weight:800;flex:0 0 auto;}
+.dq .qmeta{font-weight:500;color:var(--ink-faint);font-size:11px;font-family:var(--mono);margin-left:auto;}
+.dq.final{background:rgba(126,231,135,.1);border-color:rgba(126,231,135,.4);}
+.dq.final .qi{color:var(--accent);}
+.dbranches{margin:7px 0 0 16px;display:flex;flex-direction:column;gap:6px;border-left:2px solid var(--line2);padding-left:14px;}
+.dbranch{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;line-height:1.5;}
+.dtag{flex:0 0 auto;font-weight:800;font-size:10.5px;letter-spacing:.2px;padding:3px 9px;border-radius:20px;margin-top:1px;white-space:nowrap;}
+.dbranch.yes .dtag{background:rgba(63,185,140,.16);color:var(--green);border:1px solid rgba(63,185,140,.4);}
+.dbranch.no  .dtag{background:rgba(255,255,255,.03);color:var(--ink-faint);border:1px solid var(--line2);}
+.dbranch.cs  .dtag{background:rgba(79,156,240,.14);color:var(--blue);border:1px solid rgba(79,156,240,.4);}
+.dres{flex:1;color:var(--ink-dim);}
+.dres b{color:var(--ink);}
+.dres code{font-size:11px;}
+.dwin{display:inline-block;background:rgba(126,231,135,.14);border:1px solid rgba(126,231,135,.4);color:var(--accent2);border-radius:6px;padding:1px 8px;font-weight:700;font-family:var(--mono);font-size:11.5px;}
+.dwin.g{background:rgba(63,185,140,.12);border-color:rgba(63,185,140,.4);color:var(--green);}
+.dwin.r{background:rgba(226,109,109,.12);border-color:rgba(226,109,109,.4);color:var(--red);}
+.dnote{font-size:11px;color:var(--ink-faint);font-style:italic;}
+.stepnote{font-size:12.5px;color:var(--ink-faint);font-style:italic;margin:8px 0 0;}
+.implgroup{margin:22px 0;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:6px 20px 10px;}
+.implgroup.red{border-left-color:var(--red);} .implgroup.gold{border-left-color:var(--gold);}
+.implgroup>.gh{font-size:16px;font-weight:750;color:var(--accent2);padding:12px 0 10px;border-bottom:1px solid var(--line2);margin-bottom:4px;}
+.implgroup.red>.gh{color:var(--red);} .implgroup.gold>.gh{color:var(--gold2);}
+.implrow{display:grid;grid-template-columns:250px 1fr;gap:8px 26px;padding:15px 4px;border-bottom:1px solid rgba(54,61,80,.45);border-radius:8px;transition:background .13s;}
+.implrow:last-child{border-bottom:none;}
+.implrow:hover{background:rgba(255,255,255,.022);}
+@media(max-width:760px){.implrow{grid-template-columns:1fr;gap:6px;}}
+.implrow .it{font-weight:700;font-size:14.5px;color:#fff;line-height:1.5;}
+.implrow .it code{font-size:12.5px;display:inline-block;margin:1px 0;color:var(--accent2);background:rgba(126,231,135,.08);border-color:rgba(126,231,135,.25);}
+.implrow .ix{font-size:14px;color:var(--ink-dim);line-height:1.68;}
+.implrow .ix code{font-size:12.5px;}
+.implrow .ix a{display:inline-block;margin-top:4px;font-size:12.5px;font-weight:700;white-space:nowrap;background:rgba(126,231,135,.1);border:1px solid rgba(126,231,135,.35);color:var(--accent2);padding:2px 10px;border-radius:20px;}
+.implrow .ix a:hover{background:rgba(126,231,135,.2);text-decoration:none;}
+.mechgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:18px 0;}
+.mechcard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:11px;padding:15px 16px;}
+.mechcard h4{margin:0 0 6px;color:var(--accent2);}
+.mechcard p{font-size:13px;color:var(--ink-dim);margin:5px 0;}
+.hbtn{padding:6px 14px;border:1px solid var(--line2);border-radius:20px;background:var(--panel);color:var(--ink-dim);font-size:12.5px;font-weight:700;cursor:pointer;flex:0 0 auto;text-decoration:none;transition:.13s;}
+.hbtn:hover{color:#fff;border-color:var(--accent);text-decoration:none;}
+.hbtn.cmp{border-color:rgba(168,128,240,.5);color:var(--purple);}
+.hbtn.cmp:hover{background:rgba(168,128,240,.14);border-color:var(--purple);color:#fff;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="logo"><span class="claw">𝕏</span> Grok Build <small>架構詳解 · Actor Runtime + 84-crate Rust 工作區</small></div>
+    <div class="hdr-actions" style="display:flex;align-items:center;gap:12px;margin-left:auto;flex:0 0 auto;">
+      <a class="hbtn cmp" href="hermes-architecture.html#compare" title="四框架逐元件對比(總比較頁在 Hermes 文件)">⚖️ 比較</a>
+      <div class="docswitch" title="切換框架介紹" style="display:flex;border:1px solid var(--line2);border-radius:20px;overflow:hidden;font-size:12.5px;font-weight:700;flex:0 0 auto;">
+        <a href="openclaw-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-right:1px solid var(--line2);">🦞 OpenClaw</a>
+        <a href="hermes-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-right:1px solid var(--line2);">☤ Hermes</a>
+        <a href="claude-code-architecture.html" style="padding:6px 12px;color:var(--ink-dim);background:var(--panel);text-decoration:none;border-right:1px solid var(--line2);">✳ Claude Code</a>
+        <span style="padding:6px 12px;background:var(--gk);color:#0a0c11;">𝕏 Grok Build</span>
+      </div>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="intro" class="active"><span class="ic">🧭</span>導讀</button>
+    <button data-tab="journey"><span class="ic">🚶</span>路徑一 · turn 生命週期</button>
+    <button data-tab="bottomup"><span class="ic">🏗️</span>路徑二 · 由下而上</button>
+    <button data-tab="comp-home"><span class="ic">📚</span>元件詳解</button>
+    <button data-tab="actor" class="star"><span class="ic">★</span>Actor Runtime</button>
+    <button data-tab="prod" class="star"><span class="ic">★</span>生產級工程亮點</button>
+    <button data-tab="expose" class="expo"><span class="ic">🔍</span>84-crate 工作區</button>
+    <button data-tab="audit"><span class="ic">🔎</span>稽核/遙測</button>
+  </nav>
+  <nav class="subtabs" id="subtabs">
+    <span class="grp">總覽</span>
+    <button data-tab="comp-home">元件地圖</button>
+    <span class="grp">大腦</span>
+    <button data-tab="c-loop">Agent Loop</button>
+    <button data-tab="c-tools">Tool 系統</button>
+    <button data-tab="c-sampler">Sampler/模型</button>
+    <span class="grp">記憶</span>
+    <button data-tab="c-compaction">Compaction</button>
+    <button data-tab="c-workspace">Workspace/VCS</button>
+    <span class="grp">擴展</span>
+    <button data-tab="c-mcp">MCP</button>
+    <button data-tab="c-hooks">Hooks/Plugins</button>
+    <button data-tab="c-acp">ACP 嵌入</button>
+    <span class="grp">底層</span>
+    <button data-tab="c-config">Config/Auth</button>
+    <button data-tab="c-sandbox">Sandbox</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ================= 導讀 ================= -->
+<section class="pane active" id="intro">
+  <div class="page-kicker">START HERE · 導讀</div>
+  <h1 class="page">用三條思路理解 Grok Build</h1>
+  <p class="page-sub">Grok Build(CLI 名 <code>grok</code>、建置產物 <code>xai-grok-pager</code>)是 xAI 官方的 <strong>終端機 CLI coding agent</strong> ── 全螢幕 TUI、能編修檔案、跑 shell、搜尋網頁、管理長任務,可互動、可 headless(CI/腳本)、可經 <strong>ACP</strong> 嵌入編輯器。本文件基於<strong>公開原始碼鏡像</strong>(<code>xai-org/grok-build</code>,對應 monorepo commit <code>2ec0f0c8</code>)整理,聚焦它如何用 Rust 的 <strong>actor 模型 + 84 個 crate</strong> 把一條 agent loop 疊成生產級產品。</p>
+
+  <div class="callout gk"><span class="ct">𝕏 定位一句話</span>Grok Build 是「<strong>官方 CLI coding agent</strong>」,與 <strong>✳ Claude Code</strong> 同類(寫程式、接編輯器),不同於 OpenClaw/Hermes 主打「住在訊息軟體裡的個人助理」。差別在:Grok Build 用 <strong>Rust</strong> 寫、runtime 是<strong>無鎖 actor 模型</strong>、整包是 <strong>84-crate Cargo workspace</strong>。</div>
+
+  <div class="lead">
+    <strong>一句話心智模型:Grok Build = 一條 agent loop + 兩個 actor + 84-crate 分層 + OS 級隔離。</strong>核心迴圈就是 <code>process_conversation_turn</code>:<code>build_request → 串流呼叫模型 → 有 tool_call? → 並行執行工具 → append 結果 → loop</code>。真正讓它「能用在真實開發」的,是圍繞這條 loop 的無鎖 actor 狀態管理、prompt queue、compaction、leader/follower、sandbox、MCP/hooks/ACP 擴充 ── 分裝在 84 個各司其職的 crate 裡。
+  </div>
+
+  <h2>本文件的三條路徑 + 兩個重點專章</h2>
+  <div class="pathcards">
+    <div class="pathcard" onclick="go('journey')"><div class="pe">🚶</div><h3>路徑一 · turn 生命週期</h3><div class="who">想知道「一次提問實際發生什麼」</div><p>跟著一次 prompt 走完:入佇列 → build_request(ChatStateActor)→ 串流呼叫模型 → tool_call 並行執行(+權限)→ append → loop → TurnOutcome。</p></div>
+    <div class="pathcard" onclick="go('bottomup')"><div class="pe">🏗️</div><h3>路徑二 · 由下而上</h3><div class="who">想建立「分層架構」直覺</div><p>從 Entry 層往上疊:composition root → actor/session → agent loop → chat state/compaction → tools/workspace → 擴充(MCP/hooks/ACP)→ 治理(sandbox/telemetry)。</p></div>
+    <div class="pathcard" onclick="go('comp-home')"><div class="pe">📚</div><h3>元件詳解</h3><div class="who">想深入單一 component</div><p>10 個元件,每頁固定 5 段(為什麼存在/核心概念/運作機制/逐步推演/關係/範例)。</p></div>
+  </div>
+  <div class="pathcards">
+    <div class="pathcard gold" onclick="go('actor')"><div class="pe">★</div><h3>Actor Runtime 架構</h3><div class="who">本文件教學主軸之一</div><p>SessionActor + ChatStateActor 的無鎖 actor 設計、LocalSet + <code>!Send</code>、mpsc/oneshot、leader/follower 崩潰重連、工具並行 + per-file mutex。</p></div>
+    <div class="pathcard blue" onclick="go('prod')"><div class="pe">★</div><h3>生產級工程亮點</h3><div class="who">本文件教學主軸之二</div><p>底層決策如何向上決定架構:<code>panic=abort</code> → Mermaid 子進程隔離、sandbox 三管齊下、NFS SQLite、auth retry 排程、84-crate 切分動機。</p></div>
+  </div>
+
+  <h2>核心:最小 agent loop</h2>
+  <pre><code>                    THE CORE LOOP  (process_conversation_turn)
+    prompt ──> pending_inputs ──> build_request ──> 串流呼叫模型 ──> response
+                (VecDeque)         (ChatStateActor)                    │
+                                                          有 tool_call?
+                                                        /              \
+                                                      有                無
+                                                       │                │
+                                             並行執行工具(+權限)    TodoGate 檢查
+                                             append tool_result       ├ 還有 todo → nudge → loop
+                                             loop back ────────────>  └ 完成 → TurnOutcome::Completed
+
+    這條 loop 跑在單執行緒 LocalSet 上;狀態由兩個 actor(SessionActor / ChatStateActor)
+    各自擁有、透過 channel 溝通 —— 熱路徑上沒有鎖。</code></pre>
+
+  <h2>架構脊椎(點任一塊可深入)</h2>
+  <div class="spine">
+    <div class="bar">治理橫切:permission rules + hooks(PreToolUse 可 deny)· sandbox(Landlock/Seatbelt)· telemetry(可 opt-out)· requirements 簽章政策 · leader/follower</div>
+    <div class="row">
+      <div class="blk" onclick="go('c-config')"><div class="bt">Entry → composition root</div><div class="bd">main.rs · 模式分派 · PagerArgs(clap)</div></div>
+      <div class="blk hl" onclick="go('c-loop')"><div class="bt">大腦 Agent Loop</div><div class="bd">process_conversation_turn · TurnOutcome · 串流</div></div>
+      <div class="blk" onclick="go('c-tools')"><div class="bt">Tool 系統</div><div class="bd">Tool trait · ToolDyn · 5 namespace · 並行</div></div>
+    </div>
+    <div class="row">
+      <div class="blk" onclick="go('actor')"><div class="bt">Actor 狀態</div><div class="bd">SessionActor + ChatStateActor · 無鎖</div></div>
+      <div class="blk" onclick="go('c-compaction')"><div class="bt">Compaction</div><div class="bd">full-replace · 兩段預燒 · 85% 門檻</div></div>
+      <div class="blk" onclick="go('c-workspace')"><div class="bt">Workspace / VCS</div><div class="bd">AsyncFileSystem · git2/CLI/gix · checkpoint</div></div>
+    </div>
+    <div class="row">
+      <div class="blk" onclick="go('c-mcp')"><div class="bt">MCP</div><div class="bd">stdio/http/sse · rmcp 隔離 · server__tool</div></div>
+      <div class="blk" onclick="go('c-acp')"><div class="bt">ACP 嵌入</div><div class="bd">JSON-RPC over stdio · Zed/Neovim/Emacs</div></div>
+      <div class="blk" onclick="go('c-sandbox')"><div class="bt">Sandbox</div><div class="bd">Landlock/Seatbelt/seccomp/bwrap · 5 profile</div></div>
+    </div>
+  </div>
+
+  <div class="grid c3">
+    <div class="callout gk"><span class="ct">定位差異</span><strong>Grok Build</strong> 是「<strong>官方 CLI coding agent</strong>」── 跑在終端、編輯你 repo 裡的程式、接編輯器(ACP)。與 Claude Code 同類,但用 <strong>Rust</strong> + 無鎖 actor + 84-crate workspace。</div>
+    <div class="callout gold"><span class="ct">★ 兩個重點</span>本文件最有教學價值的是 <a onclick="go('actor')">Actor Runtime 架構</a>(如何無鎖)與 <a onclick="go('prod')">生產級工程亮點</a>(底層決策的連鎖影響)。</div>
+    <div class="callout note"><span class="ct">語言與規模</span>Rust(edition 2024、pinned 1.92.0);~1.33M 行、2,238 個 <code>.rs</code>、<strong>84 crates</strong>;預設模型 <code>grok-build</code>、500K context。<a onclick="go('expose')">→ 看 crate 工作區</a></div>
+  </div>
+  <div class="legend">
+    <span><span class="pill gk">Grok Build</span></span>
+    <span><span class="pill flag">crate</span></span>
+    <span><span class="fp">crates/...</span> repo 檔案路徑(commit 2ec0f0c8 快照)</span>
+    <span><span class="deep">深入 →</span> 跳到元件/專章</span>
+  </div>
+  <p class="src">資料來源:公開原始碼鏡像 <code>xai-org/grok-build</code>(README、CONTRIBUTING、<code>crates/codegen/xai-grok-pager/docs/user-guide/</code> 25 檔)+ 原始碼閱讀。Stats:~1.33M 行 Rust、2,238 個 .rs、84 crates、最大 crate <code>xai-grok-pager</code>(TUI,~420K 行)與 <code>xai-grok-shell</code>(runtime,~336K 行)。</p>
+</section>
+
+<!-- ================= 路徑一:turn 生命週期 ================= -->
+<section class="pane" id="journey">
+  <div class="page-kicker">路徑一 · 動態視角</div>
+  <h1 class="page">🚶 一次 turn 的生命週期</h1>
+  <p class="page-sub">跟著一次使用者提問,走完 <code>process_conversation_turn</code> 的完整迴圈。每站附「深入 →」連到元件詳解。<span class="src">來源:<code>crates/codegen/xai-grok-shell/src/session/acp_session_impl/turn.rs</code></span></p>
+
+  <div class="callout note"><span class="ct">入口先決定模式</span>互動 TUI、headless(<code>-p</code>)、ACP(<code>grok agent stdio</code>)三種入口都通到同一套 runtime(<span class="crate fp">xai-grok-shell</span>)。差別只在前端與進入點;turn 迴圈完全共用。</div>
+
+  <div class="station"><div class="rail"><div class="dot">1</div><div class="line"></div></div><div class="body">
+    <h3>prompt 入佇列 ── pending_inputs</h3>
+    <p class="what">使用者訊息成為 <code>SessionCommand::Prompt</code>,推入 <code>SessionActor</code> 的 <code>pending_inputs: VecDeque&lt;InputItem&gt;</code>。<code>maybe_start_running_task</code> 若無 running task 就取出隊首、spawn 一個 turn task。</p>
+    <a class="deep" onclick="go('actor')">深入 → Actor Runtime</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">2</div><div class="line"></div></div><div class="body">
+    <h3>drain interjection + reminder</h3>
+    <p class="what">迴圈開頭清空待處理的 mid-turn 插話(<span class="crate fp">xai-interjection-core</span>)、skill/monitor reminder,並注入首回合的 memory + MCP reminder。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → Agent Loop</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">3</div><div class="line"></div></div><div class="body">
+    <h3>check_auto_compact ── 必要時先壓縮</h3>
+    <p class="what">若 token 使用超過門檻(預設 85%),先 <code>run_compact_only()</code> 用 full-replace 壓縮整段對話再繼續。context 估算走 <code>bytes/4</code> 粗估。</p>
+    <a class="deep" onclick="go('c-compaction')">深入 → Compaction</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">4</div><div class="line"></div></div><div class="body">
+    <h3>build_request ── 向 ChatStateActor 要請求</h3>
+    <p class="what">組出 <code>effective_tools</code>(需要 JSON schema 但 backend 無法原生約束時,合成 <code>StructuredOutput</code> 工具),再 <code>chat_state_handle.build_request()</code> 拿一份 <code>ConversationRequest</code>,蓋上 <code>x-grok-*</code> headers。</p>
+    <a class="deep" onclick="go('actor')">深入 → ChatStateActor</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">5</div><div class="line"></div></div><div class="body">
+    <h3>run_turn_via_sampler ── 串流呼叫模型</h3>
+    <p class="what">auth refresh + config push,然後 <code>sampler_handle.submit_and_collect()</code>。SSE 串流的 chunk 即時以 ACP <code>AgentMessageChunk</code> 送給前端。可能回傳控制流變體 <code>CompactAndResubmit</code> / <code>RefreshAuthAndResubmit</code>(<code>continue</code> 迴圈)。</p>
+    <a class="deep" onclick="go('c-sampler')">深入 → Sampler/模型</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">6</div><div class="line"></div></div><div class="body">
+    <h3>記錄 usage + 推回 chat state</h3>
+    <p class="what"><code>record_token_usage</code>;回應項目(assistant/tool_result)推回 <code>ChatStateActor</code>。取出 <code>tool_calls</code> 準備分流。</p>
+    <a class="deep" onclick="go('actor')">深入 → chat state</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">7</div><div class="line"></div></div><div class="body">
+    <h3>tool_call? → 並行 dispatch(+權限)</h3>
+    <p class="what">有 tool_call:每個先過 pre-flight(MCP 解析 → arg 解析 → PreToolUse hook → 權限)。核准的以 <code>FuturesUnordered</code> <strong>並行</strong>執行,觸及同檔者共用 per-file mutex 序列化。結果依 index 折回 → append → loop 回第 4 站。</p>
+    <a class="deep" onclick="go('c-tools')">深入 → Tools</a> &nbsp;<a class="deep" onclick="go('c-workspace')">深入 → Workspace</a>
+  </div></div>
+
+  <div class="station"><div class="rail"><div class="dot">8</div></div><div class="body">
+    <h3>無 tool_call ── TodoGate → 收尾</h3>
+    <p class="what">無 tool_call 時跑 <strong>TodoGate</strong>:若還有未完成 todo,注入 <code>&lt;system-reminder&gt;</code> nudge 並續跑(上限 <code>max_fires_per_prompt</code>);否則 finalize、驗證 structured output,回傳 <code>TurnOutcome::Completed</code>。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → 收尾邏輯</a>
+  </div></div>
+
+  <div class="callout gold" style="margin-top:24px"><span class="ct">下一步</span>這條 loop 是骨架;<a onclick="go('actor')">★ Actor Runtime</a> 說明它為何跑在單執行緒 actor 上、狀態如何無鎖;<a onclick="go('prod')">★ 生產級工程亮點</a> 說明工具並行、auth retry 等細節。</div>
+</section>
+
+<!-- ================= 路徑二:由下而上 ================= -->
+<section class="pane" id="bottomup">
+  <div class="page-kicker">路徑二 · 結構視角</div>
+  <h1 class="page">🏗️ 由下而上建構心智模型</h1>
+  <p class="page-sub">從入口層往上疊,每層先講「為何需要這層」。對應 84-crate workspace 的分層(entry → runtime → tools/workspace → 擴充 → 治理)。</p>
+
+  <div class="layer l0"><div class="ltag">L0 · 入口 / 組合根</div><h3>xai-grok-pager-bin(main.rs)</h3>
+    <div class="need">為何需要這層:同一個 agent 要能被互動 TUI、headless、ACP 三種方式啟動;且要在 tokio runtime 之前安裝 IoC hooks(jemalloc、crash handler、Mermaid 子進程短路)。</div>
+    <p><code>fn main()</code>(同步)→ 手動建 tokio runtime → <code>async_main()</code> → <code>PagerArgs::parse_and_apply_cwd()</code>(clap)→ 依 subcommand/flag 分派互動 / headless / <code>run_agent_command</code>。組合根獨立成一個 crate 是為了同時 link <code>xai-grok-pager</code> 與可選的 <code>xai-grok-pager-minimal</code>(避免 cargo cycle)。</p>
+    <a class="deep" onclick="go('c-config')">深入 → 模式分派</a>
+  </div>
+  <div class="layer l1"><div class="ltag">L1 · Actor 狀態</div><h3>SessionActor + ChatStateActor</h3>
+    <div class="need">為何需要這層:agent 會併發跑很多事(串流、工具、背景任務),共享可變狀態若用鎖容易競爭/死鎖。用 actor 讓狀態被單一 task 擁有、以 channel 溝通,熱路徑無鎖。</div>
+    <p><code>SessionActor</code>(每 session 一個,<code>!Send</code>,跑在 LocalSet)持有 pending_inputs、running_task;<code>ChatStateActor</code>(自己的 Send task)獨佔對話狀態,只能經 <code>ChatStateHandle</code> 存取。</p>
+    <a class="deep" onclick="go('actor')">深入 → Actor Runtime</a>
+  </div>
+  <div class="layer l2"><div class="ltag">L2 · 大腦</div><h3>process_conversation_turn ── agent loop</h3>
+    <div class="need">為何需要這層:把「build_request → 串流呼叫 → 看 tool_call → 跑工具 → append → 再呼叫」做成可串流、可中斷、可壓縮的權威路徑。</div>
+    <p><span class="crate fp">xai-grok-shell/src/session/acp_session_impl/turn.rs</span>;內含 <code>loop {…}</code>;工具並行(FuturesUnordered)、TodoGate、structured output 驗證。</p>
+    <a class="deep" onclick="go('c-loop')">深入 → Agent Loop</a>
+  </div>
+  <div class="layer l3"><div class="ltag">L3 · 脈絡與取樣</div><h3>Compaction + Sampler + 模型</h3>
+    <div class="need">為何需要這層:context 視窗有限需壓縮;呼叫模型需要穩健的串流 + retry;且要支援多種 API backend 與自訂模型。</div>
+    <p>Compaction:<span class="crate fp">xai-grok-compaction</span> full-replace 風格 + 兩段預燒。Sampler:<span class="crate fp">xai-grok-sampler</span> 三層 actor(client → stream 轉換 → SamplerActor)。模型預設 <code>grok-build</code>(500K context)。</p>
+    <a class="deep" onclick="go('c-compaction')">Compaction</a> &nbsp;<a class="deep" onclick="go('c-sampler')">Sampler</a>
+  </div>
+  <div class="layer l4"><div class="ltag">L4 · 能力</div><h3>Tools + Workspace + 5 namespace</h3>
+    <div class="need">為何需要這層:agent 要能讀寫檔、跑 shell、查網路、接外部工具,且每個動作都要能被授權把關、能 checkpoint 回捲。</div>
+    <p><code>Tool</code> trait(<span class="crate fp">xai-tool-runtime</span>)→ <code>ToolDyn</code> 型別抹除 → registry;<span class="crate fp">xai-grok-tools</span> 內 5 個 namespace(grok_build / concise / hashline / codex / opencode);<span class="crate fp">xai-grok-workspace</span> 抽象 FS/VCS/checkpoint。</p>
+    <a class="deep" onclick="go('c-tools')">Tools</a> &nbsp;<a class="deep" onclick="go('c-workspace')">Workspace</a>
+  </div>
+  <div class="layer l5"><div class="ltag">L5 · 對外 / 擴充</div><h3>MCP + Hooks/Plugins + ACP</h3>
+    <div class="need">為何需要這層:不改原始碼就能擴充 ── 接外部工具(MCP)、在生命週期插邏輯(hooks)、打包分發(plugins)、嵌入編輯器(ACP)。</div>
+    <p>MCP:<span class="crate fp">xai-grok-mcp</span>(隔離 rmcp)。Hooks:<span class="crate fp">xai-grok-hooks</span>(PreToolUse 可 deny、其餘 fail-open)。ACP:<span class="crate fp">xai-acp-lib</span>(JSON-RPC over stdio,Zed/Neovim/Emacs)。</p>
+    <a class="deep" onclick="go('c-mcp')">MCP</a> &nbsp;<a class="deep" onclick="go('c-hooks')">Hooks/Plugins</a> &nbsp;<a class="deep" onclick="go('c-acp')">ACP</a>
+  </div>
+  <div class="layer l6"><div class="ltag">L6 · 治理與基礎建設</div><h3>Sandbox · Config/Auth · Telemetry · leader/follower</h3>
+    <div class="need">為何需要這層:企業要能強制政策、限制 agent 能碰的檔案/網路、觀測使用、跨崩潰存活。</div>
+    <p>Sandbox(<span class="crate fp">xai-grok-sandbox</span>,Landlock/Seatbelt);Config 多層合併 + requirements Ed25519 簽章(<span class="crate fp">xai-grok-config</span>);Telemetry 可 opt-out + secrets 清洗;leader/follower 崩潰重連。</p>
+    <a class="deep" onclick="go('c-sandbox')">Sandbox</a> &nbsp;<a class="deep" onclick="go('c-config')">Config/Auth</a> &nbsp;<a class="deep" onclick="go('prod')">工程亮點</a>
+  </div>
+</section>
+
+<!-- ================= 元件地圖 ================= -->
+<section class="pane" id="comp-home">
+  <div class="page-kicker">元件詳解 · 問題導向</div>
+  <h1 class="page">📚 元件地圖</h1>
+  <p class="page-sub">10 個元件,每頁固定 5 段:<strong>① 為什麼存在 ② 核心概念 ③ 運作機制 ③.5 逐步推演 ④ 與其他元件的關係 ⑤ 範例/設定</strong>。Actor Runtime 與生產級工程亮點是獨立星號專章。</p>
+  <h2>大腦</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-loop')"><div class="cn">L2</div><h4>Agent Loop</h4><p>process_conversation_turn;TurnOutcome;串流;TodoGate</p></div>
+    <div class="ci" onclick="go('c-tools')"><div class="cn">L4</div><h4>Tool 系統</h4><p>Tool trait;ToolDyn 抹除;5 namespace;並行 + per-file mutex</p></div>
+    <div class="ci" onclick="go('c-sampler')"><div class="cn">L3</div><h4>Sampler / 模型</h4><p>三層 actor;3 API backend;SSE 串流;retry;bytes/4 估算</p></div>
+  </div>
+  <h2>記憶</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-compaction')"><div class="cn">L3</div><h4>Compaction</h4><p>full-replace;兩段預燒;85% 門檻;fingerprint 守 cache</p></div>
+    <div class="ci" onclick="go('c-workspace')"><div class="cn">L4</div><h4>Workspace / VCS</h4><p>AsyncFileSystem 多後端;git2/CLI/gix 三軌;checkpoint/rewind</p></div>
+  </div>
+  <h2>擴展</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-mcp')"><div class="cn">L5</div><h4>MCP 整合</h4><p>stdio/http/sse;rmcp 隔離;OAuth;server__tool 命名</p></div>
+    <div class="ci" onclick="go('c-hooks')"><div class="cn">L5</div><h4>Hooks / Plugins</h4><p>13 生命週期事件;PreToolUse 可 deny;fail-open;6 類元件打包</p></div>
+    <div class="ci" onclick="go('c-acp')"><div class="cn">L5</div><h4>ACP 嵌入</h4><p>JSON-RPC over stdio;Zed/Neovim/Emacs;fs/terminal 反向請求</p></div>
+  </div>
+  <h2>底層</h2>
+  <div class="compgrid">
+    <div class="ci" onclick="go('c-config')"><div class="cn">L0/L6</div><h4>Config & Auth</h4><p>6 層合併;requirements Ed25519 簽章;auth 優先序</p></div>
+    <div class="ci" onclick="go('c-sandbox')"><div class="cn">L6</div><h4>Sandbox</h4><p>Landlock/Seatbelt/seccomp/bwrap;5 profile;能力矩陣</p></div>
+  </div>
+  <div class="callout gold"><span class="ct">★ 別錯過</span>本框架的教學招牌 ── <a onclick="go('actor')">Actor Runtime 架構</a> 與 <a onclick="go('prod')">生產級工程亮點</a>;以及 <a onclick="go('expose')">🔍 84-crate 工作區</a> 導覽。</div>
+</section>
+
+<!-- ===== c-loop ===== -->
+<section class="pane" id="c-loop">
+  <div class="page-kicker">元件詳解 · 大腦</div>
+  <h1 class="page">Agent Loop</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('actor')">SessionActor 派 turn task</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>process_conversation_turn 的 loop:build_request → 串流 → tool_call → append</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">工具執行</a><a onclick="go('c-compaction')">壓縮</a><a onclick="go('c-sampler')">取樣</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>把一次提問變成「行動 + 回覆」並維持可串流、可中斷、可壓縮,需要一條權威迴圈。這條迴圈跑在 <code>SessionActor</code> 派出的 turn task 裡,且同時服務互動 TUI / headless / ACP 三種入口。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">loop + tool_call 分流 + 串流</span>核心是「build_request → 串流呼叫模型 → 若有 tool_call 就並行跑、append、再呼叫;否則過 TodoGate 收尾」。整段是 AsyncGenerator 式串流,chunk 即時送 ACP。<span class="fp">session/acp_session_impl/turn.rs</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>三入口共用</strong>:互動 TUI(<code>xai-grok-pager</code>)/ headless(<code>run_single_turn</code>)/ ACP(<code>run_stdio_agent</code>)都通到 <code>xai-grok-shell</code> 的 turn 迴圈。</li>
+    <li><strong>迴圈內順序</strong>:drain interjection → check_auto_compact → 組 effective_tools → build_request → run_turn_via_sampler → 記 usage → 取 tool_calls → 分流。</li>
+    <li><strong>控制流變體</strong>:sampler 可回 <code>CompactAndResubmit</code>(context 超長)/ <code>RefreshAuthAndResubmit</code>(401)→ <code>continue</code> 重跑。</li>
+    <li><strong>收尾</strong>:無 tool_call → TodoGate(未完成則注入 nudge reminder 續跑)→ finalize → <code>TurnOutcome::Completed</code>。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:迴圈一輪</h2>
+    <p class="intro">這就是路徑一的精簡版,聚焦迴圈內部決策。</p>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">組請求</div><div class="sd">build_request + 壓縮檢查</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">串流呼叫</div><div class="sd">sampler SSE</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">有 tool_call?</div><div class="sd">分流</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">並行跑工具→append</div><div class="sd">loop</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">5</div><div class="sl">TodoGate → 收尾</div><div class="sd">TurnOutcome</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>判 tool_call<span class="stag">turn.rs</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>模型串流回應</div><div class="field f-basis"><span class="fl">判斷依據</span>response 是否含 <code>tool_calls</code>?</div><div class="field f-why"><span class="fl">設計思維</span>單一條件分流「續跑工具」或「收尾」,迴圈保持極簡</div><div class="field f-out"><span class="fl">輸出</span>進工具分支 或 TodoGate</div><div class="field f-edge"><span class="fl">邊界</span>text chunk 邊串流邊送 ACP,不等整輪</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>並行工具 + 回灌<span class="stag">tool_calls.rs</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>tool_calls[]</div><div class="field f-basis"><span class="fl">判斷依據</span>pre-flight 過關者以 FuturesUnordered 並行;同檔共用 mutex</div><div class="field f-why"><span class="fl">設計思維</span>並行省 wall-clock,同檔序列保正確</div><div class="field f-out"><span class="fl">輸出</span>結果依 index 折回 chat state,loop</div><div class="field f-edge"><span class="fl">邊界</span>每工具先過 <a onclick="go('c-hooks')">PreToolUse</a> + 權限</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>由 <a onclick="go('actor')">SessionActor</a> 派 turn task。<strong>下游:</strong>跑 <a onclick="go('c-tools')">工具</a>、叫 <a onclick="go('c-compaction')">壓縮</a>、經 <a onclick="go('c-sampler')">sampler</a> 呼叫模型;subagent 由迴圈的 <code>task</code> 工具 spawn。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// 最小迴圈(概念,對應 process_conversation_turn)
+loop {
+  if check_auto_compact_needed() { run_compact_only().await }
+  let req = chat_state.build_request(effective_tools).await
+  let res = run_turn_via_sampler(req).await   // 串流 + retry
+  chat_state.record_assistant_response(res)
+  let calls = res.tool_calls()
+  if calls.is_empty() {
+     if todo_gate.should_nudge() { continue }  // 未完成 → nudge
+     return TurnOutcome::Completed
+  }
+  execute_tool_calls(calls).await             // 並行 + per-file mutex
+}</code></pre>
+</section>
+
+<!-- ===== c-tools ===== -->
+<section class="pane" id="c-tools">
+  <div class="page-kicker">元件詳解 · 大腦/能力</div>
+  <h1 class="page">Tool 系統</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">迴圈呼叫工具</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>Tool trait + ToolDyn 抹除 + 5 namespace + 並行執行</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-workspace')">落地執行</a><a onclick="go('c-mcp')">MCP 工具</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>工具是 agent 對外界產生作用的唯一手段。要讓大量工具行為一致(schema/權限/串流輸出),且能被 registry 統一動態 dispatch,需要一個強型別 trait + 型別抹除層。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">Tool trait → ToolDyn → registry</span><code>Tool</code> trait 有關聯型別 <code>Args</code>(須 <code>Deserialize + JsonSchema</code>)與 <code>Output</code>;因非 object-safe,靠 blanket <code>impl&lt;T: Tool&gt; ToolDyn for T</code> 抹除成 object-safe 的 <code>ToolDyn</code>,存進 registry 以 <code>ArcTool</code> dispatch。<span class="fp">crates/common/xai-tool-runtime/src/tool.rs</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>Schema</strong>:由關聯型別 <code>Args</code> 自動導出 JSON Schema,經 <code>description()</code> 的 <code>ToolDescription.arguments_schema</code> 暴露給模型。</li>
+    <li><strong>回傳</strong>:<code>ToolStream&lt;Output&gt;</code>,不變式 <code>[Progress*, Terminal]</code> ── 任意多 progress 結尾恰一 terminal。</li>
+    <li><strong>依賴注入</strong>:工具從 <code>Resources</code>(TypeId-keyed 容器)取得 <code>Terminal</code>/<code>Cwd</code>/<code>FileSystem</code>/<code>Params&lt;T&gt;</code>/<code>State&lt;T&gt;</code>,而非函式參數。</li>
+    <li><strong>5 namespace</strong>:同工具的不同呈現與相容 port。</li>
+  </ul>
+  <h3>5 個工具 namespace</h3>
+  <div class="scrollwrap"><table>
+    <tr><th>Namespace</th><th>定位</th><th>特點</th></tr>
+    <tr><td><code>grok_build</code></td><td><strong>主要</strong>工具集</td><td>預設、最完整(bash/edit/read/grep/web/task…)</td></tr>
+    <tr><td><code>grok_build_concise</code></td><td>精簡呈現</td><td>較短描述/輸出,省 context token</td></tr>
+    <tr><td><code>grok_build_hashline</code></td><td>hash 行定址</td><td>編輯採 anchor/scheme/hash-based 行定址</td></tr>
+    <tr><td><code>codex</code></td><td>OpenAI Codex port</td><td><code>apply_patch</code> 格式、<code>L{n}:</code> 讀檔格式</td></tr>
+    <tr><td><code>opencode</code></td><td>opencode port</td><td>相容 opencode 的 bash/edit/glob/grep/write</td></tr>
+  </table></div>
+  <h3>主要工具(grok_build namespace,節錄)</h3>
+  <div class="scrollwrap"><table>
+    <tr><th>模型看到的名稱</th><th>功能</th></tr>
+    <tr><td><code>run_terminal_cmd</code></td><td>持久 shell 執行 bash,前景/背景(回 task_id),timeout + 輸出上限</td></tr>
+    <tr><td><code>search_replace</code></td><td>精確字串取代、replace_all、建新檔(空 old_string)</td></tr>
+    <tr><td><code>read_file</code> · <code>list_dir</code> · <code>grep</code></td><td>讀檔(offset/limit/圖片PDF)、目錄(尊重 gitignore)、ripgrep 搜尋</td></tr>
+    <tr><td><code>web_fetch</code> · <code>web_search</code></td><td>抓 URL(HTML→md、SSRF 保護)、Responses API 搜尋</td></tr>
+    <tr><td><code>todo_write</code> · <code>spawn_subagent</code></td><td>todo 清單、啟動子代理(深度上限 1)</td></tr>
+    <tr><td><code>enter/exit_plan_mode</code> · <code>ask_user_question</code></td><td>計畫模式、結構化互動問答</td></tr>
+    <tr><td><code>lsp</code> · <code>monitor</code> · <code>scheduler_*</code></td><td>語言伺服器智能、事件監看、排程任務</td></tr>
+    <tr><td><code>search_tool</code> · <code>use_tool</code> · <code>memory_*</code></td><td>BM25 找 MCP 工具、呼叫 MCP、跨 session 記憶</td></tr>
+  </table></div>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:工具 dispatch</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">模型 tool_call</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">pre-flight</div><div class="sd">MCP解析/arg/hook/權限</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">FuturesUnordered</div><div class="sd">並行</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">per-file mutex</div><div class="sd">同檔序列</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">5</div><div class="sl">依 index 折回</div></div>
+    </div>
+    <div class="stepcard"><div class="hd"><span class="sidx">1</span>pre-flight<span class="stag">tool_calls.rs</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>name + args</div><div class="field f-basis"><span class="fl">判斷依據</span>MCP 解析 → arg 解析 → PreToolUse hook → 權限(yolo/auto 例外)</div><div class="field f-why"><span class="fl">設計思維</span>危險動作執行前多道把關,可 deny 短路</div><div class="field f-out"><span class="fl">輸出</span>核准清單</div><div class="field f-edge"><span class="fl">邊界</span>deny → 略過該 call、回報原因</div></div></div>
+    <div class="stepcard"><div class="hd"><span class="sidx">2</span>並行 + 同檔序列<span class="stag">FuturesUnordered</span></div>
+      <div class="fields"><div class="field f-in"><span class="fl">輸入</span>核准的 calls</div><div class="field f-basis"><span class="fl">判斷依據</span>lock_path_for_args 取 file_path/path/target_file;同鍵共用 mutex</div><div class="field f-why"><span class="fl">設計思維</span>最大並行、同檔依模型順序序列化避免衝突</div><div class="field f-out"><span class="fl">輸出</span>WorkspaceOps::call_tool 執行,結果依 index 折回</div><div class="field f-edge"><span class="fl">邊界</span>成功 PostToolUse / 失敗 PostToolUseFailure</div></div></div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-loop')">迴圈</a> 呼叫。<strong>下游:</strong>落到 <a onclick="go('c-workspace')">Workspace</a> 執行;<a onclick="go('c-mcp')">MCP</a> 工具經 McpErasedTool 進同一介面;每次呼叫過 <a onclick="go('c-hooks')">hook + 權限</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// Tool trait(概念,crates/common/xai-tool-runtime/src/tool.rs)
+pub trait Tool: Send + Sync {
+    type Args:   Deserialize + JsonSchema + Send + 'static;
+    type Output: Serialize + ToolOutput + Send + 'static;
+    fn id(&amp;self) -&gt; ToolId;
+    fn description(&amp;self, ctx) -&gt; ToolDescription;  // 內含 JSON Schema
+    fn execute(&amp;self, ctx, args) -&gt; ToolStream&lt;Self::Output&gt;;  // [Progress*, Terminal]
+}
+// 非 object-safe → blanket impl ToolDyn → ArcTool = Arc&lt;dyn ToolDyn&gt;</code></pre>
+</section>
+
+<!-- ===== c-sampler ===== -->
+<section class="pane" id="c-sampler">
+  <div class="page-kicker">元件詳解 · 大腦</div>
+  <h1 class="page">Sampler / 模型</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">迴圈送出 request</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>三層 actor:client → stream 轉換 → SamplerActor(retry/取消)</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-compaction')">context 超長 → 壓縮</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>呼叫 LLM API 要處理 SSE 串流、retry、取消、多種 API 格式與自訂模型。把它做成獨立三層 actor,與 shell 解耦、可重用。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">三層 actor</span><code>SamplingClient</code>(raw chunk 串流)→ stream 轉換(<code>stream_chat_completions</code>/<code>stream_responses</code>/<code>stream_messages</code>)→ <code>SamplerActor</code>/<code>SamplerHandle</code>(並行請求、retry、取消、doom-loop 偵測)。<span class="fp">crates/codegen/xai-grok-sampler</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>API backend</th><th>端點</th><th>用途</th></tr>
+    <tr><td><code>responses</code></td><td><code>/responses</code></td><td>xAI Responses API,<strong>預設 grok-build 用</strong></td></tr>
+    <tr><td><code>chat_completions</code></td><td><code>/chat/completions</code></td><td>OpenAI 相容(Ollama/Together/本地)</td></tr>
+    <tr><td><code>messages</code></td><td><code>/messages</code></td><td>Anthropic Messages(接 Claude,配 x-api-key)</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>模型解析優先序</strong>:CLI flag &gt; ENV &gt; config.toml &gt; remote settings &gt; 內建預設(<code>grok-build</code>,500K context)。</li>
+    <li><strong>串流</strong>:SSE 經 <code>eventsource_stream</code>;chunk 即時上送。</li>
+    <li><strong>retry</strong>:<code>retry_backoff_with_jitter</code>(Retry-After 上限 120s);硬編 1s/2s/4s 排程(見 <a onclick="go('prod')">工程亮點</a>)。</li>
+    <li><strong>token 估算</strong>:<span class="crate fp">xai-token-estimation</span> 純 <code>bytes/4</code>(每圖 765);只驅動壓縮/顯示決策,不計費不硬限。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:一次取樣</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">選 backend</div><div class="sd">responses/…</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">SamplingClient POST</div><div class="sd">SSE</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">stream 轉換</div><div class="sd">chunk → event</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">SamplerActor 收束</div><div class="sd">retry/取消</div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-loop')">迴圈</a> 送 request。<strong>下游:</strong>回 <code>CompactAndResubmit</code> 觸發 <a onclick="go('c-compaction')">壓縮</a>、回 <code>RefreshAuthAndResubmit</code> 觸發 <a onclick="go('c-config')">auth refresh</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// ~/.grok/config.toml 自訂模型
+[model.claude]
+model = "claude-sonnet-4"
+api_backend = "messages"        # Anthropic 格式
+base_url = "https://api.anthropic.com"
+env_key = "ANTHROPIC_API_KEY"
+[models]
+default = "grok-build"          # 預設
+web_search = "grok-4.20-multi-agent"</code></pre>
+</section>
+
+<!-- ===== c-compaction ===== -->
+<section class="pane" id="c-compaction">
+  <div class="page-kicker">元件詳解 · 記憶</div>
+  <h1 class="page">Compaction(脈絡壓縮)</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-loop')">迴圈開頭檢查</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>full-replace 壓縮 + 兩段預燒</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('actor')">寫回 chat state</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>長對話會塞滿 context 視窗。需要在快滿時把舊對話摘要,騰出空間又不丟關鍵脈絡。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">full-replace + 兩段預燒</span>Grok Build 用 <strong>full-replace</strong> 風格(整段 session 摘要替換,非逐段修剪)。<code>xai-grok-compaction</code> 是傳輸無關引擎,靠 trait seam 解耦。門檻預設 85%。<span class="fp">crates/common/xai-grok-compaction</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>觸發點</strong>:迴圈 <code>check_auto_compact_needed()</code>(取樣前)、tool 後 <code>check_preflight_overflow()</code>、模型切換時、手動 <code>/compact</code>、sampler 回 <code>CompactAndResubmit</code>。</li>
+    <li><strong>兩段預燒(two-pass prefire)</strong>:在低於門檻約 10% 時就<strong>背景</strong>跑 pass-1 摘要,pass-2 命中時很便宜;<code>fingerprint_prefix</code> 守護 cache 在編輯/rewind 後有效。</li>
+    <li><strong>tool-pair 安全</strong>:<code>select_turns_to_compact</code> 避免拆散 tool_call/tool_result 配對。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:auto-compact</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>token 使用超過 85%?</div>
+        <div class="dbranches"><div class="dbranch no"><span class="dtag">否</span><span class="dres">若低於門檻 ~10% → 背景啟動 pass-1 預燒摘要</span></div><div class="dbranch yes"><span class="dtag">是</span><span class="dres">run_compact_only():full-replace 整段摘要 → 寫回 chat state</span></div></div></div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>已有預燒 pass-1?</div>
+        <div class="dbranches"><div class="dbranch yes"><span class="dtag">有且 fingerprint 有效</span><span class="dres"><span class="dwin g">pass-2 很便宜</span>直接用</span></div><div class="dbranch no"><span class="dtag">無/失效</span><span class="dres">現場完整摘要</span></div></div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-loop')">迴圈</a> 觸發;<a onclick="go('c-sampler')">sampler</a> context 超長也觸發。<strong>下游:</strong>摘要寫回 <a onclick="go('actor')">ChatStateActor</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>[session]
+auto_compact_threshold_percent = 85   # 超過就壓縮
+[features]
+two_pass_compaction = true            # 兩段預燒
+// 手動:/compact [額外指示]</code></pre>
+</section>
+
+<!-- ===== c-workspace ===== -->
+<section class="pane" id="c-workspace">
+  <div class="page-kicker">元件詳解 · 能力</div>
+  <h1 class="page">Workspace / VCS</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-tools')">工具讀寫檔</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>AsyncFileSystem 多後端 + git 三軌 + checkpoint</span></div>
+    <div class="relbox down"><div class="rl">下游</div><span>LocalFs / AcpSessionFs / gix worktree</span></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>agent 的「手」實際碰真實世界的地方。把檔案存取抽象成 trait,同一套工具程式碼就能無差別跑在本機、ACP 編輯器託管、或遠端 proxied 的 FS 上。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">一個 trait、多個後端</span>核心 trait <code>AsyncFileSystem</code>(<code>read_file</code>/<code>write_file</code>/<code>delete_file</code>)實作有 <code>LocalFs</code>(宿主)、<code>AcpSessionFs</code>(編輯器託管)、<code>MockFs</code>(測試)。<span class="fp">crates/codegen/xai-grok-workspace/src/file_system/fs.rs</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>函式庫</th><th>負責</th><th>操作</th></tr>
+    <tr><td><code>git2</code>(libgit2)</td><td><strong>讀</strong>結構化資料</td><td>status、diff</td></tr>
+    <tr><td>git <strong>CLI</strong></td><td><strong>寫</strong>變動</td><td>stage、commit、push</td></tr>
+    <tr><td><code>gix</code>(純 Rust)</td><td>worktree + 快速讀</td><td>worktree 建立、status/index 讀取</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>Checkpoint / rewind</strong>:以 <code>prompt_index</code> 為鍵,綁定三領域(檔案 RewindPoint + hunk delta + git HEAD/index),rewind 時一起回捲;RPC <code>begin_prompt</code>/<code>end_prompt</code>/<code>rewind_to</code>。</li>
+    <li><strong>支援 crate</strong>:<span class="crate fp">xai-fast-worktree</span>(CoW clone)、<span class="crate fp">xai-hunk-tracker</span>(hunk 歸屬 Agent/External)、<span class="crate fp">xai-codebase-graph</span>(tree-sitter go-to-def)、<span class="crate fp">xai-fsnotify</span>(檔案事件)。</li>
+    <li>也支援 <code>jj</code>(Jujutsu)VCS。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:一次編輯</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">工具呼叫 write</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">AsyncFileSystem</div><div class="sd">選後端</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">寫檔 + FileWritten</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">hunk tracker 記歸屬</div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong><a onclick="go('c-tools')">工具</a> 的讀寫全走此 trait。<strong>下游:</strong>ACP 模式下寫檔轉發給 <a onclick="go('c-acp')">編輯器</a>;checkpoint 供 rewind。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// 工具只認識 trait,不管後端是誰
+trait AsyncFileSystem { async fn read_file(..); async fn write_file(..); }
+// LocalFs(本機) / AcpSessionFs(編輯器託管) / MockFs(測試)
+// rewind checkpoint: key=prompt_index → {檔案, hunk delta, git HEAD/index}</code></pre>
+</section>
+
+<!-- ===== c-mcp ===== -->
+<section class="pane" id="c-mcp">
+  <div class="page-kicker">元件詳解 · 擴展</div>
+  <h1 class="page">MCP 整合</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-config')">config 設定 server</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>消費外部 MCP server,工具進同一介面</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">McpErasedTool 包裝</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>不必為每個外部系統寫原生工具 ── 透過 MCP(Model Context Protocol)接外部工具生態,啟動時自動探索並註冊。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">隔離 rmcp + 統一命名</span><code>xai-grok-mcp</code> 兩個任務:(1) 隔離 <code>rmcp</code> 2.1 + <code>reqwest</code> 0.13(其餘 workspace 用 0.12);(2) 擁有 MCP transport/client 生命週期。工具命名 <code>server__tool</code>(分隔符 <code>__</code>)避免衝突。<span class="fp">crates/codegen/xai-grok-mcp</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>設定</strong>:<code>[mcp_servers.&lt;name&gt;]</code>;stdio(command/args/env)或 HTTP/SSE(url/headers)。也讀 <code>.claude.json</code>/<code>.cursor/mcp.json</code>/<code>.mcp.json</code>。</li>
+    <li><strong>連線</strong>:stdio 以 <code>SafeTokioChildProcess</code>(kill_on_drop、stderr→log);HTTP 無 Authorization 時跑 OAuth discovery;handshake 單飛(<code>ensure_initialized</code>)。</li>
+    <li><strong>暴露</strong>:每個工具包成 <code>McpErasedTool</code>(實作 Tool trait),併入本地 registry。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:server 工具進註冊表</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">讀 config</div><div class="sd">stdio/http/sse</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">connect + init</div><div class="sd">單飛 handshake</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">list_tools</div><div class="sd">分頁</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">McpErasedTool</div><div class="sd">server__tool</div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>server 設定來自 <a onclick="go('c-config')">config</a>。<strong>下游:</strong>MCP 工具經 McpErasedTool 進 <a onclick="go('c-tools')">統一介面</a>,呼叫時一樣過 <a onclick="go('c-hooks')">權限/hook</a>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// ~/.grok/config.toml
+[mcp_servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+[mcp_servers.linear]
+url = "https://mcp.linear.app/mcp"   # HTTP + OAuth discovery</code></pre>
+</section>
+
+<!-- ===== c-hooks ===== -->
+<section class="pane" id="c-hooks">
+  <div class="page-kicker">元件詳解 · 擴展</div>
+  <h1 class="page">Hooks / Plugins</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-tools')">工具生命週期事件</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>13 生命週期事件 + 6 類元件打包</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-mcp')">plugin 可帶 MCP</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>不改原始碼就能擴充 agent 行為:在生命週期事件插入自訂 shell/HTTP 邏輯(hooks),或把多種擴充打包分發(plugins)。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">只有 PreToolUse 能 deny</span>事件在 agent 生命週期特定時點觸發 shell 指令或 HTTP endpoint。<strong>只有 <code>PreToolUse</code> 可阻擋工具</strong>,其餘皆通知性質。相容 <code>~/.claude/settings.json</code> 格式。<span class="fp">crates/codegen/xai-grok-hooks</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>事件</th><th>可 deny?</th><th>用途</th></tr>
+    <tr><td><code>PreToolUse</code></td><td><strong>✓</strong></td><td>政策把關(擋危險指令)</td></tr>
+    <tr><td><code>PostToolUse</code> / <code>PostToolUseFailure</code></td><td>✗</td><td>格式化、通知、重試</td></tr>
+    <tr><td><code>SessionStart/End</code> · <code>UserPromptSubmit</code></td><td>✗</td><td>初始化、注入 context、稽核</td></tr>
+    <tr><td><code>PermissionDenied</code> · <code>Stop/StopFailure</code></td><td>✗</td><td>提示、完成通知</td></tr>
+    <tr><td><code>SubagentStart/Stop</code> · <code>Pre/PostCompact</code> · <code>Notification</code></td><td>✗</td><td>追蹤子代理、壓縮前後、桌面通知</td></tr>
+  </table></div>
+  <p><strong>Plugins</strong>:一個目錄可打包六類元件 ── skills、commands、agents、MCP servers、hooks、LSP servers。官方 marketplace 是 <code>xai-org/plugin-marketplace</code>;路徑穿越防護 + catalog 字串 sanitize(防終端 escape 注入)。</p>
+  <div class="callout warn"><span class="ct">💡 fail-open vs fail-closed</span>hook 崩潰/超時只記錄、<strong>不阻擋</strong>(fail-open)── 前提是使用者在受信任環境。這與 <a onclick="go('c-sandbox')">sandbox</a>/requirements 的 fail-<strong>closed</strong> 恰相反:威脅來源不同,失敗傾向就不同。</div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>由 <a onclick="go('c-tools')">工具迴圈</a> 在各時點觸發。<strong>下游:</strong>plugin 可帶 <a onclick="go('c-mcp')">MCP server</a> 與 skills/agents。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>// ~/.grok/hooks/*.json(相容 .claude/settings.json 格式)
+{ "hooks": { "PreToolUse": [
+    { "matcher": "run_terminal_cmd",
+      "hooks": [{ "type":"command", "command":"./guard.sh" }] } ] } }
+// guard.sh 可輸出 {"decision":"deny","reason":"..."} 阻擋</code></pre>
+</section>
+
+<!-- ===== c-acp ===== -->
+<section class="pane" id="c-acp">
+  <div class="page-kicker">元件詳解 · 擴展</div>
+  <h1 class="page">ACP 編輯器嵌入</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><span>編輯器 spawn grok agent stdio</span></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>JSON-RPC over stdio 的型別化 gateway</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-workspace')">fs/terminal 反向請求</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>讓任何編輯器都能把 Grok 當「AI 後端」驅動,不必為 Grok 寫專屬整合。這也是 Zed/Neovim/Emacs 能共用同一 agent 的原因。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">JSON-RPC over stdio</span><code>xai-acp-lib</code> 建於外部 <code>agent-client-protocol</code> crate 之上,提供型別化 message/channel/gateway。stdio 最通用、無依賴 ── 任何語言都能 spawn 子進程讀寫 stdin/stdout。<span class="fp">crates/codegen/xai-acp-lib</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>類別</th><th>成員</th></tr>
+    <tr><td>核心方法</td><td><code>initialize</code>、<code>authenticate</code>、<code>session/new</code>、<code>session/prompt</code></td></tr>
+    <tr><td>反向請求(agent→client)</td><td><code>fs/*</code>(讀寫檔)、<code>terminal/*</code>(執行)</td></tr>
+    <tr><td>xAI 擴充</td><td><code>x.ai/hooks/*</code>、<code>x.ai/plugins/*</code>、<code>x.ai/mcp/*</code>、<code>x.ai/marketplace/*</code></td></tr>
+    <tr><td><code>sessionUpdate</code> 值</td><td><code>agent_message_chunk</code>、<code>agent_thought_chunk</code>、<code>tool_call</code>、<code>tool_call_update</code>、<code>plan</code></td></tr>
+  </table></div>
+  <ul>
+    <li><strong>啟動</strong>:<code>grok agent stdio</code>(編輯器)、<code>grok agent serve --bind ... --secret ...</code>(server)、<code>grok agent headless --grok-ws-url wss://...</code>(WebSocket relay)。</li>
+    <li><strong>客戶端</strong>:Zed、Neovim、Emacs、marimo(JetBrains 即將)。SDK:TS/Rust/Python/Go/Kotlin。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:一次 ACP prompt</h2>
+    <div class="flow">
+      <div class="step"><div class="sn">1</div><div class="sl">initialize</div><div class="sd">能力協商</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">2</div><div class="sl">session/new</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">3</div><div class="sl">session/prompt</div></div><div class="arrow">→</div>
+      <div class="step"><div class="sn">4</div><div class="sl">session/update 串流</div><div class="sd">chunk/tool_call</div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>編輯器 client。<strong>下游:</strong>fs/terminal 反向請求由編輯器代為執行(享編輯器 undo/緩衝);turn 迴圈與 TUI 模式完全共用。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>grok agent stdio                        # 編輯器 spawn(Zed/Neovim/Emacs)
+grok agent serve --bind 127.0.0.1:2419 --secret &lt;token&gt;
+grok agent headless --grok-ws-url wss://...   # WebSocket relay</code></pre>
+</section>
+
+<!-- ===== c-config ===== -->
+<section class="pane" id="c-config">
+  <div class="page-kicker">元件詳解 · 底層</div>
+  <h1 class="page">Config & Auth</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><span>啟動時載入</span></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>6 層合併 + requirements 簽章 + auth 優先序</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-sampler')">模型設定</a><a onclick="go('c-mcp')">MCP 設定</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>要同時服務個人使用者(想自訂)與企業 IT(想強制政策且使用者不能覆寫)。用分層合併 + 簽章的 requirements 層兼顧兩者。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">6 層合併,上蓋下</span>由低到高:①<code>/etc/grok/managed_config.toml</code> → ②<code>$GROK_HOME/managed_config.toml</code> → ③<code>$GROK_HOME/config.toml</code>(主要使用者設定) → ④<code>requirements.toml</code>(Ed25519 簽章) → ⑤<code>/etc/grok/requirements.toml</code> → ⑥macOS MDM。CLI flag &gt; ENV &gt; 以上檔案。<span class="fp">crates/codegen/xai-grok-config</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <ul>
+    <li><strong>合併</strong>:<code>deep_merge_toml</code> + <code>expand_env_vars_in_toml</code>;<code>grok_home()</code> = <code>$GROK_HOME</code> 否則 <code>~/.grok</code>。</li>
+    <li><strong>requirements 簽章</strong>:企業政策靜態 Ed25519 簽章,啟動驗簽,可 fail-closed(拒絕啟動)防本機竄改。</li>
+    <li><strong>認證優先序</strong>:per-model api_key/env_key &gt; 現行 session token &gt; <code>XAI_API_KEY</code>。首次啟動開瀏覽器登入,存 <code>~/.grok/auth.json</code>;支援 OIDC/SSO、外部 auth provider。</li>
+  </ul>
+  <div class="section-steps s-steps"><h2><span class="secnum">3.5</span>逐步推演:找 token</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>依序找可用 token</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">1</span><span class="dres">per-model <code>api_key</code>/<code>env_key</code>(設定檔指定)</span></div>
+          <div class="dbranch cs"><span class="dtag">2</span><span class="dres">現行 session token(瀏覽器登入)</span></div>
+          <div class="dbranch no"><span class="dtag">3</span><span class="dres">環境變數 <code>XAI_API_KEY</code></span></div>
+        </div></div>
+    </div>
+  </div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>下游:</strong>模型設定給 <a onclick="go('c-sampler')">sampler</a>、MCP server 給 <a onclick="go('c-mcp')">MCP</a>、sandbox profile 給 <a onclick="go('c-sandbox')">sandbox</a>、權限 rules 給工具。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>export XAI_API_KEY="xai-..."     # 非瀏覽器環境
+grok login                        # 瀏覽器 OAuth → ~/.grok/auth.json
+// 企業:/etc/grok/requirements.toml(Ed25519 簽章、fail-closed)</code></pre>
+</section>
+
+<!-- ===== c-sandbox ===== -->
+<section class="pane" id="c-sandbox">
+  <div class="page-kicker">元件詳解 · 底層 / 治理</div>
+  <h1 class="page">Sandbox</h1>
+  <div class="relbar">
+    <div class="relbox up"><div class="rl">上游</div><a onclick="go('c-config')">profile 來自設定</a></div>
+    <div class="relbox self"><div class="rl">本元件</div><span>OS 級沙箱:Landlock/Seatbelt + seccomp + bwrap</span></div>
+    <div class="relbox down"><div class="rl">下游</div><a onclick="go('c-tools')">限制工具/shell</a></div>
+  </div>
+  <div class="section-why s-why"><h2><span class="secnum">1</span>為什麼存在</h2><p>限制 agent(尤其它跑的 shell 指令)能碰的檔案與網路,把「模型犯錯或被惡意 prompt 誘導」的損害框起來。預設關閉,不信任任務建議開。</p></div>
+  <h2><span class="secnum">2</span>核心概念</h2>
+  <div class="callout note"><span class="ct">nono 包 Landlock/Seatbelt</span>進程啟動時套用 OS 級沙箱,基於 <code>nono</code> crate(包 Linux <strong>Landlock</strong> + macOS <strong>Seatbelt</strong>);子進程網路以 <strong>seccomp</strong> 阻擋(Linux)。<span class="fp">crates/codegen/xai-grok-sandbox</span></div>
+  <h2><span class="secnum">3</span>運作機制</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>Profile</th><th>讀取</th><th>寫入</th><th>網路</th></tr>
+    <tr><td><code>off</code></td><td>全部</td><td>全部</td><td>允許(預設)</td></tr>
+    <tr><td><code>workspace</code></td><td>全部</td><td>CWD + ~/.grok/ + temp</td><td>允許</td></tr>
+    <tr><td><code>devbox</code></td><td>全部</td><td>除 /data 外 top-level</td><td>允許</td></tr>
+    <tr><td><code>read-only</code></td><td>全部</td><td>~/.grok/ + temp</td><td>限制</td></tr>
+    <tr><td><code>strict</code></td><td>CWD+系統</td><td>最小</td><td>封鎖</td></tr>
+  </table></div>
+  <div class="callout warn"><span class="ct">Linux deny 三管齊下</span>Landlock 無「deny 特定路徑」原語,故讀 deny / devbox <code>/data</code> 寫 deny 靠 <strong>bubblewrap(bwrap)re-exec</strong> 補(<code>--ro-bind</code> 寫拒絕、bind-over chmod-000 讀拒絕)。專案設定<strong>只能新增</strong> profile、不能重定義全域(防惡意 workspace 掏空企業 profile)。</div>
+  <h2><span class="secnum">4</span>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>profile 來自 <a onclick="go('c-config')">config</a>(<code>--sandbox</code>/<code>GROK_SANDBOX</code>/<code>[sandbox]</code>)。<strong>下游:</strong>限制 <a onclick="go('c-tools')">工具/shell</a> 能碰的資源;事件記 <code>~/.grok/sandbox-events.jsonl</code>。</div>
+  <h2><span class="secnum">5</span>範例 / 設定</h2>
+  <pre><code>grok --sandbox workspace      # 或 GROK_SANDBOX=strict
+// ~/.grok/sandbox.toml 自訂 profile(只能新增)
+[profiles.myprofile]
+extends = "workspace"
+read_only = ["/etc"]
+deny = ["**/*.pem"]           # kernel 強制</code></pre>
+</section>
+
+<!-- ================= ★ ACTOR RUNTIME ================= -->
+<section class="pane" id="actor">
+  <div class="page-kicker gold">★ 教學主軸之一</div>
+  <h1 class="page">★ Actor Runtime 架構</h1>
+  <p class="page-sub">Grok Build 最獨特的設計:整個 runtime 是<strong>無鎖 actor 模型</strong>。這一章拆解兩個 actor 的分工、單執行緒 LocalSet + <code>!Send</code> 的取捨、以及 leader/follower 的崩潰重連。<span class="src">來源:<code>xai-grok-shell/src/session/</code>、<code>xai-chat-state</code></span></p>
+
+  <div class="callout gold"><span class="ct">核心命題</span>agent runtime 會併發跑很多事(串流、多工具、背景任務、子代理),共享可變狀態若用 <code>Arc&lt;Mutex&gt;</code> 容易競爭/死鎖、且在串流熱路徑上卡頓。Grok 的答案:<strong>狀態只被單一 task 擁有,其他人以 channel 送命令</strong> ── 天然序列化、無鎖、可單元測試。</div>
+
+  <div class="flow">
+    <div class="step"><div class="sn">actor 1</div><div class="sl">MvpAgent</div><div class="sd">ACP Agent trait · session map</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">actor 2</div><div class="sl">SessionActor</div><div class="sd">每 session · turn 引擎 · !Send</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">actor 3</div><div class="sl">ChatStateActor</div><div class="sd">對話狀態 · Send · 自己的 task</div></div>
+  </div>
+
+  <h2>三個 actor 的分工</h2>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">1</div><div class="line"></div></div><div class="body"><h3>MvpAgent ── ACP 前門</h3><p class="what">實作 ACP <code>Agent</code> trait,持有 session map 與 subagent coordinator,把 ACP JSON-RPC(<code>session/prompt</code> 等)翻成 <code>SessionCommand</code> 送給對應 SessionActor。<span class="fp">agent/mvp_agent/</span></p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">2</div><div class="line"></div></div><div class="body"><h3>SessionActor ── turn 引擎(!Send)</h3><p class="what">每個 session 一個。主迴圈 <code>run_session()</code> 是 <code>biased</code> 的 <code>tokio::select!</code>,監聽 completion(turn 完成)、cmd(SessionCommand)、chat-state 事件、內部 SessionEvent、memory 計時器。持有 <code>pending_inputs</code> 佇列與 <code>running_task</code>。<span class="fp">session/acp_session.rs</span></p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">3</div></div><div class="body"><h3>ChatStateActor ── 對話狀態擁有者(Send)</h3><p class="what">在自己的 tokio task 上跑,獨佔對話 <code>Vec&lt;ConversationItem&gt;</code>、usage ledger、pruning。外界只能經 <code>ChatStateHandle</code>(fire-and-forget 變更 + oneshot 查詢)存取,SessionActor 從不持鎖跨對話。<span class="fp">crates/codegen/xai-chat-state</span></p></div></div>
+
+  <h2>為何單執行緒 LocalSet + <code>!Send</code>?</h2>
+  <div class="callout note"><span class="ct">!Send 的取捨</span><code>SessionActor</code> 與 <code>MvpAgent</code> 是 <code>!Send</code>(不能跨執行緒搬),全部跑在一個 <code>tokio::task::LocalSet</code> 上,用 <code>spawn_local</code>。好處:單執行緒內狀態存取免同步、<code>RefCell</code>/<code>Cell</code> 安全可用;代價:需要 <code>LocalRef&lt;T&gt;</code>(<code>!Send</code> 原始指標包裝)把 <code>'static &amp;T</code> 餵進 <code>spawn_local</code> 閉包,附文件化的安全不變式。而 <code>ChatStateActor</code> 刻意做成 <strong>Send</strong>、跑在獨立 task,把「需要跨執行緒的對話狀態」與「單執行緒的 session 邏輯」切開。</div>
+
+  <h2>命令通道</h2>
+  <div class="kv">
+    <dt>mpsc</dt><dd>多生產者單消費者:所有 <code>SessionCommand</code>、<code>ChatStateCommand</code> 走 mpsc 送給 actor。</dd>
+    <dt>oneshot</dt><dd>需要回覆的查詢(如 <code>build_request</code>、<code>get_total_tokens</code>)附一個 oneshot sender。</dd>
+    <dt>biased select</dt><dd><code>run_session()</code> 用有優先序的 <code>tokio::select!</code>,先處理 completion/cmd 再處理計時器。</dd>
+  </div>
+
+  <div class="section-steps s-steps"><h2><span class="secnum">推演</span>從 prompt 到 turn task</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>SessionCommand::Prompt 進來</div>
+        <div class="dbranches"><div class="dbranch yes"><span class="dtag">queue_input</span><span class="dres">推入 <code>pending_inputs: VecDeque&lt;InputItem&gt;</code></span></div></div></div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>maybe_start_running_task:有 running task?</div>
+        <div class="dbranches">
+          <div class="dbranch no"><span class="dtag">無</span><span class="dres">取隊首 → spawn_local turn task → 跑 <a onclick="go('c-loop')">process_conversation_turn</a> → 結果經 completion channel 回</span></div>
+          <div class="dbranch cs"><span class="dtag">有</span><span class="dres">留在佇列,completion 後再 pump</span></div>
+        </div></div>
+    </div>
+  </div>
+
+  <h2>leader / follower 崩潰重連</h2>
+  <div class="callout gk"><span class="ct">🏛️ 一機一 leader</span>一台機器只跑<strong>一個 leader</strong> 進程,持有真正的 MvpAgent;各 client(TUI、IDE、headless WebSocket)經 <strong>Unix-domain socket</strong> 以 ACP 連上,client 只是<strong>薄橋接</strong>。<code>LeaderReconnector</code> + <code>StdioReplayState</code> 提供崩潰重連 ── 重放快取的 <code>initialize</code> 與每個 <code>session/load</code>(<code>replay_acp_state_after_reconnect</code>),TUI 崩潰後 agent 仍在背景存活可無縫接回。</div>
+  <div class="callout gold" style="margin-top:8px"><span class="ct">為何值得</span>agent 一個 turn 可能跑數分鐘。把 agent 抽到常駐 leader,front-end 可拋棄 ── TUI 崩潰、重開、換 IDE client 都能重連回同一個仍在推進的 session,也讓 dashboard 統一管理成為可能。</div>
+</section>
+
+<!-- ================= ★ 生產級工程亮點 ================= -->
+<section class="pane" id="prod">
+  <div class="page-kicker blue">★ 教學主軸之二</div>
+  <h1 class="page">★ 生產級工程亮點</h1>
+  <p class="page-sub">一個成熟 CLI agent 的工程量,大半花在「邊緣情況」而非主功能。這一章收錄 Grok Build 幾個「底層決策向上決定架構」與「為真實故障而生」的設計。<span class="src">來源:原始碼註解與 crate 文件</span></p>
+
+  <div class="callout gold"><span class="ct">核心觀察</span>下面每一項都不是炫技,而是<strong>踩過坑或想清楚後的防禦性設計</strong>。它們共同解釋了「為何一個 coding agent 需要 84 個 crate」。</div>
+
+  <div class="implgroup gold">
+    <div class="gh">① <code>panic = "abort"</code> 的連鎖影響</div>
+    <div class="implrow"><div class="it">決策</div><div class="ix">出貨 build(dev/release/release-dist)全用 <code>panic = "abort"</code> ── panic 直接終止進程、不 unwind。更小更快,但<strong>讓 <code>catch_unwind</code> 形同無效</strong>。</div></div>
+    <div class="implrow"><div class="it">後果:Mermaid 子進程隔離</div><div class="ix">渲染「不受信任的模型生成 Mermaid」無法在進程內用 catch_unwind 攔 panic → 改成 pager <strong>re-exec 自己</strong>成 <code>__mermaid-render</code> 子進程惰性渲染,子進程 panic/timeout 被 <code>run_with_timeout</code>(SIGKILL 收 process group)隔離,退回 code block。<span class="fp">xai-grok-mermaid</span></div></div>
+    <div class="implrow"><div class="it">後果:gix 執行緒預算</div><div class="ix"><code>panic=abort</code> + 緊 <code>RLIMIT_NPROC</code> 下,gix status 的 <code>spawn_scoped</code> 若失敗會 abort 整個進程 → <code>xai-gix-status</code> 限制 produce worker 執行緒數(上限 8)。</div></div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">② 工具並行 + 同檔序列化</div>
+    <div class="implrow"><div class="it">機制</div><div class="ix">核准的 tool_call 以 <code>FuturesUnordered</code> 全並行送出,但觸及同一檔案的(<code>lock_path_for_args</code> 取 file_path/path/target_file)共用 per-file <code>tokio::sync::Mutex</code>。</div></div>
+    <div class="implrow"><div class="it">為何</div><div class="ix">最大化 wall-clock 並行,同時保證同檔編輯依模型送出順序序列化、不互相踩踏;背景 drainer 依 index 把結果確定性折回。</div></div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">③ Auth retry 排程(一個真實 bug 的教訓)</div>
+    <div class="implrow"><div class="it">硬編 1s/2s/4s</div><div class="ix">401 重試用硬編指數退避,<strong>有測試釘住</strong>。註解記載這是為避開曾造成「11.6 天 sleep」的 <code>from_millis(1000)</code> 陷阱。每次成功回應就重置(一個長 turn 可能跨越多次每小時 token 輪替)。</div></div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">④ 為真實故障而生的 crate</div>
+    <div class="implrow"><div class="it"><code>xai-sqlite-journal</code></div><div class="ix"><strong>NFS 上 WAL 的 mmap -shm 會 SIGBUS</strong> → 本地磁碟用 WAL、網路掛載改用 rollback journal。</div></div>
+    <div class="implrow"><div class="it"><code>xai-system-power</code></div><div class="ix">跨平台 sleep/wake 通知 → <strong>避免在筆電睡眠前一刻啟動 OIDC token refresh</strong>(醒來已過期)。</div></div>
+    <div class="implrow"><div class="it"><code>xai-circuit-breaker</code></div><div class="ix">HTTP circuit breaker(滑動視窗 + 最小樣本)→ 後端連續失敗時快速失敗,不狂重試打爆對方。</div></div>
+    <div class="implrow"><div class="it"><code>xai-grok-secrets</code></div><div class="ix">出站資料 regex 清洗 → 防 API key/路徑/email 隨遙測外洩(遙測本身可 opt-out)。</div></div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">⑤ TUI 渲染:idle frame 送 0 bytes</div>
+    <div class="implrow"><div class="it">繞過 ratatui draw</div><div class="ix">ratatui 內建 <code>Terminal::draw</code> 每幀都送 Show+MoveTo,會重置游標閃爍計時器(30fps 下游標看起來變實心)。Grok fork 了 ratatui Terminal,自訂 <code>draw_frame</code> 用 <code>CursorState::action()</code> 去重 ── <strong>無變化的幀送出 0 bytes</strong>,保留閃爍。</div></div>
+    <div class="implrow"><div class="it">同步輸出 + writer thread</div><div class="ix">每幀包在 DEC 2026 synchronized output(不閃爍/撕裂);frame bytes 經 mpsc 送專屬 writer thread,PTY 反壓只卡那條執行緒不卡 tokio 迴圈。</div></div>
+  </div>
+
+  <div class="implgroup gold">
+    <div class="gh">⑥ 為何 84 個 crate?</div>
+    <div class="implrow"><div class="it">建置平行化</div><div class="ix"><code>xai-grok-shell-base</code>、<code>-session-support</code> 純為從巨大 shell crate 拆出、獨立平行編譯,避免每次改 shell 全部重編。</div></div>
+    <div class="implrow"><div class="it">依賴反轉</div><div class="ix"><code>xai-grok-auth</code>、<code>xai-grok-config-types</code>、<code>xai-tool-types</code> 這類型別/trait seam 讓上下層不必直接互相依賴。</div></div>
+    <div class="implrow"><div class="it">版本隔離</div><div class="ix"><code>xai-grok-mcp</code> 隔離需 reqwest 0.13 的 rmcp;<code>xai-mixpanel</code> 取代 mixpanel-rs 以免拉進 reqwest 0.11 ── 避免同一二進位塞多份 HTTP stack。</div></div>
+  </div>
+
+  <div class="callout gold" style="margin-top:22px"><span class="ct">收束</span>這些「瑣碎」設計正是「能跑的 agent」與「能出貨的 agent」之間的距離。它們也呼應本頁主題:一個底層決策(<code>panic=abort</code>、NFS、筆電睡眠、Windows verbatim 路徑…)往往在整個 codebase 掀起連鎖的防禦性工程。</div>
+</section>
+
+<!-- ================= 🔍 84-CRATE 工作區 ================= -->
+<section class="pane" id="expose">
+  <div class="page-kicker">🔍 工作區導覽</div>
+  <h1 class="page">🔍 84-crate Cargo 工作區</h1>
+  <p class="page-sub">整包是一個 84 成員的 Cargo workspace,分三個子群。想快速定位某功能住在哪個 crate 時查這裡。<span class="src">來源:根 <code>Cargo.toml</code> 的 <code>[workspace] members</code></span></p>
+
+  <div class="callout note"><span class="ct">三分法判準</span><strong>codegen</strong>(62)=應用主體;<strong>common</strong>(11)=可被非 grok 產品重用的中立抽象;<strong>build</strong>(1)=建置期工具;另有 <strong>prod/mc</strong>(1)與 <strong>third_party</strong>(4,vendored Mermaid stack)。</div>
+
+  <div class="implgroup">
+    <div class="gh">crates/codegen/(62 · 應用主體)</div>
+    <div class="implrow"><div class="it">TUI / 渲染</div><div class="ix"><code>xai-grok-pager</code>(TUI 本體,~420K 行)· <code>-render</code> · <code>-minimal</code> · <code>-pty-harness</code> · <code>xai-ratatui-inline</code>(fork ratatui Terminal)· <code>xai-ratatui-textarea</code> · <code>xai-tty-utils</code> · <code>ptyctl</code>/<code>-cli</code></div></div>
+    <div class="implrow"><div class="it">Agent runtime</div><div class="ix"><code>xai-grok-shell</code>(~336K 行)· <code>-base</code> · <code>-session-support</code> · <code>xai-grok-agent</code> · <code>xai-agent-lifecycle</code> · <code>xai-chat-state</code> · <code>xai-prompt-queue</code> · <code>xai-grok-subagent-resolution</code></div></div>
+    <div class="implrow"><div class="it">工具 / workspace</div><div class="ix"><code>xai-grok-tools</code>(~112K)· <code>-tools-api</code> · <code>xai-grok-workspace</code>(+client/types)· <code>xai-codebase-graph</code> · <code>xai-hunk-tracker</code> · <code>xai-fast-worktree</code> · <code>xai-gix-status</code> · <code>xai-fsnotify</code> · <code>xai-file-utils</code></div></div>
+    <div class="implrow"><div class="it">模型 / 取樣</div><div class="ix"><code>xai-grok-models</code> · <code>xai-grok-sampler</code> · <code>xai-grok-sampling-types</code> · <code>xai-token-estimation</code></div></div>
+    <div class="implrow"><div class="it">擴充</div><div class="ix"><code>xai-grok-mcp</code> · <code>xai-grok-hooks</code> · <code>xai-hooks-plugins-types</code> · <code>xai-grok-plugin-marketplace</code> · <code>xai-acp-lib</code> · <code>xai-grok-voice</code></div></div>
+    <div class="implrow"><div class="it">設定 / 認證 / markdown</div><div class="ix"><code>xai-grok-config</code>(+types)· <code>-auth</code> · <code>-secrets</code> · <code>-env</code> · <code>-paths</code> · <code>-http</code> · <code>-memory</code> · <code>-markdown</code>(+core)· <code>-mermaid</code></div></div>
+    <div class="implrow"><div class="it">基礎建設</div><div class="ix"><code>xai-grok-sandbox</code> · <code>-telemetry</code> · <code>xai-mixpanel</code> · <code>xai-crash-handler</code> · <code>xai-sqlite-journal</code> · <code>-update</code> · <code>-version</code> · <code>-announcements</code> · <code>xai-system-power</code> · <code>-shared</code> · <code>-test-support</code> · <code>xai-tracing-macros</code></div></div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">crates/common/(11 · 共用抽象)</div>
+    <div class="implrow"><div class="it">Tool 抽象</div><div class="ix"><code>xai-tool-runtime</code>(統一 Tool trait/dispatch)· <code>xai-tool-protocol</code> · <code>xai-tool-types</code></div></div>
+    <div class="implrow"><div class="it">Computer Hub</div><div class="ix"><code>xai-computer-hub-core</code>(local-shadows-remote resolver)· <code>-sdk</code>(連線池/透明重連)· <code>-mcp-adapter</code></div></div>
+    <div class="implrow"><div class="it">其他共用</div><div class="ix"><code>xai-grok-compaction</code> · <code>xai-interjection-core</code> · <code>xai-circuit-breaker</code> · <code>xai-tracing</code> · <code>xai-test-utils</code></div></div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">crates/build · prod/mc · third_party(6)</div>
+    <div class="implrow"><div class="it">建置 / proxy</div><div class="ix"><code>xai-proto-build</code>(protobuf 建置)· <code>prod-mc-cli-chat-proxy-types</code></div></div>
+    <div class="implrow"><div class="it">vendored Mermaid stack</div><div class="ix"><code>mermaid-to-svg</code>(MIT)· <code>dagre_rust</code> · <code>graphlib_rust</code> · <code>ordered_hashmap</code>(Apache-2.0)── vendored 因為位於渲染「不受信任模型輸出」的路徑上,需完整稽核面。</div></div>
+  </div>
+
+  <div class="callout gk"><span class="ct">重點 crate</span>複雜度重心在 <code>xai-grok-pager</code>(TUI,420K 行)與 <code>xai-grok-shell</code>(runtime,336K 行)兩個 crate ── 合計已超過整包一半的程式碼。</div>
+</section>
+
+<!-- ================= 🔎 稽核/遙測 ================= -->
+<section class="pane" id="audit">
+  <div class="page-kicker">🔎 Audit & Telemetry</div>
+  <h1 class="page">🔎 稽核:留什麼 log、遙測給誰</h1>
+  <p class="page-sub">Grok Build 的稽核分兩面:給<strong>使用者</strong>的 session 持久化(resume/rewind),與給 <strong>xAI/企業</strong>的遙測(<strong>可 opt-out</strong>)。與 Claude Code「遙測無法關閉」不同,這是 Grok 在稽核哲學上的差異點。</p>
+
+  <div class="callout note"><span class="ct">兩面 audit</span>給使用者查核的是 session 記錄(supports resume/rewind);遙測(<span class="crate fp">xai-grok-telemetry</span>:product events + Mixpanel + Sentry + OTLP)則<strong>可經設定 opt-out</strong>,且出站前經 <span class="crate fp">xai-grok-secrets</span> regex 清洗(防 key/路徑/email 外洩)。</div>
+
+  <h2>審查資料存哪</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>類別</th><th>存放</th><th>給誰查</th></tr>
+    <tr><td><strong>Session</strong></td><td><code>~/.grok/sessions/&lt;cwd&gt;/&lt;id&gt;/</code>(summary/updates/chat_history/plan/rewind_points…)</td><td><strong>使用者</strong>:resume/continue/fork、rewind、崩潰復原</td></tr>
+    <tr><td><strong>遙測</strong></td><td>product events + Mixpanel + Sentry + OpenTelemetry(OTLP)</td><td><strong>xAI/企業</strong>:<strong>可 opt-out</strong>(<code>[features] telemetry=false</code> / <code>GROK_TELEMETRY_ENABLED=0</code>);外部 OTEL 需雙重 opt-in</td></tr>
+    <tr><td>secrets 清洗</td><td>出站前 regex 掃描</td><td>防 API key/user 路徑/email 外洩</td></tr>
+    <tr><td>Sandbox 事件</td><td><code>~/.grok/sandbox-events.jsonl</code></td><td>使用者/稽核:違規記錄</td></tr>
+    <tr><td>MCP stderr</td><td><code>~/.grok/logs/mcp/&lt;server&gt;.stderr.log</code></td><td>除錯 MCP server</td></tr>
+  </table></div>
+
+  <div class="callout key"><span class="ct">能查到什麼層級</span>session 目錄含逐則對話、plan、rewind points → 可完整重播/回捲一次對話。<a onclick="go('actor')">→ Actor / session</a>;遙測與清洗見 <a onclick="go('prod')">工程亮點 ④</a>。</div>
+  <p class="src">四框架的 audit 對照見 <a href="hermes-architecture.html#compare">總比較頁(Hermes 文件)</a>。本頁基於 <code>xai-org/grok-build</code> 公開鏡像整理。</p>
+</section>
+
+</main>
+
+<footer>
+  <p>本文件基於 xAI 的公開原始碼鏡像 <a href="https://github.com/xai-org/grok-build">xai-org/grok-build</a>(對應 monorepo commit <code>2ec0f0c8</code>)的 README、CONTRIBUTING 與 <code>crates/codegen/xai-grok-pager/docs/user-guide/</code> 整理而成 ── <strong>第三方技術整理、非 xAI 官方資料,僅供技術研究與教育,內容對應 2026 年快照可能與現況不符</strong>。主張多附 repo 檔案路徑(<span class="fp">crates/...</span>)。原始碼授權 Apache-2.0(第一方)。</p>
+  <p>𝕏 <strong>Grok Build Architecture Study</strong> · 為 Cathay DDT_MLE digital_colleague 整理 · 可與 <code>openclaw-architecture.html</code>、<code>hermes-architecture.html</code>、<code>claude-code-architecture.html</code> 並排對照(右上切換)</p>
+</footer>
+
+<script>
+const COMP = new Set(['comp-home','c-loop','c-tools','c-sampler','c-compaction','c-workspace','c-mcp','c-hooks','c-acp','c-config','c-sandbox']);
+function go(id){
+  if(!document.getElementById(id)) return;
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));
+  const t1 = COMP.has(id) ? 'comp-home' : id;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t1));
+  const sub=document.getElementById('subtabs');
+  if(COMP.has(id)){ sub.classList.add('show'); } else { sub.classList.remove('show'); }
+  document.querySelectorAll('#subtabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+  history.replaceState(null,'','#'+id);
+}
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.tab);});
+document.getElementById('subtabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.tab);});
+window.addEventListener('DOMContentLoaded',()=>{const h=location.hash.slice(1);if(h&&document.getElementById(h))go(h);});
+</script>
+</body>
+</html>

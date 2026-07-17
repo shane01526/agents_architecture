@@ -20,6 +20,9 @@ services:
       - type: rewrite
         source: /claude-code
         destination: /claude-code-architecture.html
+      - type: rewrite
+        source: /grok
+        destination: /grok-build-architecture.html
     headers:
       - path: /*
         name: X-Content-Type-Options
