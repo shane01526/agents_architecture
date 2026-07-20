@@ -978,6 +978,29 @@ deny = ["**/*.pem"]           # kernel 強制</code></pre>
   </div>
   <div class="callout gold"><span class="ct">為何值得</span>agent 一個 turn 可能跑數分鐘。把 agent 抽到常駐 leader(<code>--no-exit-on-disconnect</code>)、front-end 可拋棄 ── TUI 崩潰、重開、換 IDE client 都能重連回<strong>同一個仍在推進的 session</strong>;leader 持有所有耐久狀態、load 時還會修復前次崩潰留下的懸空 tool_call。</div>
 
+  <h2>與其他框架的對照:誰也用 actor?</h2>
+  <p>把「actor model」定義成三個特徵 ── ① <strong>狀態被單一 task 獨佔、只能傳訊息改(無共享鎖)</strong> ② <strong>單執行緒 <code>LocalSet</code> + <code>!Send</code></strong> ③ <strong>leader/follower 崩潰重連</strong> ── 拿去比其他四個 agent,結論是:<strong>它們都有「並行控制 + 每 session 序列化」,但沒有一個是 Grok 這種純粹的 actor model</strong>。</p>
+  <div class="callout gold"><span class="ct">結論</span>Grok 的 actor runtime 是這五者中<strong>最純粹</strong>的。最接近的 <strong>Codex</strong> 也是 Rust、也有「佇列→事件」迴圈,但在最關鍵的「狀態所有權」上選了<strong>相反路線</strong>:共享狀態 + <code>Mutex</code>,而非 actor 獨佔。其餘三者用鎖/佇列/多進程達到類似的「每 session 序列化」目標,但不是 actor。</div>
+
+  <div class="scrollwrap"><table>
+    <tr><th>特徵</th><th>𝕏 Grok</th><th>✳ Codex</th><th>✳ Claude Code</th><th>🦞 OpenClaw</th><th>☤ Hermes</th></tr>
+    <tr><td>狀態管理</td><td><strong>actor 獨佔 + 傳訊息(無鎖)</strong></td><td>共享 + <code>Mutex</code>/<code>RwLock</code></td><td>共享(單執行緒)</td><td>佇列 + 檔案鎖</td><td>佇列 / 各進程獨立</td></tr>
+    <tr><td>執行緒模型</td><td><strong>單執行緒 LocalSet + <code>!Send</code></strong>(前台)</td><td>多執行緒 tokio + <code>Send</code></td><td>單執行緒 async</td><td>Node 事件迴圈 + lane</td><td>Python;多進程(Kanban)</td></tr>
+    <tr><td>每 session 序列化</td><td>SessionActor(1 turn)</td><td><code>Mutex&lt;ActiveTurn&gt;</code></td><td>單對話迴圈</td><td><strong>session lane + write lock</strong></td><td>active session 佇列</td></tr>
+    <tr><td>工具並行</td><td>FuturesUnordered + per-file mutex</td><td>FuturesOrdered + 一把 RwLock</td><td>分區 safe/serial</td><td>8 層 policy 後執行</td><td>delegate(3)/Kanban</td></tr>
+    <tr><td>常駐 + 重接</td><td><strong>leader/follower 崩潰重連</strong></td><td>app-server + Unix-socket daemon(ThreadId 共享 / resume)</td><td>Bridge 各開 session</td><td>Gateway 常駐</td><td>Gateway 常駐</td></tr>
+    <tr><td><strong>是 actor model?</strong></td><td><strong>✅ 是(最純)</strong></td><td>❌ 共享鎖 + 佇列</td><td>❌ 單執行緒共享</td><td>❌ lane 佇列</td><td>❌ 多進程</td></tr>
+  </table></div>
+
+  <h3>各框架一句話(它們怎麼保護狀態)</h3>
+  <div class="kv">
+    <dt>✳ Codex</dt><dd><strong>submission-queue → Op → event 迴圈 + 共享鎖狀態</strong>。<code>Session</code> 用 <code>Mutex&lt;SessionState&gt;</code>/<code>Mutex&lt;ActiveTurn&gt;</code>,對話歷史活在鎖裡(<span class="fp">codex-rs/core/src/session/session.rs</span>);多執行緒 tokio(<span class="fp">arg0/src/lib.rs</span> <code>new_multi_thread</code>);子代理 spawn 獨立 peer Session,靠 <code>Mutex</code> 的 <code>AgentRegistry</code> + LRU <code>V2Residency</code> 協調(<span class="fp">core/src/agent/</span>);多客戶端經 app-server daemon 共享 <code>ThreadManager</code>、按 ThreadId 重接。<strong>不是 actor</strong>(狀態共享、非單 task 獨佔)。</dd>
+    <dt>✳ Claude Code</dt><dd><strong>分區工具並行,但單人單終端</strong>。<code>StreamingToolExecutor</code> 把工具分 concurrency-safe(並行)vs serial(序列)── 與 Grok 的 per-file mutex 近似;但狀態非「單 task 獨佔」,多使用者要靠 Bridge 各開 CLI session。</dd>
+    <dt>🦞 OpenClaw</dt><dd><strong>lane 佇列 + 檔案鎖</strong>。兩層 lane(session lane 每 session 序列化 + 全域 main lane 並行上限 4)+ 檔案層 write lock + queue 模式(steer/interrupt…)。目標與 SessionActor 一致,但靠佇列+鎖而非 actor 獨佔。</dd>
+    <dt>☤ Hermes</dt><dd><strong>多進程 worker</strong>。即時對話走 gateway session 佇列;重活走 Kanban ── 把任務派給<strong>獨立 OS 進程</strong>(<code>hermes -p</code>,claim/TTL/breaker)+ delegate_task(同進程 3 並行)。是「多進程並行」,與 Grok「單進程內多 actor」不同層次。</dd>
+  </div>
+  <div class="callout note"><span class="ct">白話小結</span>大家都要解「多件事同時發生別把對話搞亂」,差在<strong>怎麼保護狀態</strong>:Grok =「東西只給一個管家,別人傳紙條」(actor,無鎖);Codex / Claude Code =「東西放共用桌上,要動先拿鎖」(共享 + Mutex);OpenClaw =「排隊 + 檔案鎖」;Hermes =「乾脆每個工人開一個獨立進程」。<span class="src">Codex 部分為 <code>openai/codex</code> 官方 repo 現場查閱(Rust workspace <code>codex-rs</code>);其餘為各 repo/鏡像 2026 快照,細節可能隨版本變動。四框架完整對照另見各文件與總比較頁。</span></div>
+
   <h2>與其他元件的關係</h2>
   <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>ACP client 經 UDS → MvpAgent。<strong>turn 內:</strong>SessionActor 的 turn task 跑 <a onclick="go('c-loop')">Agent Loop</a>、經 <a onclick="go('c-tools')">工具並行 + per-file mutex</a> 執行工具、向 ChatStateActor 要 <a onclick="go('c-compaction')">壓縮後的請求</a>。<strong>沙箱:</strong>工具執行受 <a onclick="go('c-sandbox')">sandbox</a> 約束。</div>
 </section>
