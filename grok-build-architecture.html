@@ -891,44 +891,87 @@ deny = ["**/*.pem"]           # kernel 強制</code></pre>
   <h1 class="page">★ Actor Runtime 架構</h1>
   <p class="page-sub">Grok Build 最獨特的設計:整個 runtime 是<strong>無鎖 actor 模型</strong>。這一章拆解兩個 actor 的分工、單執行緒 LocalSet + <code>!Send</code> 的取捨、以及 leader/follower 的崩潰重連。<span class="src">來源:<code>xai-grok-shell/src/session/</code>、<code>xai-chat-state</code></span></p>
 
-  <div class="callout gold"><span class="ct">核心命題</span>agent runtime 會併發跑很多事(串流、多工具、背景任務、子代理),共享可變狀態若用 <code>Arc&lt;Mutex&gt;</code> 容易競爭/死鎖、且在串流熱路徑上卡頓。Grok 的答案:<strong>狀態只被單一 task 擁有,其他人以 channel 送命令</strong> ── 天然序列化、無鎖、可單元測試。</div>
+  <div class="callout gold"><span class="ct">核心命題</span>agent runtime 會併發跑很多事(串流、多工具、背景任務、子代理),共享可變狀態若用 <code>Arc&lt;Mutex&gt;</code> 容易競爭/死鎖、且在串流熱路徑上卡頓。Grok 的答案:<strong>狀態只被單一 task 擁有,其他人以 channel 送命令</strong> ── 天然序列化、無鎖、可單元測試。這裡有個關鍵的<strong>雙軌設計</strong>:shell/agent 跑在單執行緒 <code>LocalSet</code>(<code>!Send</code>),而 <code>ChatStateActor</code> 刻意做成 <strong>Send</strong>、跑在一般多執行緒 tokio task 上。</div>
 
   <div class="flow">
-    <div class="step"><div class="sn">actor 1</div><div class="sl">MvpAgent</div><div class="sd">ACP Agent trait · session map</div></div><div class="arrow">→</div>
-    <div class="step"><div class="sn">actor 2</div><div class="sl">SessionActor</div><div class="sd">每 session · turn 引擎 · !Send</div></div><div class="arrow">→</div>
-    <div class="step"><div class="sn">actor 3</div><div class="sl">ChatStateActor</div><div class="sd">對話狀態 · Send · 自己的 task</div></div>
+    <div class="step"><div class="sn">actor 1</div><div class="sl">MvpAgent</div><div class="sd">ACP 前門 · session map · !Send</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">actor 2</div><div class="sl">SessionActor</div><div class="sd">每 session · turn 引擎 · !Send · 專屬 OS 執行緒</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">actor 3</div><div class="sl">ChatStateActor</div><div class="sd">對話狀態 · Send · 自己的 tokio task</div></div>
   </div>
 
-  <h2>三個 actor 的分工</h2>
-  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">1</div><div class="line"></div></div><div class="body"><h3>MvpAgent ── ACP 前門</h3><p class="what">實作 ACP <code>Agent</code> trait,持有 session map 與 subagent coordinator,把 ACP JSON-RPC(<code>session/prompt</code> 等)翻成 <code>SessionCommand</code> 送給對應 SessionActor。<span class="fp">agent/mvp_agent/</span></p></div></div>
-  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">2</div><div class="line"></div></div><div class="body"><h3>SessionActor ── turn 引擎(!Send)</h3><p class="what">每個 session 一個。主迴圈 <code>run_session()</code> 是 <code>biased</code> 的 <code>tokio::select!</code>,監聽 completion(turn 完成)、cmd(SessionCommand)、chat-state 事件、內部 SessionEvent、memory 計時器。持有 <code>pending_inputs</code> 佇列與 <code>running_task</code>。<span class="fp">session/acp_session.rs</span></p></div></div>
-  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">3</div></div><div class="body"><h3>ChatStateActor ── 對話狀態擁有者(Send)</h3><p class="what">在自己的 tokio task 上跑,獨佔對話 <code>Vec&lt;ConversationItem&gt;</code>、usage ledger、pruning。外界只能經 <code>ChatStateHandle</code>(fire-and-forget 變更 + oneshot 查詢)存取,SessionActor 從不持鎖跨對話。<span class="fp">crates/codegen/xai-chat-state</span></p></div></div>
+  <h2>三個 actor 的分工(誰擁有什麼、Send 與否)</h2>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">1</div><div class="line"></div></div><div class="body"><h3>MvpAgent ── ACP 前門(<code>!Send</code>)</h3>
+    <p class="what">實作 ACP <code>Agent</code> trait(<code>#[async_trait(?Send)]</code>),trait 方法有 <code>authenticate</code> / <code>new_session</code> / <code>load_session</code> / <code>prompt</code>。把 ACP JSON-RPC 翻成 <code>SessionCommand</code> 送給對應的 SessionActor。</p>
+    <p class="what"><strong>持有的狀態全是單執行緒內部可變</strong>:<code>sessions: RefCell&lt;HashMap&lt;SessionId, SessionHandle&gt;&gt;</code>、<code>session_threads</code>、<code>loading_sessions</code>、<code>dispatch_locks</code>、<code>subagent_coordinator: RefCell&lt;…&gt;</code>;每個欄位標了 <code>LEADER-SAFE(...)</code>。另有一個 <strong>Send + Sync</strong> 的 <code>activity</code> 鏡像 ── 因為 leader 的自動更新檢查器讀不到上面那些 <code>!Send</code> map。<span class="fp">agent/mvp_agent/mod.rs:594</span></p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">2</div><div class="line"></div></div><div class="body"><h3>SessionActor ── turn 引擎(<code>!Send</code>,跑在專屬 OS 執行緒)</h3>
+    <p class="what">每個 session 一個,構造在<strong>自己的 OS 執行緒</strong>(<code>ses-…</code>,8 MiB stack)上、跑一個 <code>current_thread</code> runtime + <code>LocalSet</code>,<strong>永不跨執行緒</strong>;只有 <code>Send</code> 的結果(SessionHandle 等)經 oneshot 傳回。</p>
+    <p class="what">它擁有的 <code>State</code> 刻意<strong>只留任務排程</strong>:<code>running_task: Option&lt;AgentTask&gt;</code>、<code>pending_inputs: VecDeque&lt;InputItem&gt;</code>、<code>pending_notifications</code>、<code>rewindable</code>、<code>nudges_used_this_session</code>。所有對話狀態(conversation / tokens / timing / sampling…)<strong>已全數遷到 ChatStateActor</strong>,session 只經 <code>chat_state_handle</code> 觸達。<span class="fp">session/acp_session.rs:269, 564</span></p></div></div>
+  <div class="station"><div class="rail"><div class="dot" style="border-color:var(--gold);color:var(--gold)">3</div></div><div class="body"><h3>ChatStateActor ── 對話狀態擁有者(<strong>Send</strong>)</h3>
+    <p class="what">在自己的 <code>tokio::spawn</code> task(<strong>非</strong> spawn_local)上跑,獨佔 <code>ChatState</code>:<code>conversation: Vec&lt;ConversationItem&gt;</code>、<code>prompt_index</code>、<code>total_tokens</code> 與 token 估算、<code>prompt_usage</code>/<code>session_usage</code> 帳本、<code>agent_edited_paths</code>、turn 捕捉、harness trace。<strong>所有欄位由 actor task 獨佔 ── 無鎖</strong>。persistence trait 要求 <code>Send + 'static</code>。外界只能經 <code>ChatStateHandle</code>(fire-and-forget 變更 + oneshot 查詢)存取。<span class="fp">xai-chat-state/src/actor/{mod,state}.rs</span></p></div></div>
 
-  <h2>為何單執行緒 LocalSet + <code>!Send</code>?</h2>
-  <div class="callout note"><span class="ct">!Send 的取捨</span><code>SessionActor</code> 與 <code>MvpAgent</code> 是 <code>!Send</code>(不能跨執行緒搬),全部跑在一個 <code>tokio::task::LocalSet</code> 上,用 <code>spawn_local</code>。好處:單執行緒內狀態存取免同步、<code>RefCell</code>/<code>Cell</code> 安全可用;代價:需要 <code>LocalRef&lt;T&gt;</code>(<code>!Send</code> 原始指標包裝)把 <code>'static &amp;T</code> 餵進 <code>spawn_local</code> 閉包,附文件化的安全不變式。而 <code>ChatStateActor</code> 刻意做成 <strong>Send</strong>、跑在獨立 task,把「需要跨執行緒的對話狀態」與「單執行緒的 session 邏輯」切開。</div>
+  <h2>為何單執行緒 LocalSet + <code>!Send</code>?(取捨)</h2>
+  <div class="callout note"><span class="ct">好處 vs 代價</span>agent 與 session 跑單執行緒 LocalSet,讓龐大的物件圖(Agent、ToolBridge、hook registry、plan/goal tracker)幾乎全用零開銷的 <code>Cell</code>/<code>RefCell</code>/<code>Rc</code> ── <strong>無鎖、無 Send 約束</strong>;turn task、subagent handler 都 <code>spawn_local</code>。<strong>代價</strong>:此圖裡沒有東西能搬到別的 worker thread;阻塞工作必須刻意推離執行緒。而 <code>ChatStateActor</code> 是唯一「值得離開 LocalSet」的部分 ── 它做 persistence I/O 與整段對話 clone,放到多執行緒池才不會卡住 session 的 turn 迴圈。</div>
+  <div class="callout gk"><span class="ct"><code>LocalRef&lt;T&gt;</code> ── 'static 原始指標逃生口</span><code>spawn_local</code> 的閉包要 <code>'static</code>,但實際只需要一個 <code>&amp;T</code>。<code>LocalRef{ ptr: *const T }</code> 包住原始指標,<code>get()</code> 用 <code>unsafe</code> 還原 <code>&amp;T</code>。三條<strong>安全不變式</strong>:① <code>T</code> heap 配置且永不移動(在 <code>Rc</code> 後或由 ACP 連線持有整個進程壽命);② 全部存取在<strong>同一個 LocalSet 執行緒</strong>(靠 <code>*const T</code> 讓 <code>LocalRef</code> 自動 <code>!Send</code> 從結構上保證);③ 不得比 LocalSet 活得久。用來把 <code>&amp;MvpAgent</code> 餵進脫離的 subagent coordinator <code>spawn_local</code> task。<span class="fp">agent/mvp_agent/mod.rs:21</span></div>
 
-  <h2>命令通道</h2>
+  <h2>命令通道:mpsc(信箱)vs oneshot(問答)</h2>
   <div class="kv">
-    <dt>mpsc</dt><dd>多生產者單消費者:所有 <code>SessionCommand</code>、<code>ChatStateCommand</code> 走 mpsc 送給 actor。</dd>
-    <dt>oneshot</dt><dd>需要回覆的查詢(如 <code>build_request</code>、<code>get_total_tokens</code>)附一個 oneshot sender。</dd>
-    <dt>biased select</dt><dd><code>run_session()</code> 用有優先序的 <code>tokio::select!</code>,先處理 completion/cmd 再處理計時器。</dd>
+    <dt>mpsc</dt><dd>actor 信箱與事件流:<code>ChatStateActor.cmd_rx</code>、<code>SessionActor</code> 的 <code>cmd_rx</code>/<code>event_rx</code>、turn <code>completion_tx/rx</code>(多生產者,cloned 進每個 turn/wake)、subagent <code>event_tx/rx</code>。關閉所有 sender 即結束該 actor。</dd>
+    <dt>oneshot</dt><dd>單次請求→回覆:每個 query 在 <code>ChatStateHandle::query</code> 內配一個新 <code>oneshot::channel()</code>,reply sender 塞進 command 變體;<code>InputItem</code> 也帶 <code>respond_to: oneshot&lt;PromptTurnResult&gt;</code>(client 的 <code>session/prompt</code> 回覆)。</dd>
+    <dt>watch</dt><dd>連線狀態 / 模型切換:<code>model_switch_rx</code>、leader <code>ConnectionStatus</code>。</dd>
   </div>
+  <div class="callout note"><span class="ct">query 的失敗語意</span><code>query()</code> 若 send 失敗或 reply 被 drop → 回 <code>None</code>(actor 已死)。但計費類讀取刻意 <strong>fail-closed</strong>:<code>try_get_prompt_usage</code> 回 <code>Result&lt;…,()&gt;</code>,註解明言「讀不到帳單絕不可當成免費 prompt ── 別把 Err 收斂成 None」。</div>
 
-  <div class="section-steps s-steps"><h2><span class="secnum">推演</span>從 prompt 到 turn task</h2>
+  <div class="section-steps s-steps"><h2><span class="secnum">推演</span><code>run_session</code> 的 biased select 與一個 turn 的誕生</h2>
+    <p class="intro"><code>run_session()</code>(<span class="fp">session/acp_session_impl/run_loop.rs:85</span>)是一個 <code>tokio::select! { biased; … }</code>,分支<strong>依優先序</strong>排列:</p>
     <div class="dflow">
-      <div class="dnode"><div class="dq"><span class="qi">◇</span>SessionCommand::Prompt 進來</div>
-        <div class="dbranches"><div class="dbranch yes"><span class="dtag">queue_input</span><span class="dres">推入 <code>pending_inputs: VecDeque&lt;InputItem&gt;</code></span></div></div></div>
-      <div class="dnode"><div class="dq final"><span class="qi">◇</span>maybe_start_running_task:有 running task?</div>
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>biased select 的分支(高→低優先)</div>
         <div class="dbranches">
-          <div class="dbranch no"><span class="dtag">無</span><span class="dres">取隊首 → spawn_local turn task → 跑 <a onclick="go('c-loop')">process_conversation_turn</a> → 結果經 completion channel 回</span></div>
-          <div class="dbranch cs"><span class="dtag">有</span><span class="dres">留在佇列,completion 後再 pump</span></div>
+          <div class="dbranch cs"><span class="dtag">1 idle-flush 計時器</span><span class="dres">記憶體 flush(比對 conversation 長度水位)→ spawn_local <code>run_memory_flush</code></span></div>
+          <div class="dbranch cs"><span class="dtag">2 dream-check 計時器</span><span class="dres"><code>maybe_run_dream()</code></span></div>
+          <div class="dbranch cs"><span class="dtag">3 model-switch watch</span><span class="dres"><code>handle_model_switch_for_laziness</code>(重置 nudges)</span></div>
+          <div class="dbranch cs"><span class="dtag">4 chat-state 事件</span><span class="dres"><code>ConversationReset</code> / <code>ImageBudget</code> 等</span></div>
+          <div class="dbranch cs"><span class="dtag">5 SessionEvent</span><span class="dres">replay buffer:<code>Notification</code> / <code>FlushReplay</code></span></div>
+          <div class="dbranch yes"><span class="dtag">6 turn completion</span><span class="dres">收 <code>(prompt_id, result)</code> → handle_completion/turn_end → 再 pump 下一個</span></div>
+          <div class="dbranch no"><span class="dtag">7 命令 cmd_rx</span><span class="dres"><code>None</code> = 通道關閉 → session 收尾 return;否則 match 每個 <code>SessionCommand</code></span></div>
+        </div></div>
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>Prompt 進來 → 入佇列</div>
+        <div class="dbranches"><div class="dbranch yes"><span class="dtag">queue_input</span><span class="dres">推 <code>InputItem</code> 進 <code>pending_inputs</code> → 呼叫 <code>maybe_start_running_task</code></span></div></div></div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>maybe_start_running_task:已有 running_task?</div>
+        <div class="dbranches">
+          <div class="dbranch no"><span class="dtag">無</span><span class="dres">取隊首 → 建 <code>AgentTask::new_prompt</code>(內部 <code>spawn_local run_task</code>,同 LocalSet)→ 跑 <a onclick="go('c-loop')">handle_prompt</a> → <code>completion_tx.send((prompt_id, result))</code></span></div>
+          <div class="dbranch cs"><span class="dtag">有(≤1 turn)</span><span class="dres">留佇列;completion 後才 promote 下一個</span></div>
         </div></div>
     </div>
+    <p class="stepnote">關鍵不變式:一個 session <strong>同時最多一個 turn</strong>(<code>running_task.is_some()</code> 就早退);turn 在<strong>同一條 session LocalSet</strong> 上 <code>spawn_local</code>,不是另開執行緒。</p>
   </div>
 
+  <h2>對話狀態的「只在寫邊界修復」不變式</h2>
+  <div class="callout note"><span class="ct">為何讀路徑不修復</span>對話完整性修復(補救懸空 tool_call)只在 <code>ChatState::new()</code>、<code>push_user_message()</code>、<code>BuildConversationRequest</code> 這些<strong>寫邊界</strong>跑,<strong>絕不</strong>在讀 handler 跑 ── 因為背景任務與工具執行並行,讀路徑修復會把「進行中的呼叫」誤判為懸空。同理 <code>ReplaceSystemHead</code>/<code>RepairHistory</code> 在 actor 命令迴圈內序列化,避免 mid-turn 重連的 lost-update race。</div>
+
   <h2>leader / follower 崩潰重連</h2>
-  <div class="callout gk"><span class="ct">🏛️ 一機一 leader</span>一台機器只跑<strong>一個 leader</strong> 進程,持有真正的 MvpAgent;各 client(TUI、IDE、headless WebSocket)經 <strong>Unix-domain socket</strong> 以 ACP 連上,client 只是<strong>薄橋接</strong>。<code>LeaderReconnector</code> + <code>StdioReplayState</code> 提供崩潰重連 ── 重放快取的 <code>initialize</code> 與每個 <code>session/load</code>(<code>replay_acp_state_after_reconnect</code>),TUI 崩潰後 agent 仍在背景存活可無縫接回。</div>
-  <div class="callout gold" style="margin-top:8px"><span class="ct">為何值得</span>agent 一個 turn 可能跑數分鐘。把 agent 抽到常駐 leader,front-end 可拋棄 ── TUI 崩潰、重開、換 IDE client 都能重連回同一個仍在推進的 session,也讓 dashboard 統一管理成為可能。</div>
+  <div class="callout gk"><span class="ct">🏛️ 一機一 leader</span>一台機器只跑<strong>一個 leader</strong> 進程,持有真正的 MvpAgent 與所有共享狀態、持久化到 <code>~/.grok/</code>;各 client(TUI、IDE、headless)經 <strong>Unix-domain socket</strong>(<code>~/.grok/leader.sock</code>)以 ACP 連上,client 只是<strong>薄橋接</strong>。用 OS <code>flock</code> 協調:<code>connect_or_spawn</code> 先試現有 socket,否則搶鎖 spawn(<code>grok agent leader --no-exit-on-disconnect</code>);發現比自己舊的 leader 會<strong>驅逐</strong>(version-floor,收斂到最新)。<span class="fp">leader/mod.rs:1205</span></div>
+  <div class="section-steps s-steps"><h2><span class="secnum">推演</span>client 崩潰後如何無縫接回</h2>
+    <div class="dflow">
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>client 偵測 leader 連線斷(<code>leader_rx.recv()==None</code>)</div>
+        <div class="dbranches"><div class="dbranch cs"><span class="dtag">LeaderReconnector.reconnect</span><span class="dres">指數退避 1s→2s→…→30s cap;TUI=Unbounded(重試到取消)、headless=Bounded(max_attempts)</span></div></div></div>
+      <div class="dnode"><div class="dq"><span class="qi">◇</span>重連成功 → 先換通道,再通知</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">swap first</span><span class="dres">先把新的 <code>leader_rx</code>/<code>leader_tx</code> 換上,<strong>再</strong> <code>notify_connected()</code> ── 否則觀察者收到 Connected 會寫進已死的 sender</span></div>
+          <div class="dbranch no"><span class="dtag">丟棄 stale</span><span class="dres">為死連線組的 outbound line <strong>持有後丟棄、絕不重放</strong>(重放 stale <code>session/load</code> 會 double-replay transcript)</span></div>
+        </div></div>
+      <div class="dnode"><div class="dq final"><span class="qi">◇</span>replay_acp_state_after_reconnect(stdio 前端)</div>
+        <div class="dbranches">
+          <div class="dbranch yes"><span class="dtag">先 initialize</span><span class="dres">重放快取的 <code>initialize</code>(被拒即 bail)</span></div>
+          <div class="dbranch yes"><span class="dtag">再逐一 session/load</span><span class="dres"><strong>嚴格序列、each awaits its response</strong>;只吞回自己那筆 response、其餘 <code>session/update</code> 原樣轉給 client</span></div>
+          <div class="dbranch cs"><span class="dtag">防 race</span><span class="dres">leader 端 <code>loading_sessions</code> + <code>wait_for_in_flight_session_load</code> 讓緊隨的 <code>session/prompt</code> 等 load 完成而非報「unknown session id」</span></div>
+        </div></div>
+    </div>
+    <p class="stepnote"><code>StdioReplayState</code> 追蹤<strong>每一個</strong>開啟的 session(不只最後一個)── 一次 leader 崩潰必須全部復原,否則其他 session 會以「unknown session id」死掉。<span class="fp">xai-grok-pager-bin/src/main.rs:638, 885</span></p>
+  </div>
+  <div class="callout gold"><span class="ct">為何值得</span>agent 一個 turn 可能跑數分鐘。把 agent 抽到常駐 leader(<code>--no-exit-on-disconnect</code>)、front-end 可拋棄 ── TUI 崩潰、重開、換 IDE client 都能重連回<strong>同一個仍在推進的 session</strong>;leader 持有所有耐久狀態、load 時還會修復前次崩潰留下的懸空 tool_call。</div>
+
+  <h2>與其他元件的關係</h2>
+  <div class="callout note"><span class="ct">連到鄰居</span><strong>上游:</strong>ACP client 經 UDS → MvpAgent。<strong>turn 內:</strong>SessionActor 的 turn task 跑 <a onclick="go('c-loop')">Agent Loop</a>、經 <a onclick="go('c-tools')">工具並行 + per-file mutex</a> 執行工具、向 ChatStateActor 要 <a onclick="go('c-compaction')">壓縮後的請求</a>。<strong>沙箱:</strong>工具執行受 <a onclick="go('c-sandbox')">sandbox</a> 約束。</div>
 </section>
 
 <!-- ================= ★ 生產級工程亮點 ================= -->
@@ -937,48 +980,72 @@ deny = ["**/*.pem"]           # kernel 強制</code></pre>
   <h1 class="page">★ 生產級工程亮點</h1>
   <p class="page-sub">一個成熟 CLI agent 的工程量,大半花在「邊緣情況」而非主功能。這一章收錄 Grok Build 幾個「底層決策向上決定架構」與「為真實故障而生」的設計。<span class="src">來源:原始碼註解與 crate 文件</span></p>
 
-  <div class="callout gold"><span class="ct">核心觀察</span>下面每一項都不是炫技,而是<strong>踩過坑或想清楚後的防禦性設計</strong>。它們共同解釋了「為何一個 coding agent 需要 84 個 crate」。</div>
+  <div class="callout gold"><span class="ct">核心觀察</span>下面每一項都不是炫技,而是<strong>踩過坑或想清楚後的防禦性設計</strong>。它們共同解釋了「為何一個 coding agent 需要 ~75+ 個 crate」。<span class="src">來源:crate <code>Cargo.toml</code> 描述、lib.rs 頂註與程式碼(公開鏡像,精確數字對應該次同步快照,可能與現況有版本漂移)。</span></div>
+
+  <h2>一個底層決策如何向上連鎖</h2>
+  <p>本頁最想傳達的是:<strong>一個看似瑣碎的底層選擇,會在整個 codebase 掀起連鎖的防禦性工程</strong>。最鮮明的例子是 <code>panic = "abort"</code>:</p>
+  <div class="flow">
+    <div class="step"><div class="sn">決策</div><div class="sl"><code>panic = "abort"</code></div><div class="sd">出貨 profile 選擇</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">推論</div><div class="sl"><code>catch_unwind</code> 失效</div><div class="sd">任何 thread panic = 整個進程 abort</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">連鎖 1</div><div class="sl">Mermaid 出進程渲染</div><div class="sd">re-exec 子進程 + SIGKILL 隔離</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">連鎖 2</div><div class="sl">gix 執行緒預算</div><div class="sd">限制 spawn 上限,防 spawn 失敗 abort</div></div><div class="arrow">→</div>
+    <div class="step"><div class="sn">連鎖 3</div><div class="sl">crash-handler</div><div class="sd">abort 進程外捕捉,下次啟動回報</div></div>
+  </div>
 
   <div class="implgroup gold">
     <div class="gh">① <code>panic = "abort"</code> 的連鎖影響</div>
-    <div class="implrow"><div class="it">決策</div><div class="ix">出貨 build(dev/release/release-dist)全用 <code>panic = "abort"</code> ── panic 直接終止進程、不 unwind。更小更快,但<strong>讓 <code>catch_unwind</code> 形同無效</strong>。</div></div>
-    <div class="implrow"><div class="it">後果:Mermaid 子進程隔離</div><div class="ix">渲染「不受信任的模型生成 Mermaid」無法在進程內用 catch_unwind 攔 panic → 改成 pager <strong>re-exec 自己</strong>成 <code>__mermaid-render</code> 子進程惰性渲染,子進程 panic/timeout 被 <code>run_with_timeout</code>(SIGKILL 收 process group)隔離,退回 code block。<span class="fp">xai-grok-mermaid</span></div></div>
-    <div class="implrow"><div class="it">後果:gix 執行緒預算</div><div class="ix"><code>panic=abort</code> + 緊 <code>RLIMIT_NPROC</code> 下,gix status 的 <code>spawn_scoped</code> 若失敗會 abort 整個進程 → <code>xai-gix-status</code> 限制 produce worker 執行緒數(上限 8)。</div></div>
+    <div class="implrow"><div class="it">決策<span class="pill flag">profile</span></div><div class="ix">出貨 profile 全用 <code>panic = "abort"</code>:<code>[profile.release]</code>、<code>[profile.dev]</code>、以及硬化的 <code>[profile.release-dist]</code>(<code>lto="thin"</code>、<code>codegen-units=1</code>,「比預設 <code>--release</code> 慢 ~2.2x,故不設為預設」)。唯一改回 <code>panic="unwind"</code> 的是 <code>[profile.x-prod]</code>(給延遲敏感的 x-product 服務保留 stack trace)。後果:<strong>整包 shipped CLI 不能靠 <code>catch_unwind</code></strong> ── 任何 thread panic 直接 abort 全進程。<span class="fp">Cargo.toml:325-378</span></div></div>
+    <div class="implrow"><div class="it">後果:Mermaid 出進程渲染</div><div class="ix">渲染「不受信任的模型生成 Mermaid」在進程內用 <code>catch_unwind</code> 是 no-op(<code>render_checked</code> 的註解明言此點),故先擋 <code>max_source_bytes=64 KiB</code>,再把引擎推<strong>出進程</strong>:pager re-exec 自己成隱藏子命令 <code>__mermaid-render</code>(<code>current_exe()</code>)。子進程 panic/逾時被 <code>run_with_timeout</code> 隔離 ── timeout 是<strong>真正的 process kill</strong>:<code>killpg(pid, SIGKILL)</code> 收<strong>整個 process group</strong>(連 headless Chromium 孫進程),子進程經 <code>setsid</code> 成組長;失敗即退回純 code block(pager 存活)。另有 <code>ETXTBSY</code> 重試(fork→execve 與剛寫入 binary 的競爭,上限 5、<code>20*attempt</code>ms)。<span class="fp">xai-grok-mermaid; pager/mermaid_worker.rs</span></div></div>
+    <div class="implrow"><div class="it">後果:gix 執行緒預算</div><div class="ix"><code>gix-features</code> 的 <code>spawn_scoped(...).expect(...)</code> 在 <code>panic=abort</code> + 緊 <code>RLIMIT_NPROC</code> 下,<strong>一次 thread spawn 失敗就 abort 全進程</strong>。<code>xai-gix-status</code> 為此存在:<code>HARD_CAP=8</code>(「超過 8 個 produce worker 不會更快,只增加 spawn 壓力」)、<code>OUTER_RESERVE=8</code>;<code>limit = min(cores,8) − 已用 − reserve</code>,headroom&lt;2 時夾成 1、恆 ≥1。可用 <code>GROK_GIX_STATUS_THREADS</code> 覆寫(僅接受 ≥1)。<span class="fp">xai-gix-status/src/lib.rs</span></div></div>
   </div>
 
   <div class="implgroup">
-    <div class="gh">② 工具並行 + 同檔序列化</div>
-    <div class="implrow"><div class="it">機制</div><div class="ix">核准的 tool_call 以 <code>FuturesUnordered</code> 全並行送出,但觸及同一檔案的(<code>lock_path_for_args</code> 取 file_path/path/target_file)共用 per-file <code>tokio::sync::Mutex</code>。</div></div>
-    <div class="implrow"><div class="it">為何</div><div class="ix">最大化 wall-clock 並行,同時保證同檔編輯依模型送出順序序列化、不互相踩踏;背景 drainer 依 index 把結果確定性折回。</div></div>
+    <div class="gh">② 工具並行 + 同檔確定性序列化</div>
+    <div class="implrow"><div class="it">lock key</div><div class="ix"><code>lock_path_for_args</code> 取 <code>["file_path","path","target_file"]</code> 第一個命中(跨各 harness 的 JSON key)。<strong>同一字串 = 共用一把 <code>tokio::sync::Mutex</code> = 依模型送出順序序列化;回 <code>None</code> = 完全並行</strong>。<code>target_directory</code> 刻意排除(列目錄不是編輯)。<span class="fp">acp_session_impl/tool_dispatch.rs:56</span></div></div>
+    <div class="implrow"><div class="it">機制</div><div class="ix">per-file mutex map <strong>只為寫入路徑</strong>建立 ── 兩個讀同檔不序列化,但讀/寫或寫/寫會。每個核准 call 變成 future,在 <code>dispatch_tool</code> 前 <code>lock().await</code>,全部丟進 <code>FuturesUnordered</code>,由 spawned drainer(<code>AbortOnDrop</code> 護衛)推進。</div></div>
+    <div class="implrow"><div class="it">為何確定性</div><div class="ix">每個 future 標<strong>枚舉 index</strong> <code>(idx, result)</code>;結果亂序抵達時用 <code>approved_slots[idx].take()</code> 按原始核准順序重組 ── <strong>並行 I/O、但 tool_result 順序確定</strong>。401 recovery 用共享 <code>OnceCell&lt;bool&gt;</code> 讓一次重認證跨整批共用。有專門回歸測試釘住。</div></div>
   </div>
 
   <div class="implgroup">
-    <div class="gh">③ Auth retry 排程(一個真實 bug 的教訓)</div>
-    <div class="implrow"><div class="it">硬編 1s/2s/4s</div><div class="ix">401 重試用硬編指數退避,<strong>有測試釘住</strong>。註解記載這是為避開曾造成「11.6 天 sleep」的 <code>from_millis(1000)</code> 陷阱。每次成功回應就重置(一個長 turn 可能跨越多次每小時 token 輪替)。</div></div>
+    <div class="gh">③ Auth retry / 退避 / 輪替(多層防禦)</div>
+    <div class="implrow"><div class="it">HTTP 層退避 + 逃離死連線</div><div class="ix">上傳失敗觸發指數退避(1s、2s、4s…)時,pool 內閒置連線可能被重用 → <code>xai-grok-http</code> 用<strong>短 10s pool idle timeout</strong> 在退避完成前淘汰 stale 連線;<code>send_with_retry_escaping_pool</code> 在<strong>最後一次嘗試</strong>換成全新、無 pool 的 HTTP/1.1 client(懶建 ~95ms,載 OS TLS root)逃離半死連線。<span class="fp">xai-grok-http/src/lib.rs:313</span></div></div>
+    <div class="implrow"><div class="it">成功即重置 + 連續失敗升級</div><div class="ix">OIDC 容忍 <code>MAX_CONSECUTIVE_TRANSIENT_FAILURES=3</code> 次瞬時失敗才升 <code>PermanentFailure</code>(比 local binary refresher 的 1 寬,因網路較易 flake);任何 refresh 進展就 <code>note_refresh_progress()</code> <strong>清空 blip 預算</strong>,且預算<strong>綁定該憑證</strong> ── 重新登入會重置,新 token 不繼承死 token 的升級狀態。<span class="fp">auth/refresh/oidc_refresher.rs</span></div></div>
+    <div class="implrow"><div class="it">主動排程 + 抖動防驚群</div><div class="ix"><code>compute_proactive_sleep</code> 排在 <code>expires_at − early_invalidation − jitter</code>;<strong>jitter 0–60s</strong> 讓多個 sibling 進程不同時醒來打爆 IdP(第一個醒的 refresh 寫盤,其餘撿 sibling token);permanent failure 用 <code>BACKOFF_INTERVAL(300s)+jitter</code>;對不可 refresh / sleep-gated / dark-wake 都回 <code>BACKOFF_INTERVAL</code> 而非 <code>sleep=0</code> 空轉 100% CPU。<span class="fp">auth/manager.rs:2158</span></div></div>
+    <div class="implrow"><div class="it">sibling 輪替競爭</div><div class="ix"><code>invalid_grant</code> 後,若磁碟已有 sibling 進程換好的有效 token,<strong>直接採用、不再消耗磁碟的 refresh token</strong> 去 IdP,避免 cascading <code>invalid_grant</code>。<span class="src">註:早期版本有一段記載某次「長時間 sleep」計時陷阱的註解,現行快照未見同一字句 ── 此處以可驗證的防空轉/抖動機制為準。</span></div></div>
   </div>
 
   <div class="implgroup">
     <div class="gh">④ 為真實故障而生的 crate</div>
-    <div class="implrow"><div class="it"><code>xai-sqlite-journal</code></div><div class="ix"><strong>NFS 上 WAL 的 mmap -shm 會 SIGBUS</strong> → 本地磁碟用 WAL、網路掛載改用 rollback journal。</div></div>
-    <div class="implrow"><div class="it"><code>xai-system-power</code></div><div class="ix">跨平台 sleep/wake 通知 → <strong>避免在筆電睡眠前一刻啟動 OIDC token refresh</strong>(醒來已過期)。</div></div>
-    <div class="implrow"><div class="it"><code>xai-circuit-breaker</code></div><div class="ix">HTTP circuit breaker(滑動視窗 + 最小樣本)→ 後端連續失敗時快速失敗,不狂重試打爆對方。</div></div>
-    <div class="implrow"><div class="it"><code>xai-grok-secrets</code></div><div class="ix">出站資料 regex 清洗 → 防 API key/路徑/email 隨遙測外洩(遙測本身可 opt-out)。</div></div>
+    <div class="implrow"><div class="it"><code>xai-sqlite-journal</code></div><div class="ix"><strong>NFS 上 WAL 的 mmap <code>-shm</code> 會 SIGBUS</strong>(網路檔案系統不保證 coherent 共享記憶體與可靠 POSIX lock;$HOME 掛 NFS、多機同時存取時 peer 重建 <code>-shm</code> 會抽走 mapping)→ 本地磁碟用 WAL、網路掛載改用 <strong>rollback journal(Truncate 模式</strong>,避開 NFS silly-rename litter),且<strong>每機各開 per-host DB 檔</strong>。<code>BUSY_TIMEOUT=5000ms</code>;可用 <code>GROK_SQLITE_JOURNAL_MODE</code> 覆寫。<span class="fp">xai-sqlite-journal/src/lib.rs</span></div></div>
+    <div class="implrow"><div class="it"><code>xai-system-power</code></div><div class="ix">跨平台 sleep/wake 通知 → <strong>避免在筆電睡眠前一刻啟動 OIDC refresh</strong>(server 已輪替/撤銷舊 token 但回應在 suspend 中遺失,醒來拿到死 token 被迫重登)。<code>WillSleep</code> 可在有界預算內延後 suspend(macOS ~30s、Linux logind ~5s);<strong>in-flight refresh 刻意讓它跑完、絕不中止</strong>;另分辨 macOS「dark wake」(Power Nap 醒來不派事件)避免此時啟動一次性 refresh。<span class="fp">xai-system-power/src/lib.rs</span></div></div>
+    <div class="implrow"><div class="it"><code>xai-circuit-breaker</code></div><div class="ix">滑動視窗 + 最小樣本:<code>sample_count ≥ min_samples 且 error_rate ≥ threshold</code> 才跳。Server preset <code>min_samples=10 / rate 0.5 / window 60s / open 10s</code>;Client preset <code>min_samples=5 / open 60s</code> ── 後端連續失敗時快速失敗,不狂重試打爆對方。全部可 env 覆寫。<span class="fp">xai-circuit-breaker/src/config.rs</span></div></div>
+    <div class="implrow"><div class="it"><code>xai-grok-secrets</code></div><div class="ix">出站資料 <code>RegexSet</code> 清洗成 <code>[REDACTED_SECRET]</code>:<code>sk-</code>/<code>xai-</code>(<code>\b</code> 錨定,免把 <code>task-</code>/<code>disk-</code> 誤截)、AWS AKIA/ASIA、GitHub/GitLab/Slack/Google token、PEM 私鑰塊、Bearer、裸 JWT、泛 secret 賦值;<code>redact_url</code> 洗 18 個敏感 query 參數;<code>redact_user_paths</code> 抽掉路徑裡的<strong>使用者名段</strong>。供 <code>xai-mixpanel</code> 用,防遙測外洩 key/路徑。<span class="fp">xai-grok-secrets/src/sanitizer.rs</span></div></div>
   </div>
 
   <div class="implgroup">
-    <div class="gh">⑤ TUI 渲染:idle frame 送 0 bytes</div>
-    <div class="implrow"><div class="it">繞過 ratatui draw</div><div class="ix">ratatui 內建 <code>Terminal::draw</code> 每幀都送 Show+MoveTo,會重置游標閃爍計時器(30fps 下游標看起來變實心)。Grok fork 了 ratatui Terminal,自訂 <code>draw_frame</code> 用 <code>CursorState::action()</code> 去重 ── <strong>無變化的幀送出 0 bytes</strong>,保留閃爍。</div></div>
-    <div class="implrow"><div class="it">同步輸出 + writer thread</div><div class="ix">每幀包在 DEC 2026 synchronized output(不閃爍/撕裂);frame bytes 經 mpsc 送專屬 writer thread,PTY 反壓只卡那條執行緒不卡 tokio 迴圈。</div></div>
+    <div class="gh">⑤ TUI 渲染:idle frame 送 0 bytes(保住游標閃爍)</div>
+    <div class="implrow"><div class="it">問題</div><div class="ix">ratatui 內建 <code>try_draw()</code> 每幀無條件送 <code>Show</code>+<code>MoveTo</code>(或 <code>Hide</code>),兩者都<strong>重置終端游標閃爍計時器</strong> ── 30fps 下 500ms 閃爍週期永遠跑不完,游標看起來變實心。</div></div>
+    <div class="implrow"><div class="it">解法:forked Terminal + CursorState 去重</div><div class="ix"><code>xai-ratatui-inline</code> fork 了 ratatui Terminal,其 <code>flush()</code> 回傳 <strong>bool(有無 cell 變化)</strong>。<code>draw_frame</code> 繞過 <code>try_draw</code>、用 <code>CursorState::action()</code> 判斷:無 cell 變化 + 同位置 → <strong>0 個游標指令</strong>;idle(無 draw 呼叫)→ 什麼都不送。此時連已排入的 <code>BeginSynchronizedUpdate</code> 也被 <code>writer.discard()</code> <strong>丟棄</strong> ── <code>idle_frame_emits_zero_bytes()</code> 測試釘住「未變幀必須送 0 bytes 到 PTY」。<span class="fp">xai-grok-pager-render/render/draw.rs</span></div></div>
+    <div class="implrow"><div class="it">同步輸出</div><div class="ix">每幀包在 <strong>DEC private mode 2026</strong> synchronized output(<code>\x1b[?2026h</code> … <code>\x1b[?2026l</code>,不閃爍/撕裂);另有 per-cell 超連結層(OSC 8)參與 frame diff。<span class="fp">xai-ratatui-inline</span></div></div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh">⑥ 其他為真實故障而生的設計</div>
+    <div class="implrow"><div class="it"><code>xai-crash-handler</code></div><div class="ix">abort 在進程內不可救 → 改成<strong>下次啟動回報</strong>:Unix <code>sigaction</code> 接 SIGBUS/SIGSEGV、Windows <code>SetUnhandledExceptionFilter</code>;<code>check_previous_crash()</code> 必須在 <code>install()</code>(以 <code>O_TRUNC</code> 開 <code>last-crash.bin</code>)<strong>之前</strong>跑,把上次崩潰浮現給使用者;handler 用 mmap 的<strong>備用訊號堆疊</strong>存活 stack overflow。</div></div>
+    <div class="implrow"><div class="it"><code>xai-grok-sandbox</code></div><div class="ix">OS 層沙箱(<code>nono</code>):Linux <strong>Landlock</strong> / macOS <strong>Seatbelt</strong>;主進程網路開放(agent 要打 LLM API),但<strong>子進程網路以 seccomp 逐一封鎖</strong>;網站 origin allow-list。musl 上也能編(degrade 成 no-op)。<a onclick="go('c-sandbox')">→ Sandbox</a></div></div>
+    <div class="implrow"><div class="it"><code>xai-fsnotify</code> / <code>xai-prompt-queue</code></div><div class="ix">前者把平台原始檔案事件正規化成<strong>單一因果序 FsEvent</strong>(去重、有序);後者是 shell↔pager 共享的 prompt 佇列 wire types(agent 忙時排隊使用者輸入)。</div></div>
+    <div class="implrow"><div class="it">MCP 重連 pow-overflow 夾制</div><div class="ix"><code>xai-grok-mcp</code> 重連指數退避夾在 30s;<code>exp = attempt.saturating_sub(2).min(6)</code> ── 「2^6 已飽和 MAX_DELAY,clamp 防 pow 溢位」;永遠重試但只 warn 一次。</div></div>
   </div>
 
   <div class="implgroup gold">
-    <div class="gh">⑥ 為何 84 個 crate?</div>
-    <div class="implrow"><div class="it">建置平行化</div><div class="ix"><code>xai-grok-shell-base</code>、<code>-session-support</code> 純為從巨大 shell crate 拆出、獨立平行編譯,避免每次改 shell 全部重編。</div></div>
-    <div class="implrow"><div class="it">依賴反轉</div><div class="ix"><code>xai-grok-auth</code>、<code>xai-grok-config-types</code>、<code>xai-tool-types</code> 這類型別/trait seam 讓上下層不必直接互相依賴。</div></div>
-    <div class="implrow"><div class="it">版本隔離</div><div class="ix"><code>xai-grok-mcp</code> 隔離需 reqwest 0.13 的 rmcp;<code>xai-mixpanel</code> 取代 mixpanel-rs 以免拉進 reqwest 0.11 ── 避免同一二進位塞多份 HTTP stack。</div></div>
+    <div class="gh">⑦ 為何 ~75+ 個 crate?(三股力量)</div>
+    <div class="implrow"><div class="it">版本隔離(最強驅動)</div><div class="ix"><code>xai-grok-mcp</code> <strong>隔離</strong> rmcp + reqwest 0.13(rmcp 2.1 要 reqwest ≥0.13,workspace 其餘用 0.12);<code>xai-mixpanel</code> 從頭寫以<strong>取代 mixpanel-rs、避免拉進 reqwest 0.11</strong> ── 不讓同一二進位塞三份 HTTP major。</div></div>
+    <div class="implrow"><div class="it">依賴反轉 / trait seam</div><div class="ix"><code>xai-grok-config-types</code>、<code>xai-tool-types</code>、<code>xai-grok-auth</code>(<code>AuthCredentialProvider</code> seam)等 leaf 型別/trait crate,讓上下層共享 schema 而不互相依賴、打破循環。</div></div>
+    <div class="implrow"><div class="it">建置平行化</div><div class="ix"><code>xai-grok-shell-base</code>、<code>-session-support</code> 純為從龐大的 <code>xai-grok-shell</code> 剝出模組、獨立平行編譯。root <code>Cargo.toml</code> 自述「自動產生的 workspace root,從 monorepo 機器同步」── 細粒度 crate 正是同步/建置的單位。</div></div>
+    <div class="implrow"><div class="it">實際數字</div><div class="ix"><code>crates/</code> 下 <strong>75 個</strong>(build 1 / codegen 62 / common 11),含 <code>prod/</code> 共 <strong>81 個 workspace member</strong>。本文標題的「84-crate」為概數。</div></div>
   </div>
 
-  <div class="callout gold" style="margin-top:22px"><span class="ct">收束</span>這些「瑣碎」設計正是「能跑的 agent」與「能出貨的 agent」之間的距離。它們也呼應本頁主題:一個底層決策(<code>panic=abort</code>、NFS、筆電睡眠、Windows verbatim 路徑…)往往在整個 codebase 掀起連鎖的防禦性工程。</div>
+  <div class="callout gold" style="margin-top:22px"><span class="ct">收束</span>這些「瑣碎」設計正是「能跑的 agent」與「能出貨的 agent」之間的距離。它們也呼應本頁主題:一個底層決策(<code>panic=abort</code>、NFS 掛載、筆電睡眠、緊 <code>RLIMIT_NPROC</code>…)往往在整個 codebase 掀起連鎖的防禦性工程。<span class="src">內容整理自公開原始碼鏡像;精確數字/常數對應該次同步快照,可能與現況有版本漂移,正式引用前建議再對 source。</span></div>
 </section>
 
 <!-- ================= 🔍 84-CRATE 工作區 ================= -->
