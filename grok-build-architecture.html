@@ -891,6 +891,14 @@ deny = ["**/*.pem"]           # kernel 強制</code></pre>
   <h1 class="page">★ Actor Runtime 架構</h1>
   <p class="page-sub">Grok Build 最獨特的設計:整個 runtime 是<strong>無鎖 actor 模型</strong>。這一章拆解兩個 actor 的分工、單執行緒 LocalSet + <code>!Send</code> 的取捨、以及 leader/follower 的崩潰重連。<span class="src">來源:<code>xai-grok-shell/src/session/</code>、<code>xai-chat-state</code></span></p>
 
+  <div class="callout note"><span class="ct">🗣️ 先用白話:一個「傳紙條代替搶東西」的架構</span>
+    <p style="margin:6px 0"><strong>問題</strong>:一個 coding agent 同時做很多事(串流回應、跑多個工具、背景任務),都想改同一份「對話狀態」。傳統做法是給狀態<strong>上鎖</strong>讓大家搶 ── 但搶鎖容易卡死,還會在最忙的串流熱路徑上拖慢。</p>
+    <p style="margin:6px 0"><strong>Grok 的答案(actor 模型)</strong>:每份重要狀態只交給<strong>一個管家</strong>保管,別人不准直接碰,只能<strong>傳紙條(送命令)</strong>給管家,管家一次處理一張 ── 天生排好隊,不用鎖。三個管家:<strong>MvpAgent</strong>(大門櫃台,收請求分給對應對話)、<strong>SessionActor</strong>(每個對話一個 turn 引擎,同一對話同時只跑一個 turn ── 所以你連打好幾則會照順序處理)、<strong>ChatStateActor</strong>(對話內容的保管員,只有它能改)。</p>
+    <p style="margin:6px 0"><strong>一個有趣取捨</strong>:前兩個管家跑在單一執行緒(碰狀態完全免鎖、超簡單);但保管對話的那個<strong>故意能跨執行緒</strong>放到多執行緒 ── 因為它要做「存檔、複製整段長對話」這種重活,不能卡住前台。</p>
+    <p style="margin:6px 0"><strong>最實用的一招 ── 崩潰重連</strong>:因為一個 turn 可能跑好幾分鐘,真正的 agent 被抽成常駐的背景 <strong>leader 進程</strong>,你的 TUI/編輯器只是「薄薄的遙控器」。所以 TUI 崩潰、重開、或換一個編輯器連上,都能<strong>接回同一個還在跑的對話</strong> ── 像視訊斷線重連,會議還在。</p>
+    <p style="margin:6px 0 0"><em>一句話:用「傳訊息給專屬管家」取代「大家搶鎖」,換來無鎖、不卡、可測試,還能崩潰後無縫接回。下面是技術細節。</em></p>
+  </div>
+
   <div class="callout gold"><span class="ct">核心命題</span>agent runtime 會併發跑很多事(串流、多工具、背景任務、子代理),共享可變狀態若用 <code>Arc&lt;Mutex&gt;</code> 容易競爭/死鎖、且在串流熱路徑上卡頓。Grok 的答案:<strong>狀態只被單一 task 擁有,其他人以 channel 送命令</strong> ── 天然序列化、無鎖、可單元測試。這裡有個關鍵的<strong>雙軌設計</strong>:shell/agent 跑在單執行緒 <code>LocalSet</code>(<code>!Send</code>),而 <code>ChatStateActor</code> 刻意做成 <strong>Send</strong>、跑在一般多執行緒 tokio task 上。</div>
 
   <div class="flow">
@@ -979,6 +987,13 @@ deny = ["**/*.pem"]           # kernel 強制</code></pre>
   <div class="page-kicker blue">★ 教學主軸之二</div>
   <h1 class="page">★ 生產級工程亮點</h1>
   <p class="page-sub">一個成熟 CLI agent 的工程量,大半花在「邊緣情況」而非主功能。這一章收錄 Grok Build 幾個「底層決策向上決定架構」與「為真實故障而生」的設計。<span class="src">來源:原始碼註解與 crate 文件</span></p>
+
+  <div class="callout note"><span class="ct">🗣️ 先用白話:「能跑」和「能出貨」之間那段最花工的距離</span>
+    <p style="margin:6px 0">做一個 demo 能跑的 agent 不難;難的是把它變成「別人天天用、什麼爛環境都不會爆」的產品。這章收的全是<strong>踩過坑、或想清楚後補的防禦性設計</strong>,而且很多是「<strong>一個底層小決定,往上引發一連串工程</strong>」。</p>
+    <p style="margin:6px 0"><strong>主線例子</strong>:Grok 為了更小更快,選了「程式一 panic 就直接終止整個進程」(<code>panic=abort</code>)。代價是任何小地方出錯全程式就掛、連傳統「攔截錯誤」都失效 ── 於是<strong>往上連鎖出一堆補救</strong>:渲染「模型生的不可信圖表」怕拖垮全程式 → 開<strong>子進程</strong>去渲染,爆了就殺掉退回純文字;怕「開執行緒失敗也拖垮全程式」→ <strong>限制執行緒數</strong>;還做 crash-handler 讓程式真掛了也在<strong>下次啟動回報</strong>。</p>
+    <p style="margin:6px 0"><strong>其他接地氣的例子</strong>:多個工具同時跑但<strong>改同一檔案會自動排隊</strong>(快又不打架);多機/多視窗刷新登入 token 加<strong>隨機抖動</strong>避免同一秒衝爆伺服器、還避開<strong>筆電睡著前一刻</strong>去刷;資料庫放<strong>網路硬碟會當機</strong> → 偵測到就換存檔模式;遙測怕夾帶 <strong>API key/路徑</strong> → 規則自動塗掉;終端<strong>游標會一直亮</strong> → 畫面沒變化時「一個位元組都不送」讓它正常閃。</p>
+    <p style="margin:6px 0 0"><em>一句話:把「demo 能跑」變成「產品不爆」所花的看不見的苦工 ── 尤其是一個底層決定如何逼出整串防禦性設計。下面是逐項細節。</em></p>
+  </div>
 
   <div class="callout gold"><span class="ct">核心觀察</span>下面每一項都不是炫技,而是<strong>踩過坑或想清楚後的防禦性設計</strong>。它們共同解釋了「為何一個 coding agent 需要 ~75+ 個 crate」。<span class="src">來源:crate <code>Cargo.toml</code> 描述、lib.rs 頂註與程式碼(公開鏡像,精確數字對應該次同步快照,可能與現況有版本漂移)。</span></div>
 
