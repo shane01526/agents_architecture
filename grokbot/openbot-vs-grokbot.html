@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenBot vs Grok Bot 0.18 · 兩種「多 Bot」的對照</title>
+<meta name="description" content="CopilotKit OpenBot 與 Grok Bot 0.18 的逐維度架構對照:多 Bot 協作 vs 多 Bot 路由、治理是機制還是 prompt、以及要自建 AI 同事平台時該怎麼組合。">
+<style>
+:root{
+  --bg:#0f1115; --bg2:#161922; --panel:#1b1f2a; --panel2:#222736;
+  --ink:#e7ecf3; --ink-dim:#a4adbe; --ink-faint:#6b7488;
+  --line:#2a3040; --line2:#363d50;
+  /* 頁面自身的身分色(對照)= 紫;兩個陣營各有自己的顏色,全頁一致 */
+  --accent:#a880f0; --accent2:#c4a5f7; --accent-d:#6f42b8;
+  --ob:#3ecf8e; --ob2:#7fe3b5; --ob-d:#1f7a52;
+  --gb:#ff8a4c; --gb2:#ffb187; --gb-d:#b8511d;
+  --gold:#e8c468; --gold2:#f3d98a;
+  --green:#3fb98c; --blue:#4f9cf0; --purple:#a880f0; --yellow:#e8c468; --red:#e26d6d;
+  --mono:"SFMono-Regular",ui-monospace,"Cascadia Code","Consolas",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.68;font-size:15px;}
+a{color:var(--accent2);text-decoration:none;cursor:pointer;}
+a:hover{text-decoration:underline;}
+code{font-family:var(--mono);font-size:.86em;background:#0c0e13;border:1px solid var(--line);border-radius:5px;padding:.08em .4em;color:#d8c6ff;}
+pre{margin:0;}
+blockquote{margin:13px 0;padding:12px 16px;background:#0a0c11;border:1px solid var(--line);border-left:3px solid var(--purple);border-radius:0 9px 9px 0;font-size:13px;line-height:1.62;color:#c6cfdd;}
+blockquote.ob{border-left-color:var(--ob);} blockquote.gb{border-left-color:var(--gb);}
+blockquote .qsrc{display:block;font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-bottom:7px;letter-spacing:.2px;}
+blockquote em{color:var(--ink-faint);}
+header.top{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,#12141b 72%,rgba(18,20,27,.93));border-bottom:1px solid var(--line);backdrop-filter:blur(8px);}
+.top-inner{max-width:1240px;margin:0 auto;padding:13px 26px 4px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.logo{font-size:20px;font-weight:800;letter-spacing:.4px;display:flex;align-items:center;gap:9px;}
+.logo .o{color:var(--ob);} .logo .g{color:var(--gb);} .logo .vsx{color:var(--ink-faint);font-size:15px;font-weight:600;}
+.logo small{font-weight:500;font-size:12px;color:var(--ink-faint);letter-spacing:0;}
+.hdr-actions{display:flex;align-items:center;gap:9px;margin-left:auto;flex:0 0 auto;flex-wrap:wrap;}
+.hbtn{padding:6px 13px;border:1px solid var(--line2);border-radius:20px;background:var(--panel);color:var(--ink-dim);font-size:12.5px;font-weight:700;cursor:pointer;flex:0 0 auto;text-decoration:none;transition:.13s;white-space:nowrap;}
+.hbtn:hover{color:#fff;border-color:var(--accent);text-decoration:none;}
+.hbtn.gb{border-color:rgba(255,138,76,.5);color:var(--gb2);}
+.hbtn.gb:hover{background:rgba(255,138,76,.14);border-color:var(--gb);color:#fff;}
+nav.tabs{max-width:1240px;margin:0 auto;padding:8px 18px 0;display:flex;gap:4px;flex-wrap:wrap;}
+nav.tabs button{appearance:none;border:1px solid transparent;background:none;color:var(--ink-dim);font-family:var(--sans);font-size:13.5px;font-weight:700;padding:11px 15px;cursor:pointer;border-radius:9px 9px 0 0;transition:.15s;white-space:nowrap;display:flex;align-items:center;gap:6px;}
+nav.tabs button .ic{font-size:14px;}
+nav.tabs button:hover{color:var(--ink);background:var(--panel);}
+nav.tabs button.active{color:var(--accent);background:var(--bg2);border-color:var(--line);border-bottom-color:var(--bg2);position:relative;top:1px;}
+nav.tabs button.star.active{color:var(--gold);}
+nav.tabs button.tob.active{color:var(--ob);}
+nav.tabs button.tgb.active{color:var(--gb);}
+nav.tabs button.expo.active{color:var(--blue);}
+main{max-width:1240px;margin:0 auto;padding:32px 26px 90px;}
+.pane{display:none;animation:fade .32s ease;}
+.pane.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+h1.page{font-size:28px;margin:0 0 4px;font-weight:800;letter-spacing:.3px;}
+.page-kicker{font-size:12.5px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:6px;}
+.page-kicker.gold{color:var(--gold);} .page-kicker.blue{color:var(--blue);}
+.page-kicker.ob{color:var(--ob);} .page-kicker.gb{color:var(--gb);}
+.page-sub{color:var(--ink-dim);font-size:15px;margin:0 0 24px;max-width:940px;}
+h2{font-size:20px;margin:38px 0 13px;padding-top:12px;font-weight:750;border-top:1px solid var(--line);color:#fff;}
+.pane h2:first-of-type{border-top:none;padding-top:0;}
+h3{font-size:16px;margin:24px 0 9px;font-weight:700;color:var(--accent2);}
+h4{font-size:14px;margin:16px 0 7px;font-weight:700;color:var(--ink);}
+p{margin:10px 0;}
+ul,ol{margin:10px 0;padding-left:22px;}
+li{margin:5px 0;}
+.lead{font-size:16px;color:var(--ink);background:linear-gradient(90deg,rgba(168,128,240,.12),transparent);border-left:3px solid var(--accent);padding:13px 17px;border-radius:0 8px 8px 0;margin:18px 0;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:19px 21px;margin:16px 0;}
+.card.tight{padding:14px 17px;}
+.grid{display:grid;gap:15px;}
+.grid.c2{grid-template-columns:1fr 1fr;}
+.grid.c3{grid-template-columns:repeat(3,1fr);}
+@media(max-width:900px){.grid.c2,.grid.c3{grid-template-columns:1fr;}}
+/* ===== .vs — 本頁最主要的視覺單位:兩欄並排陣營對照 ===== */
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0;}
+@media(max-width:900px){.vs{grid-template-columns:1fr;}}
+.vs.c3{grid-template-columns:1fr 1fr 1fr;}
+@media(max-width:1050px){.vs.c3{grid-template-columns:1fr;}}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden;display:flex;flex-direction:column;}
+.side>.sh{padding:11px 16px;background:var(--panel2);border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.side>.sh .badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;font-weight:800;font-size:13px;flex:0 0 auto;}
+.side>.sh .sname{font-weight:800;font-size:15px;color:#fff;}
+.side>.sh .stag{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);letter-spacing:.2px;}
+.side>.sb{padding:14px 17px;font-size:13.8px;color:var(--ink-dim);flex:1;}
+.side>.sb p:first-child{margin-top:0;}
+.side>.sb p:last-child{margin-bottom:0;}
+.side>.sb ul{padding-left:19px;font-size:13.5px;}
+.side>.sb strong{color:var(--ink);}
+.side.ob{border-top:3px solid var(--ob);}
+.side.ob>.sh .badge{background:var(--ob);color:#08110c;}
+.side.ob>.sh .sname{color:var(--ob2);}
+.side.gb{border-top:3px solid var(--gb);}
+.side.gb>.sh .badge{background:var(--gb);color:#160a04;}
+.side.gb>.sh .sname{color:var(--gb2);}
+.side.both{border-top:3px solid var(--accent);}
+.side.both>.sh .badge{background:var(--accent);color:#0d0618;}
+.side.both>.sh .sname{color:var(--accent2);}
+.callout{border-radius:10px;padding:12px 16px;margin:15px 0;font-size:14px;border:1px solid;}
+.callout .ct{font-weight:700;display:block;margin-bottom:3px;font-size:13px;letter-spacing:.3px;}
+.callout.note{background:rgba(79,156,240,.08);border-color:rgba(79,156,240,.4);} .callout.note .ct{color:var(--blue);}
+.callout.warn{background:rgba(232,196,104,.08);border-color:rgba(232,196,104,.4);} .callout.warn .ct{color:var(--yellow);}
+.callout.key{background:rgba(63,185,140,.08);border-color:rgba(63,185,140,.4);} .callout.key .ct{color:var(--green);}
+.callout.danger{background:rgba(226,109,109,.08);border-color:rgba(226,109,109,.4);} .callout.danger .ct{color:var(--red);}
+.callout.gold{background:rgba(232,196,104,.08);border-color:rgba(232,196,104,.4);} .callout.gold .ct{color:var(--gold);}
+.callout.vsc{background:rgba(168,128,240,.1);border-color:rgba(168,128,240,.45);} .callout.vsc .ct{color:var(--accent2);}
+.callout.obc{background:rgba(62,207,142,.09);border-color:rgba(62,207,142,.42);} .callout.obc .ct{color:var(--ob2);}
+.callout.gbc{background:rgba(255,138,76,.09);border-color:rgba(255,138,76,.42);} .callout.gbc .ct{color:var(--gb2);}
+table{border-collapse:collapse;width:100%;margin:15px 0;font-size:13.4px;display:block;overflow-x:auto;}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top;}
+th{background:var(--panel2);color:#fff;font-weight:700;white-space:nowrap;}
+th.obh{color:var(--ob2);background:rgba(62,207,142,.09);}
+th.gbh{color:var(--gb2);background:rgba(255,138,76,.09);}
+td{color:var(--ink-dim);} td strong,td code{color:var(--ink);}
+td.obt{background:rgba(62,207,142,.035);} td.gbt{background:rgba(255,138,76,.035);}
+tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+tr:nth-child(even) td.obt{background:rgba(62,207,142,.05);}
+tr:nth-child(even) td.gbt{background:rgba(255,138,76,.05);}
+td.dim{color:var(--ink-faint);font-size:12.5px;}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.4px;vertical-align:middle;}
+.pill.flag{background:rgba(168,128,240,.16);color:var(--purple);border:1px solid rgba(168,128,240,.4);}
+.pill.yes{background:rgba(63,185,140,.16);color:var(--green);border:1px solid rgba(63,185,140,.4);}
+.pill.no{background:rgba(226,109,109,.14);color:var(--red);border:1px solid rgba(226,109,109,.4);}
+.pill.part{background:rgba(232,196,104,.14);color:var(--yellow);border:1px solid rgba(232,196,104,.42);}
+.pill.ob{background:rgba(62,207,142,.16);color:var(--ob2);border:1px solid rgba(62,207,142,.42);}
+.pill.gb{background:rgba(255,138,76,.16);color:var(--gb2);border:1px solid rgba(255,138,76,.42);}
+.pill.plan{background:rgba(107,116,136,.18);color:var(--ink-faint);border:1px solid var(--line2);}
+.fp{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);background:#0c0e13;border:1px solid var(--line);padding:1px 6px;border-radius:4px;white-space:nowrap;}
+.src{font-size:12px;color:var(--ink-faint);font-style:italic;}
+.secnum{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent-d);color:#fff;font-size:13px;font-weight:800;margin-right:9px;vertical-align:middle;}
+details.method{background:rgba(79,156,240,.05);border:1px solid rgba(79,156,240,.3);border-radius:11px;padding:0 15px;margin:0 0 22px;font-size:13.5px;}
+details.method>summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--blue);font-size:13px;letter-spacing:.2px;list-style:none;}
+details.method>summary::-webkit-details-marker{display:none;}
+details.method>summary::before{content:"▸ ";font-weight:800;}
+details.method[open]>summary::before{content:"▾ ";}
+details.method .mbody{padding:2px 0 14px;color:var(--ink-dim);border-top:1px solid rgba(79,156,240,.22);margin-top:2px;padding-top:11px;}
+details.method .mbody dl{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:8px 0;}
+details.method .mbody dt{font-weight:700;color:var(--blue);white-space:nowrap;font-size:12.5px;}
+details.method .mbody dd{margin:0;font-size:13px;}
+.mechgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:18px 0;}
+.mechcard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:11px;padding:15px 16px;}
+.mechcard h4{margin:0 0 6px;color:var(--accent2);}
+.mechcard p{font-size:13px;color:var(--ink-dim);margin:5px 0;}
+.mechcard.o{border-left-color:var(--ob);} .mechcard.o h4{color:var(--ob2);}
+.mechcard.g{border-left-color:var(--gb);} .mechcard.g h4{color:var(--gb2);}
+.mechcard.b{border-left-color:var(--blue);} .mechcard.b h4{color:var(--blue);}
+.mechcard.r{border-left-color:var(--red);} .mechcard.r h4{color:var(--red);}
+.mechcard.y{border-left-color:var(--yellow);} .mechcard.y h4{color:var(--yellow);}
+.implgroup{margin:22px 0;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:6px 20px 10px;}
+.implgroup.o{border-left-color:var(--ob);} .implgroup.g{border-left-color:var(--gb);}
+.implgroup.red{border-left-color:var(--red);} .implgroup.blue{border-left-color:var(--blue);}
+.implgroup>.gh{font-size:16px;font-weight:750;color:var(--accent2);padding:12px 0 10px;border-bottom:1px solid var(--line2);margin-bottom:4px;}
+.implgroup.o>.gh{color:var(--ob2);} .implgroup.g>.gh{color:var(--gb2);}
+.implgroup.red>.gh{color:var(--red);} .implgroup.blue>.gh{color:var(--blue);}
+.implrow{display:grid;grid-template-columns:250px 1fr;gap:8px 26px;padding:15px 4px;border-bottom:1px solid rgba(54,61,80,.45);border-radius:8px;transition:background .13s;}
+.implrow:last-child{border-bottom:none;}
+.implrow:hover{background:rgba(255,255,255,.022);}
+@media(max-width:780px){.implrow{grid-template-columns:1fr;gap:6px;}}
+.implrow .it{font-weight:700;font-size:14.5px;color:#fff;line-height:1.5;}
+.implrow .ix{font-size:14px;color:var(--ink-dim);line-height:1.68;}
+.implrow .ix code,.implrow .it code{font-size:12.5px;}
+.asciibox{background:#0a0c11;border:1px solid var(--line);border-radius:10px;padding:15px 17px;overflow-x:auto;font-family:var(--mono);font-size:11.8px;line-height:1.5;color:#cdd6e6;white-space:pre;margin:15px 0;}
+.asciibox.ob{border-left:3px solid var(--ob);} .asciibox.gb{border-left:3px solid var(--gb);}
+.verdict{background:linear-gradient(135deg,rgba(62,207,142,.1),rgba(255,138,76,.1));border:1px solid rgba(168,128,240,.45);border-radius:13px;padding:17px 20px;margin:18px 0;}
+.verdict .vt{font-size:12px;font-weight:800;letter-spacing:1px;color:var(--accent2);text-transform:uppercase;margin-bottom:7px;}
+.verdict .vmain{font-size:17px;font-weight:750;color:#fff;line-height:1.55;}
+.verdict .vsub{font-size:13.5px;color:var(--ink-dim);margin-top:8px;}
+.qa{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:12px;padding:15px 18px;margin:16px 0;}
+.qa .qq{font-weight:800;color:var(--gold2);font-size:15px;margin-bottom:6px;}
+.qa .aa{color:var(--ink-dim);font-size:14px;}
+.qa .aa b{color:var(--ink);}
+.pathcards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:22px 0;}
+@media(max-width:900px){.pathcards{grid-template-columns:1fr;}}
+.pathcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;cursor:pointer;transition:.15s;}
+.pathcard:hover{border-color:var(--accent);transform:translateY(-2px);}
+.pathcard.o:hover{border-color:var(--ob);} .pathcard.g:hover{border-color:var(--gb);}
+.pathcard .pe{font-size:28px;}
+.pathcard h3{margin:8px 0 4px;color:#fff;font-size:16px;}
+.pathcard .who{font-size:12.5px;font-weight:700;margin-bottom:6px;color:var(--accent2);}
+.pathcard.o .who{color:var(--ob2);} .pathcard.g .who{color:var(--gb2);}
+.pathcard p{font-size:13.5px;color:var(--ink-dim);margin:6px 0 0;}
+.deep{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:700;background:rgba(168,128,240,.13);border:1px solid rgba(168,128,240,.4);color:var(--accent2);padding:4px 11px;border-radius:20px;}
+.deep:hover{text-decoration:none;background:rgba(168,128,240,.24);}
+.deep.o{background:rgba(62,207,142,.13);border-color:rgba(62,207,142,.4);color:var(--ob2);}
+.deep.g{background:rgba(255,138,76,.13);border-color:rgba(255,138,76,.4);color:var(--gb2);}
+.scrollwrap{overflow-x:auto;}
+footer{max-width:1240px;margin:0 auto;padding:28px 26px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:12.5px;}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-dim);margin:10px 0 16px;align-items:center;}
+.legend .lk{display:inline-flex;align-items:center;gap:6px;}
+.legend .sw{width:12px;height:12px;border-radius:3px;display:inline-block;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="logo"><span class="o">◉</span> OpenBot <span class="vsx">vs</span> <span class="g">◆</span> Grok Bot 0.18 <small>兩種「多 Bot」的逐維度對照</small></div>
+    <div class="hdr-actions">
+      <a class="hbtn gb" href="grok-bot-0.18-architecture.html" title="Grok Bot 0.18 架構詳解(同資料夾)">◆ Grok Bot 架構詳解</a>
+      <a class="hbtn" href="../index.html" title="AI Agent 架構解說站">← 架構解說站</a>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="intro" class="active"><span class="ic">🧭</span>導讀</button>
+    <button data-tab="multibot" class="star"><span class="ic">★</span>核心差異 · 兩種多 Bot</button>
+    <button data-tab="matrix"><span class="ic">📊</span>逐維度對照</button>
+    <button data-tab="gov" class="tob"><span class="ic">🛡️</span>OpenBot 強項 · 治理</button>
+    <button data-tab="collab" class="tgb"><span class="ic">🤝</span>Grok Bot 強項 · 協作</button>
+    <button data-tab="same"><span class="ic">🎯</span>一樣的設計直覺</button>
+    <button data-tab="proto"><span class="ic">🔌</span>協定與拓撲</button>
+    <button data-tab="blueprint" class="star"><span class="ic">🧱</span>移植藍圖</button>
+    <button data-tab="evidence" class="expo"><span class="ic">🔍</span>逐檔證據</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ================= 導讀 ================= -->
+<section class="pane active" id="intro">
+  <div class="page-kicker">START HERE · 導讀</div>
+  <h1 class="page">同一個詞、兩件事:兩套「一群 Bot 幫你工作」的系統</h1>
+  <p class="page-sub">CopilotKit 的 <strong>OpenBot</strong> 與 <strong>Grok Bot 0.18</strong> 表面上像到不可思議 —— 都把 agent 叫「Bot」、都給每個 Bot 一台自己的電腦、都在意稽核與 human-in-the-loop。但只要往下挖一層就會發現:<strong>「多 Bot」在兩邊根本是兩件事</strong>,而且它們各自補上了對方最大的缺口。這一頁做逐維度對照,並在最後給一份實際的組合建議。</p>
+
+  <details class="method">
+    <summary>這份對照怎麼來的 / 可信度分級 / 一個重要的不對稱(建議先讀)</summary>
+    <div class="mbody">
+      <dl>
+        <dt>資料來源</dt><dd>兩份 repo 各自 clone 後直接讀原始碼。<strong>OpenBot</strong>:<span class="fp">CopilotKit/OpenBot</span>,9.1 MB,TS+TSX 共 93,619 行(server 26,460 / app 26,988)。<strong>Grok Bot</strong>:<span class="fp">b-nnett/grok-bot-0.18-reconstructed</span>,184 MB,<code>source/</code> 441,230 行(扣掉生成 protobuf 與 <code>.gen.ts</code> 後 170,949 行)、<code>frontend/src</code> 52,021 行。</dd>
+        <dt>OpenBot 可信度</dt><dd><span class="pill yes">高</span> 官方專案、MIT、原始碼即真相。註解密度極高且多為「為什麼」,甚至直接引 issue 編號。<strong>不可見的部分</strong>:CopilotKit Intelligence(threads/memory/realtime gateway)是外部服務,只能從 client 呼叫看見介面。</dd>
+        <dt>Grok Bot 可信度</dt><dd><code>source/</code> <span class="pill yes">高</span>(多數生成檔帶 <code>@evidence</code> 與 region SHA-256,是從 macOS/Windows 兩份 artifact 的逐位元組相同區段還原);<code>frontend/src/recovered/</code> <span class="pill no">低</span>(部分重建,原版沒附前端原始碼);<strong>模組命名與檔案位置</strong> <span class="pill part">中</span>(repo 自述可能與原廠不同)。</dd>
+        <dt>⚠️ 一個重要的不對稱</dt><dd>這不是同級對比。OpenBot 是<strong>官方、開源、自述 alpha</strong> 的專案;Grok Bot 那份是<strong>閉源商業產品的非官方逆向重建</strong>,而且是一個已經出貨、被真實使用者用過的產品。程式碼量差 2–5 倍。<br><br>所以本頁比的是<strong>「設計選擇」而不是「成熟度」</strong>。看到「OpenBot 沒有 X」時,正確的讀法是「這個 alpha 專案還沒做到 X」,而不是「它的架構不支援 X」—— 兩者差別很大,本頁會盡量區分,尤其用 <span class="pill plan">已規劃未實作</span> 標記。</dd>
+        <dt>本頁最容易出錯的地方</dt><dd>OpenBot 的註解常常描述<strong>尚未實作</strong>的功能(bot-to-bot hops、routines)。本頁凡是這類都標 <span class="pill plan">已規劃未實作</span> 並附證據。若你只讀註解標題會得出完全相反的結論。</dd>
+        <dt>快照時效</dt><dd>兩者都是單次 clone 的快照。OpenBot 在活躍開發中(CHANGELOG 112 KB),隨時可能推進;Grok Bot 那份針對 0.18.0 單一版本。</dd>
+      </dl>
+    </div>
+  </details>
+
+  <h2>一句話定位</h2>
+  <div class="vs">
+    <div class="side ob">
+      <div class="sh"><span class="badge">◉</span><span class="sname">OpenBot</span><span class="stag">CopilotKit · MIT · alpha</span></div>
+      <div class="sb">
+        <p><strong>自架的多人 Web 平台。</strong>Docker Compose 起全部元件、資料在你自己的 PostgreSQL、模型你自己給。三個範例同事是<strong>設定而非程式碼</strong>(<code>agents.yaml</code>)。</p>
+        <p>核心賣點是一句話:<em>「Every action decided before it happens and recorded after.」</em>—— 一切經過一個 gateway 決策並留下紀錄。</p>
+        <ul>
+          <li>形態:<strong>Web App + 多服務容器</strong></li>
+          <li>使用者:<strong>多人</strong>,SSO / SAML / OIDC / RBAC</li>
+          <li>Bot = Postgres 一列,或<strong>任何 AG-UI 端點</strong></li>
+          <li>框架:<strong>中立</strong>(LangGraph / Mastra / CrewAI / Pydantic AI / ADK / 手寫)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="side gb">
+      <div class="sh"><span class="badge">◆</span><span class="sname">Grok Bot 0.18</span><span class="stag">閉源產品 · 非官方重建</span></div>
+      <div class="sb">
+        <p><strong>單人桌面 App。</strong>Electron(macOS/arm64),側邊欄養很多個 Bot,每個有自己的 persona、記憶、排程,<strong>而且彼此會互相傳訊息、可以拉群聊</strong>。</p>
+        <p>核心賣點是「一群會協作的 AI 同事住在你的桌面上」,工作跑在一個叫 <strong>box</strong> 的遠端/本機容器裡。</p>
+        <ul>
+          <li>形態:<strong>桌面 App + 遠端沙箱</strong></li>
+          <li>使用者:<strong>單人</strong>(使用者是唯一 principal)</li>
+          <li>Bot = <code>~/.grokbot/agents/&lt;id&gt;/</code> 一個資料夾 + 一顆 SQLite</li>
+          <li>框架:<strong>綁自家 runtime</strong>(重建版加了四後端改道)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2>先給你三句話</h2>
+
+  <div class="qa">
+    <div class="qq">① 「多 Bot」在兩邊是兩件事</div>
+    <div class="aa"><b>Grok Bot = 多 Bot 協作。</b>Bot 之間真的會互相講話:1:1 私訊會喚醒對方一個隱藏 turn、群聊有 round-robin 編排器(3 輪 / 10 則 / <code>@mention</code> / <code>(pass)</code>)。<br>
+    <b>OpenBot = 多 Bot 分工 + 路由。</b>一個 channel <b>一開就被 pin 到一個 coworker</b>,所謂多 agent 是一個 LLM intent router 在挑「這題該找哪個專才」。<b>Bot 之間目前不能互相講話</b> —— 這在原始碼裡是明文的「later」。<a onclick="go('multibot')">→ 四條證據</a></div>
+  </div>
+
+  <div class="qa">
+    <div class="qq">② 治理 vs 協作,各強一邊,而且剛好互補</div>
+    <div class="aa"><b>OpenBot 補上了 Grok Bot 最大的缺口</b>:治理是<b>機制</b>而非 prompt —— 單一 gateway 咽喉點、CEL policy、fail-closed、先寫審計列才動作、per-Bot 授權矩陣。<br>
+    <b>Grok Bot 補上了 OpenBot 最大的缺口</b>:多 Bot 協作的完整實作、本機 markdown 記憶、8 種事件觸發的自主性、六種中斷續跑路徑。<br>
+    <a onclick="go('gov')">→ OpenBot 的治理</a> · <a onclick="go('collab')">→ Grok Bot 的協作</a></div>
+  </div>
+
+  <div class="qa">
+    <div class="qq">③ chief / member:兩邊 runtime 都沒有階層,但缺席的位置不同</div>
+    <div class="aa"><b>Grok Bot</b>:Bot 彼此是對等 teammate,沒有任何 Bot 能命令或刪除另一個。它有一個叫「Chief of Staff」的 <b>persona 模板</b>,但那只是一段文字,拿到的工具跟其他 Bot 一模一樣。<br>
+    <b>OpenBot</b>:連 persona 模板都沒有。它的階層長在<b>人</b>那一側 —— admin / member 的 RBAC、<code>/admin/people</code> 升降權、<code>revoked_access</code>。<br>
+    換句話說:<b>Grok Bot 把治理成本放在「維持透明度」,OpenBot 放在「設計權限系統」。</b></div>
+  </div>
+
+  <h2>怎麼讀這一頁</h2>
+  <div class="legend">
+    <span class="lk"><span class="sw" style="background:var(--ob)"></span> OpenBot 的內容</span>
+    <span class="lk"><span class="sw" style="background:var(--gb)"></span> Grok Bot 的內容</span>
+    <span class="lk"><span class="sw" style="background:var(--accent)"></span> 兩者共通 / 對照結論</span>
+    <span class="lk"><span class="pill flag">約定</span> 只寫在 prompt,模型可不遵守</span>
+    <span class="lk"><span class="pill plan">已規劃未實作</span> 註解描述但程式碼還沒有</span>
+  </div>
+
+  <div class="pathcards">
+    <div class="pathcard" onclick="go('multibot')">
+      <div class="pe">★</div>
+      <div class="who">先讀這個</div>
+      <h3>核心差異 · 兩種多 Bot</h3>
+      <p>兩張並排流程圖 + OpenBot bot-to-bot 未實作的四條證據 + chief/member 對照。整頁的主論點在這裡。</p>
+    </div>
+    <div class="pathcard" onclick="go('matrix')">
+      <div class="pe">📊</div>
+      <div class="who">要快速掌握全貌</div>
+      <h3>逐維度對照(16 維)</h3>
+      <p>形態、Bot 定義、通訊、執行環境、工具所有權、治理、身分、記憶、自主性、續跑、稽核、HITL、擴充、規模。每格附檔案或常數名。</p>
+    </div>
+    <div class="pathcard" onclick="go('blueprint')">
+      <div class="pe">🧱</div>
+      <div class="who">要動手做</div>
+      <h3>移植藍圖 + 缺口清單</h3>
+      <p>假設以 OpenBot 為底座、要補上 Grok Bot 的協作層,逐項列出要自己寫什麼、以及 OpenBot 已經預留了哪些位置。</p>
+    </div>
+  </div>
+
+  <div class="callout vsc"><span class="ct">還有一章值得單獨看</span><a onclick="go('same')">🎯 一樣的設計直覺</a> 整理了 8 條<strong>兩個團隊獨立收斂到同一結論</strong>的設計決定(從「都把 agent 叫 Bot」到「把危險能力關在窄詞彙後面」)。當兩套毫無關係的系統在同一個問題上做出同樣選擇,那個選擇大概就是對的 —— 這一章比任何單邊的分析都更有參考價值。</div>
+</section>
+
+<!-- ================= 核心差異 ================= -->
+<section class="pane" id="multibot">
+  <div class="page-kicker gold">★ 核心差異</div>
+  <h1 class="page">★ 「多 Bot」的兩種意思:協作 vs 路由</h1>
+  <p class="page-sub">這是整頁最重要的一章。兩套系統都讓你養一群 Bot,但<strong>那群 Bot 之間發生了什麼事,完全不同</strong>。Grok Bot 的 Bot 會互相講話;OpenBot 的 Bot 各自待在自己的頻道裡,由一個路由器決定該找誰。這個差異決定了後面所有事情:要不要輪數上限、要不要防扇出、要不要跳數上限。</p>
+
+  <details class="method">
+    <summary>這章怎麼推的 / 依據檔案 / 證據強度</summary>
+    <div class="mbody">
+      <dl>
+        <dt>OpenBot 側</dt><dd><span class="fp">server/src/routing/classify.ts</span>(intent router,含「channel pinned to one coworker」的關鍵陳述)· <span class="fp">server/src/db/schema/work.ts</span>(work queue,含 today/later 的陳述)· <span class="fp">server/src/work/culler.ts</span> + <span class="fp">queue.ts</span>(唯一實作的 work kind)· <span class="fp">server/src/db/schema/coworker.ts</span>(檔頭 vs 實際表)· <span class="fp">server/src/db/schema/core.ts</span>(<code>channels</code> / <code>channel_memberships</code> / <code>channel_agents</code>)。</dd>
+        <dt>Grok Bot 側</dt><dd><span class="fp">source/host/agents/agent-messaging.ts</span> · <span class="fp">source/host/extensions/transcript/agent-to-agent-messaging.ts</span> · <span class="fp">source/host/groups/group-chat.ts</span> · <span class="fp">source/host/extensions/transcript/group-chat-orchestrator.ts</span> · <span class="fp">source/host/extensions/transcript/run-scheduler.ts</span>。全部常數皆為可覆核的 <code>export const</code>。</dd>
+        <dt>「OpenBot 不能 bot-to-bot」的證據強度</dt><dd><span class="pill yes">高</span>。這不是缺席推論 —— 原始碼<strong>明文寫出</strong>了現況與規劃的分界(<code>work.ts:37</code>),而且我逐一驗過 <code>server/src/work/</code> 只有一個 kind。加上 <code>classify.ts</code> 的 pin 陳述,兩條互相印證。</dd>
+        <dt>不確定處</dt><dd>OpenBot 掛在某個 channel 上的 <strong>Bot 內部</strong>可能自己是多 agent 的(例如一個 LangGraph 圖裡有多個節點),那不在本頁討論範圍 —— 本頁比的是<strong>平台層是否提供 Bot 間通訊</strong>。同理,Grok Bot 的 subagent 也是「Bot 內部」而非「Bot 之間」。</dd>
+      </dl>
+    </div>
+  </details>
+
+  <h2>並排看一次:同一句話進到兩套系統會發生什麼</h2>
+  <p>情境:使用者說「幫我查一下這家供應商的風險,順便跟研究那邊確認最新財報」。</p>
+
+  <div class="vs">
+    <div class="side gb">
+      <div class="sh"><span class="badge">◆</span><span class="sname">Grok Bot:Bot 會去找 Bot</span><span class="stag">多 Bot 協作</span></div>
+      <div class="sb">
+<div class="asciibox gb" style="margin:0;">使用者 ──▶ 風險 Bot(lane: user)
+             │
+             │ system prompt 裡有「同事名錄」(≤40 位)
+             │ 模型決定呼叫 SendToAgent(研究Bot, "…")
+             │
+             ├─ 風險 Bot 的 transcript ← assistant(toAgent)
+             ├─ pendingAgentInbound[研究Bot].push(msg)
+             ├─ 工具回傳「已送出,別等」  ← 拿不到回覆
+             └─ 風險 Bot 繼續自己的事 / 結束這一輪
+                          │
+                          ▼
+             研究 Bot 的 transcript ← user(fromAgent)
+             排入研究 Bot 的佇列(lane: agent)
+             隱藏 turn:「[agent] …from 風險Bot」
+             ├─ 研究 Bot 有完整工具箱,真的去查
+             ├─ 選項一:SendToAgent 回去 ──┐
+             └─ 選項二:什麼都不做(允許沉默)│
+                                           ▼
+             風險 Bot 又被喚醒(另一個獨立 turn)
+             └─ SendMessage 告訴使用者結果</div>
+        <p style="margin-top:12px;"><strong>兩個 Bot 永遠不可能在同一輪裡來回對話</strong> —— 因為每個 Bot 是一條獨佔佇列,同輪等待必然死鎖。所以 fire-and-forget 是唯一解,不是效能選擇。</p>
+      </div>
+    </div>
+    <div class="side ob">
+      <div class="sh"><span class="badge">◉</span><span class="sname">OpenBot:路由器去找 Bot</span><span class="stag">多 Bot 分工</span></div>
+      <div class="sb">
+<div class="asciibox ob" style="margin:0;">使用者 ──▶ server
+             │
+             │ 這是新 channel 嗎?
+             │
+             ├─ 是,且使用者沒有 @ 指名
+             │    └─▶ intent router(一次模型呼叫)
+             │          讀每個 coworker 的 roleDescription
+             │          + reaches[](它實際握有哪些連接器)
+             │          → 挑一個 → 寫 channel.routed 審計列
+             │          → 失敗/沒把握 → 落到 default coworker
+             │
+             ├─ 使用者有 @ 指名 → 不需要決定
+             │
+             └──▶ channel 被 PIN 到那一個 coworker
+                   「for the life of its thread」
+                          │
+                          ▼
+             該 coworker 全程負責這個 thread
+             ├─ 它自己去查(browser / shell / MCP)
+             ├─ 每個工具呼叫都回 server gateway 過閘
+             └─ 答案回到同一個 channel
+
+             ✗ 它無法把工作轉給別的 coworker
+             ✗ 它無法喚醒別的 coworker
+             ✗ 沒有多 Bot 同場對話的編排器</div>
+        <p style="margin-top:12px;">要換人只能<strong>由人</strong>操作:開一個新 channel、或在訊息裡 <code>@</code> 指名另一個 coworker。</p>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">1</span>「OpenBot 的 Bot 不能互相講話」—— 四條證據</h2>
+
+  <div class="implgroup o">
+    <div class="gh">證據一:channel 一開就被 pin 到一個 coworker</div>
+    <div class="implrow">
+      <div class="it"><span class="fp">server/src/routing/classify.ts</span><br>檔頭註解</div>
+      <div class="ix">
+        <blockquote class="ob" style="margin-top:0;"><span class="qsrc">classify.ts — Choosing which coworker an untagged message is for</span>
+          A channel is <strong>pinned to one coworker for the life of its thread</strong>, and the pin is set <strong>before the first turn runs</strong>, so this decision happens at channel creation, <strong>not during a run</strong>. When the person named a coworker with <code>@</code>, there is nothing to decide and this is never called.
+        </blockquote>
+        關鍵在 <em>"not during a run"</em>:路由是<strong>一次性的、發生在對話開始之前</strong>。一旦 pin 定了,那個 thread 就是那一個 coworker 的,沒有中途換手的路徑。
+      </div>
+    </div>
+  </div>
+
+  <div class="implgroup o">
+    <div class="gh">證據二:work queue 明文寫出「今天有什麼、以後才有什麼」</div>
+    <div class="implrow">
+      <div class="it"><span class="fp">server/src/db/schema/work.ts:37</span><br><code>workItems.kind</code> 的註解</div>
+      <div class="ix">
+        <blockquote class="ob" style="margin-top:0;"><span class="qsrc">work.ts — /** What kind of work. */</span>
+          <code>computer.suspend</code> <strong>today</strong>; routines and <strong>bot-to-bot hops later</strong>.
+        </blockquote>
+        同一個檔案的檔頭也說得很清楚:<em>"ONE MECHANISM, THREE FEATURES. Suspending idle computers needs it, scheduled routines need it, and <strong>a hop from one Bot to another needs it</strong>. Written once with all three in view rather than three times slightly differently…"</em><br><br>
+        <strong>所以這不是遺漏,是刻意先把地基蓋好。</strong>這張表已經把難的部分做完了:誰擁有一個 item、擁有者死掉怎麼辦、復原會不會跑兩次(lease / <code>attempts</code> / <code>finishedAt</code> 保留而非刪除 / key 帶「due 的那一分鐘」當幂等鍵)。<a onclick="go('blueprint')">→ 這正是移植藍圖的立足點</a>
+      </div>
+    </div>
+    <div class="implrow">
+      <div class="it">已驗證:只有一個 kind</div>
+      <div class="ix"><span class="fp">server/src/work/</span> 只有兩個檔案(<code>culler.ts</code> / <code>queue.ts</code>),而 <code>culler.ts</code> 定義的 <code>CULL_KIND = "computer.suspend"</code> 是整個 repo 唯一被使用的 work kind。沒有任何 <code>bot.hop</code> / <code>routine.*</code> 之類的 kind 存在。</div>
+    </div>
+  </div>
+
+  <div class="implgroup o">
+    <div class="gh">證據三:檔頭標題寫了 handoff,但表還沒建</div>
+    <div class="implrow">
+      <div class="it"><span class="fp">server/src/db/schema/coworker.ts:2</span></div>
+      <div class="ix">
+        檔頭寫著:<em>"Coworker tables: bots, skills, routines, <strong>bot-to-bot handoff</strong>."</em><br>
+        但檔案裡實際只有<strong>兩張表</strong>:<code>agent_profiles</code>(agentId / ownerUserId / title / roleDescription / avatarSeed / visibility / callbackTokenHash / deletedAt)與 <code>agent_preferences</code>(userId / agentId / hiddenAt)。<br><br>
+        <span class="pill plan">已規劃未實作</span> —— 標題是這個檔案<strong>將來</strong>要放什麼的宣告,不是現況清單。這是本頁最容易誤讀的一處:只看標題會得出完全相反的結論。
+      </div>
+    </div>
+  </div>
+
+  <div class="implgroup o">
+    <div class="gh">證據四:資料模型支援多 Bot,但沒有編排器去用它</div>
+    <div class="implrow">
+      <div class="it"><span class="fp">server/src/db/schema/core.ts</span><br><code>channel_agents</code></div>
+      <div class="ix">
+        它<strong>確實是多對多</strong>:<code>primaryKey({columns:[channelId, agentId]})</code>。而且 <code>channels.lastMessageAgentId</code> 的註解明說:<em>"Which agent spoke, so a channel with <strong>several</strong> can show the right one."</em><br><br>
+        也就是說:<strong>「一個 channel 掛多個 Bot」在資料層是可以表達的</strong>,UI 也預期得到。<span class="pill part">但</span> 沒有任何程式碼會在一個 turn 裡輪流叫這些 Bot 發言 —— 沒有 round-robin、沒有輪數上限、沒有「誰該回話」的解析、沒有 <code>(pass)</code> 之類的略過協定。<strong>能表達 ≠ 有行為。</strong>
+      </div>
+    </div>
+    <div class="implrow">
+      <div class="it">對照:Grok Bot 有的東西</div>
+      <div class="ix">Grok Bot 的 <span class="fp">group-chat-orchestrator.ts</span> 只有 107 行,但它的存在就是差別所在。註解一句話講完:<em>"Drives a <strong>bounded, epoch-cancellable round robin</strong> for one room turn."</em></div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">2</span>Grok Bot 的協作機制清單(以及哪些只是約定)</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>通道 / 機制</th><th>介面</th><th>是機制還是約定</th><th>硬性上限</th></tr>
+    <tr><td><strong>1:1 私訊</strong></td><td><code>SendToAgent(target_id, message, images?, priority?)</code></td><td><span class="pill yes">機制</span> 行程內 <code>Map&lt;agentId, AgentInboundMessage[]&gt;</code> + 獨佔佇列 + <code>[agent]</code> 隱藏 turn</td><td>訊息 8,000 字元;名錄 prompt ≤40 位同事</td></tr>
+    <tr><td><strong>群聊貼文</strong></td><td>同一個工具,target 是 group id → <code>postToGroup</code></td><td><span class="pill yes">機制</span> 成員資格檢查是<strong>整條路徑上唯一的授權檢查</strong></td><td>≤6 成員 · ≤3 輪 · ≤10 則 · 每人每輪 ≤2 則</td></tr>
+    <tr><td>誰該回話</td><td><code>resolveResponders()</code> 掃 <code>@name</code> / <code>@everyone</code></td><td><span class="pill yes">機制</span></td><td>從最後一則使用者訊息起算</td></tr>
+    <tr><td>本輪略過</td><td>送出剛好 <code>(pass)</code></td><td><span class="pill part">半機制</span> 模型要主動送,但 <code>isPassContent()</code> 過濾 + streaming 預覽也懂前綴 + <code>postToGroup</code> 擋掉</td><td>一輪全員 pass ⇒ 房間結束</td></tr>
+    <tr><td>優先權搶佔</td><td><code>priority: true</code></td><td><span class="pill yes">機制</span> <strong>但正在服務使用者時不准插隊</strong>(<code>getActiveLane === "user"</code> 直接 return)</td><td>1:1 限定,群組忽略</td></tr>
+    <tr><td>排程優先序</td><td><code>run-scheduler.ts</code> 三車道</td><td><span class="pill yes">機制</span> <code>user &gt; agent &gt; background</code></td><td>每 Bot 同時只有一個 run</td></tr>
+    <tr><td>搶佔後重送</td><td><code>isDisplayed</code> / <code>isRedriven</code> 兩個布林</td><td><span class="pill yes">機制</span> 前者解畫面冪等、後者防無限重送</td><td>只重送一次</td></tr>
+    <tr><td>跨使用者房間</td><td>HTTPS JSON relay + SSE + <code>ackIds</code></td><td><span class="pill yes">機制</span></td><td>房間 ≤24 人 · 遠端 turn 逾時 600s</td></tr>
+    <tr><td>「不要扇出」</td><td>—</td><td><span class="pill flag">約定</span> 只寫在 system prompt 與工具描述裡</td><td><strong>沒有</strong>配額、速率限制、跳數上限</td></tr>
+    <tr><td>「不要逐字轉述使用者的抱怨」</td><td>—</td><td><span class="pill flag">約定</span></td><td>—</td></tr>
+    <tr><td>「不要 ping-pong 互相已讀」</td><td>—</td><td><span class="pill flag">約定</span></td><td>群聊有輪數上限,<strong>1:1 沒有</strong></td></tr>
+  </table></div>
+
+  <div class="callout gbc"><span class="ct">◆ Grok Bot 這邊的最大缺口</span>上表最後三列是關鍵:<strong>1:1 私訊完全沒有機制層的節制</strong>。一個沒對齊或被 prompt injection 影響的 Bot,可以在單一 turn 內連發多則 <code>SendToAgent</code>,每則喚醒一個新 turn,而被喚醒的 Bot 又能再寄 —— 系統層沒有任何東西阻止指數擴散。<br><br>它的替代防線是「使用者全程看得見」(每一跳雙邊 transcript 都留痕)+「三車道永遠讓人優先」。在單人桌面 App 情境下說得過去,<strong>移到多人環境就失效</strong>,因為透明度不再等於可控。</div>
+
+  <div class="callout obc"><span class="ct">◉ OpenBot 這邊的相對優勢(同一個問題)</span>因為 Bot 之間<strong>還不能</strong>互相講話,這個攻擊面現在不存在。更重要的是:當它將來實作 bot-to-bot hops 時,那些 hop 會走 <code>work_items</code>(有 lease、有 attempts 計數、有幂等 key)並且<strong>每個工具呼叫仍然要過 gateway</strong> —— 也就是說,<strong>它的協作層一出生就會落在治理層之內</strong>,而不是像 Grok Bot 那樣長在治理層旁邊。這是架構順序帶來的差異,不是誰比較用心。</div>
+
+  <h2><span class="secnum">3</span>chief / member:兩邊都沒有,但缺席的位置不同</h2>
+  <div class="vs">
+    <div class="side gb">
+      <div class="sh"><span class="badge">◆</span><span class="sname">Grok Bot:Bot 對等,人是唯一 principal</span></div>
+      <div class="sb">
+        <ul>
+          <li><strong>沒有任何 Bot 能刪除或封存另一個 Bot</strong>(連自己都不行)。prompt 原文:<em>"You have no tool to delete or archive an agent … never destroy one (yourself included)."</em> 只有使用者能從側邊欄右鍵刪除。</li>
+          <li><code>UpdateAgent</code> 可改別人的名字/描述,但是 <strong>merge-only</strong>:只改你傳的欄位,設計上<strong>無法清空或破壞</strong>對方 profile。</li>
+          <li><code>profile.json</code> 只有 <code>{name, description, title, avatarShape, avatarColor}</code> —— <strong>沒有 parentId / ownerAgentId / managerId</strong>。</li>
+          <li>工具集由<strong>能力可用性</strong>決定(有沒有 box、有沒有連 MCP),<strong>不依 Bot 身分</strong>。</li>
+          <li>UI 那張叫 <code>org-chart</code>(組織圖)的畫面,實作上只有 <code>membership</code>(房間→成員)與 <code>message</code>(<strong>無向</strong>)兩種邊,而且用<strong>力導向布局而非樹狀</strong>。</li>
+          <li>「Chief of Staff」是 onboarding 模板陣列裡的一個 persona(描述 "Manages your other Bots and pulls you in for decisions"),與 Night Shift、QA Engineer <strong>結構完全相同</strong>。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="side ob">
+      <div class="sh"><span class="badge">◉</span><span class="sname">OpenBot:階層長在人那一側</span></div>
+      <div class="sb">
+        <ul>
+          <li>Bot 之間<strong>沒有階層,也沒有通道</strong> —— 連 persona 模板層級的「主管 Bot」都沒有。</li>
+          <li>真正的階層是<strong>人的 RBAC</strong>:<code>user_roles</code> 表、<code>INITIAL_ADMIN_EMAILS</code>(唯一能產生 admin 的來源,每次登入重讀)、<code>/admin/people</code> 升降權與移除、<code>revoked_access</code> 表(結束當前 session 並阻擋下次登入)。每次變更都上審計。</li>
+          <li>Bot 的「歸屬」是<strong>對人</strong>而非對 Bot:<code>agent_profiles.ownerUserId</code> + <code>visibility: public|private</code>。私有 Bot 只有作者看得到。</li>
+          <li><strong>能力歸屬也是對 Bot 而非 Bot 之間</strong>:<code>plugin_grants (kind, ref, agentId)</code> —— 誰能呼叫什麼工具是一張明確的表,由 admin 授予。<a onclick="go('gov')">→ Grok Bot 沒有這張表</a></li>
+          <li>skills 的設計特別能說明它的權限哲學:<strong>任何登入者都能寫 skill</strong>,因為 <em>"a skill adds no capability"</em>;而加 MCP server 是 admin 的決定。「指令」與「能力」被刻意分開。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="verdict">
+    <div class="vt">結論</div>
+    <div class="vmain">兩套系統的 Bot 之間都<strong>沒有 chief / member</strong>。差別在於<strong>那個空缺被什麼補上</strong>:<br>Grok Bot 用「<strong>透明度 + 人是唯一 principal</strong>」補;OpenBot 用「<strong>人的 RBAC + per-Bot 授權矩陣</strong>」補。</div>
+    <div class="vsub">前者在單人桌面上更便宜也更有效(你自己就是那個 chief,不需要在 Bot 之間再造一層官僚);後者在多人/多租戶環境是唯一可行的答案(透明度無法擴展到你看不到的人身上)。<strong>如果你要做的是企業內部的 AI 同事平台,後者是必須的,前者是不夠的。</strong></div>
+  </div>
+
+  <div class="callout note"><span class="ct">一個容易混淆的分層</span>「Bot 之間沒有階層」不等於「整個系統沒有階層」。兩邊都有<strong>另一個軸</strong>上的真階層:<br>
+  <strong>◆ Grok Bot</strong> — <code>Task</code> 派出的 <strong>subagent</strong>(父可 <code>CheckSubagent</code> 讀狀態、<code>MessageSubagent</code> 強行插指令、<code>StopSubagent</code> 直接拆掉)與 <strong>CloudAgent</strong>(破壞性動作需 <code>confirm:true</code>)。<br>
+  <strong>◉ OpenBot</strong> — 平台層沒有 subagent 概念;但掛在 channel 上的那個 Bot <strong>內部</strong>可以是任意複雜的 agent 圖(LangGraph 等),那是 Bot 自己的事,OpenBot 不介入也不治理其內部結構(只治理它<strong>打出來的每一個工具呼叫</strong>)。</div>
+</section>
+
+<!-- ================= 逐維度對照 ================= -->
+<section class="pane" id="matrix">
+  <div class="page-kicker">📊 Matrix</div>
+  <h1 class="page">📊 逐維度對照:16 個面向</h1>
+  <p class="page-sub">要快速掌握全貌就看這一頁。每格盡量附上關鍵檔案、表名或常數名,方便你自己回原始碼覆核。<strong>底色代表陣營</strong>:<span class="pill ob">綠 = OpenBot</span> <span class="pill gb">橘 = Grok Bot</span>。</p>
+
+  <details class="method">
+    <summary>這章怎麼推的 / 怎麼讀這些表</summary>
+    <div class="mbody">
+      <dl>
+        <dt>編法</dt><dd>每一維都回到雙方原始碼確認,而不是從各自的 README 抄。README 會說「我們支援 X」,原始碼會說「X 實作到什麼程度」。凡兩者有落差,本表以原始碼為準並標注。</dd>
+        <dt>「無」的兩種意思</dt><dd><span class="pill no">沒有</span> = 找不到對應機制;<span class="pill plan">已規劃未實作</span> = 註解或 schema 提到但程式碼還沒有。這兩者在評估時完全不同,所以分開標。</dd>
+        <dt>不比什麼</dt><dd>不比效能、不比 UI 好看程度、不比模型品質 —— 這些都不是原始碼能回答的。也不比「哪個更好」,因為兩者的目標使用者不同(單人桌面 vs 企業自架)。</dd>
+      </dl>
+    </div>
+  </details>
+
+  <h2>A · 基本形態</h2>
+  <div class="scrollwrap"><table>
+    <tr><th style="min-width:130px;">維度</th><th class="obh">◉ OpenBot</th><th class="gbh">◆ Grok Bot 0.18</th></tr>
+    <tr><td><strong>形態</strong></td><td class="obt">自架 <strong>Web 平台</strong>。Docker Compose 起 7 個服務 + Postgres。也可打成單一 image(<code>EMBEDDED_POSTGRES=on</code>)。</td><td class="gbt"><strong>Electron 桌面 App</strong>(macOS/arm64)。行程:renderer / main / coordinator / host,加一個遠端或本機容器。</td></tr>
+    <tr><td><strong>授權與狀態</strong></td><td class="obt"><strong>MIT</strong>,官方專案。自述 <strong>alpha</strong>:<em>"Expect rough edges and bugs, and expect things to move."</em></td><td class="gbt">閉源商業產品的<strong>非官方逆向重建</strong>。重建部分自述為 hacking / research project。</td></tr>
+    <tr><td><strong>使用者模型</strong></td><td class="obt"><strong>多人</strong>。Google / Microsoft / Okta + 執行期註冊 SAML/OIDC(按 email domain 路由)+ admin/member RBAC。預設 <code>OPENBOT_SINGLE_USER=true</code> 全放行(供本機試玩)。</td><td class="gbt"><strong>單人</strong>。使用者是唯一 principal,沒有角色、沒有登入畫面。跨使用者只透過「共享房間」發生。</td></tr>
+    <tr><td><strong>資料落在哪</strong></td><td class="obt"><strong>你的 PostgreSQL</strong>(+ pgvector)。<span class="pill part">但</span> threads 與 memory 在 <strong>CopilotKit Intelligence</strong>(外部服務,需 license,可自架)。</td><td class="gbt"><strong>全部本機</strong>:<code>~/.grokbot/agents/&lt;id&gt;/store.db</code>(SQLite)+ markdown 記憶。工作跑在遠端 box(或本機 Docker)。</td></tr>
+    <tr><td><strong>程式碼規模</strong></td><td class="obt">TS+TSX <strong>93,619 行</strong>(server 26,460 / app 26,988 / 其餘為 supervisor、agent-computer、兩個範例 Bot)</td><td class="gbt"><code>source/</code> <strong>441,230 行</strong>(扣掉生成 protobuf 與 <code>.gen.ts</code> 後 <strong>170,949</strong>)+ <code>frontend/src</code> 52,021 行</td></tr>
+    <tr><td><strong>模型 / 框架綁定</strong></td><td class="obt"><strong>中立</strong>。任何 <strong>AG-UI</strong> 端點都是 Bot(LangGraph / Mastra / CrewAI / Pydantic AI / Google ADK / 手寫)。模型金鑰由 admin 提供,加密存放、不進日誌。</td><td class="gbt"><strong>綁自家 runtime</strong>。重建版額外加了四後端改道(Cursor / Claude Code / Codex / OpenRouter)—— 但那是重建版的實驗,<strong>不是原版行為</strong>。</td></tr>
+  </table></div>
+
+  <h2>B · Bot 的定義與生命週期</h2>
+  <div class="scrollwrap"><table>
+    <tr><th style="min-width:130px;">維度</th><th class="obh">◉ OpenBot</th><th class="gbh">◆ Grok Bot 0.18</th></tr>
+    <tr><td><strong>一個 Bot 是什麼</strong></td><td class="obt">Postgres 的 <code>agents</code> 一列 + <code>agent_profiles</code> 一列(title / roleDescription / avatarSeed / visibility / ownerUserId)。宣告在 <code>agents.yaml</code> 或從 <code>/agents</code> 建。</td><td class="gbt">檔案系統的<strong>一個資料夾</strong>:<code>profile.json</code> + <code>settings.json</code> + <code>store.db</code> + <code>memory/</code> + <code>automations/</code>。群聊房間與共享房間鏡像<strong>也是</strong>同層的兄弟資料夾。</td></tr>
+    <tr><td><strong>兩種 Bot 型別</strong></td><td class="obt"><code>built-in</code>(帶 system prompt)或 <code>remote-ag-ui</code>(帶端點)。端點註冊時與<strong>每次 redirect</strong> 都用與瀏覽同一套 target 檢查驗證;私有位址必須列在 <code>AGENT_ENDPOINT_ALLOWED_HOSTS</code>(精確比對,不吃通用字元)。</td><td class="gbt">只有一種。差別在資料夾裡有沒有 <code>group.json</code>(群聊)或 <code>remote-room.json</code>(別人主辦的鏡像房間)。</td></tr>
+    <tr><td><strong>誰能建 Bot</strong></td><td class="obt">人(從 <code>/agents</code>)。<span class="pill no">Bot 不能建 Bot</span></td><td class="gbt">人<strong>或 Bot</strong>。<code>CreateAgent</code> 是 Bot 手上的工具,回傳新 id 可立即 <code>SendToAgent</code>。</td></tr>
+    <tr><td><strong>誰能刪 Bot</strong></td><td class="obt">人(admin / 擁有者)。軟刪(<code>deletedAt</code>)。</td><td class="gbt"><strong>只有人</strong>。Bot 完全沒有刪除或封存的工具,prompt 明文說明並要求 Bot 指路給使用者。</td></tr>
+    <tr><td><strong>Bot 能改別的 Bot 嗎</strong></td><td class="obt"><span class="pill no">不能</span></td><td class="gbt">能,但受限:<code>UpdateAgent</code> 是 <strong>merge-only</strong>,設計上無法清空或破壞對方 profile。</td></tr>
+    <tr><td><strong>可見性 / 歸屬</strong></td><td class="obt"><code>visibility: public | private</code> + <code>ownerUserId</code> + 每人可 <code>hiddenAt</code>(<code>agent_preferences</code>)。</td><td class="gbt">單人,無歸屬概念。只有 <code>settings.json</code> 的 <code>hiddenFromSidebar</code>。</td></tr>
+    <tr><td><strong>複製 Bot</strong></td><td class="obt">有(<code>/agents</code> 的 duplicate,審計事件 <code>bot.duplicated</code>)。</td><td class="gbt">有。<code>cloneAgentDir()</code>:先 checkpoint SQLite 再複製、名字加 " copy"、複製 automation 定義但<strong>不複製執行史</strong>、<strong>不複製 <code>group.json</code> 與 <code>memory/</code></strong>、失敗則整個目標目錄 <code>rmSync</code>。</td></tr>
+  </table></div>
+
+  <h2>C · Bot 之間(本頁核心)</h2>
+  <div class="scrollwrap"><table>
+    <tr><th style="min-width:130px;">維度</th><th class="obh">◉ OpenBot</th><th class="gbh">◆ Grok Bot 0.18</th></tr>
+    <tr><td><strong>Bot 間通訊</strong></td><td class="obt"><span class="pill plan">已規劃未實作</span> <code>work.ts:37</code>:<em>"bot-to-bot hops <strong>later</strong>"</em></td><td class="gbt"><span class="pill yes">五條通道</span> 1:1 私訊 / 群聊貼文 / 跨使用者房間 / <code>Task</code> subagent / CloudAgent(+ 使用者廣播)</td></tr>
+    <tr><td><strong>多 Bot 同場對話</strong></td><td class="obt"><span class="pill no">沒有編排器</span> <code>channel_agents</code> 是多對多,但 channel <strong>pin 到一個 coworker</strong></td><td class="gbt"><span class="pill yes">有</span> round-robin 編排器,≤6 成員 / ≤3 輪 / ≤10 則 / 每人每輪 ≤2 則 / 歷史 24 則</td></tr>
+    <tr><td><strong>「該找誰」怎麼決定</strong></td><td class="obt"><strong>LLM intent router</strong>,建 channel 時一次性決定(讀 <code>roleDescription</code> + <code>reaches[]</code>)。失敗有四種具名原因(<code>unreachable</code> / <code>unparsed</code> / <code>off-roster</code> / …),都落到 default coworker 並寫 <code>channel.routed</code> 審計列。</td><td class="gbt"><strong>由 Bot 自己判斷</strong>(prompt 準則)+ 使用者 <code>@</code> 指名。群聊裡用 <code>resolveResponders()</code> 掃 <code>@mention</code>。</td></tr>
+    <tr><td><strong>Bot→Bot 授權</strong></td><td class="obt">不適用(還沒有通道)。但 <code>plugin_grants (kind, ref, agentId)</code> 這個形狀<strong>可以直接擴充</strong>成 Bot→Bot 授權。</td><td class="gbt"><span class="pill no">全連通圖</span> 唯一的授權檢查是 <code>postToGroup</code> 的「你必須是這個群的成員」。</td></tr>
+    <tr><td><strong>扇出 / 跳數限制</strong></td><td class="obt">不適用</td><td class="gbt"><span class="pill flag">只有約定</span> 沒有配額、沒有速率限制、<strong>1:1 沒有跳數上限</strong></td></tr>
+    <tr><td><strong>階層</strong></td><td class="obt">Bot 間無。階層在<strong>人</strong>:<code>user_roles</code> / <code>INITIAL_ADMIN_EMAILS</code> / <code>revoked_access</code></td><td class="gbt">Bot 間無(對等 teammate)。另一軸有真階層:<code>Task</code> subagent + CloudAgent</td></tr>
+  </table></div>
+
+  <h2>D · Bot 的執行環境</h2>
+  <div class="scrollwrap"><table>
+    <tr><th style="min-width:130px;">維度</th><th class="obh">◉ OpenBot</th><th class="gbh">◆ Grok Bot 0.18</th></tr>
+    <tr><td><strong>一 Bot 一台電腦</strong></td><td class="obt"><span class="pill yes">有</span> <code>supervisor</code> 為每個 Bot 建一個 container:自己的 Chromium profile、自己的 <code>/workspace</code> volume。沒有 supervisor 時<strong>全部 Bot 共用一個瀏覽器</strong> —— 而且它把這件事寫進審計(<code>computer.isolation_loaded</code>)。</td><td class="gbt"><span class="pill yes">有</span> 「box」:遠端沙箱(預設)或本機 Docker 容器(重建版新增)。有 forever-box 與交接(handoff)機制。</td></tr>
+    <tr><td><strong>能力</strong></td><td class="obt">Chromium(導覽 / 點擊 / 輸入 / 按鍵 / 捲動 / 截圖 / aria snapshot)+ <strong>shell</strong>(在 workspace 跑指令、裝東西)+ 檔案讀寫 + 螢幕串流(screencast)+ VNC 式觀看。</td><td class="gbt">Shell / 檔案 / 瀏覽器驅動 / computer use(桌面)/ 截圖 / VNC 視窗 / 影片理解(交給 subagent)。</td></tr>
+    <tr><td><strong>加固</strong></td><td class="obt"><strong>gVisor</strong>(<code>COMPUTER_RUNTIME=runsc</code>)· Chromium 自身 sandbox(<code>COMPUTER_SANDBOX=on</code>)· 綁 <code>127.0.0.1</code> + <strong>per-container token</strong> · <strong>SPIFFE/SPIRE</strong> workload identity(Docker attestor 選 supervisor 設的 label)· egress 控制。</td><td class="gbt">遠端沙箱本身;本機 Docker 模式:只綁 loopback、產物<strong>內容尋址唯讀掛載</strong>、連線前驗證。無 SPIFFE / gVisor 對應物。</td></tr>
+    <tr><td><strong>碰使用者主機</strong></td><td class="obt">刻意不做。<code>AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS</code> 僅供筆電本機,<strong><code>NODE_ENV=production</code> 下設了就拒絕啟動</strong>。</td><td class="gbt">有,走獨立的 <code>External*</code> 工具族(<code>ExternalShell</code> / <code>ExternalRead</code> / <code>ExternalAwaitShell</code>)+ local-exec daemon + <code>local-tool-permission</code> 許可。</td></tr>
+    <tr><td><strong>誰持有 Docker socket</strong></td><td class="obt">只有 <code>supervisor</code>,而且只曝露<strong>四個動詞</strong>(ensure / stop / reset / list),以 Bot 表達而非以 Docker 表達,<strong>沒有 passthrough</strong>。</td><td class="gbt">Electron main 的 box connector。</td></tr>
+    <tr><td><strong>閒置回收</strong></td><td class="obt"><code>work_items</code> 的 <code>computer.suspend</code>(唯一實作的 work kind),多副本安全的 lease 機制。</td><td class="gbt">box lifecycle 擴充 + forever-box。</td></tr>
+  </table></div>
+
+  <h2>E · 工具、治理、稽核</h2>
+  <div class="scrollwrap"><table>
+    <tr><th style="min-width:130px;">維度</th><th class="obh">◉ OpenBot</th><th class="gbh">◆ Grok Bot 0.18</th></tr>
+    <tr><td><strong>工具所有權</strong></td><td class="obt"><strong>server 擁有,推給 Bot</strong>。<code>agent-bot</code> 註解:<em>"It publishes <strong>no tools of its own</strong>. Every callable tool arrives in <code>input.tools</code>, forwarded by the server."</em> ← 這是治理能生效的前提。</td><td class="gbt"><strong>host 行程內建工具箱</strong>(<code>turn-toolset.ts</code> 的選填工廠)。工具是否出現取決於能力可用性,不能從外部替換。</td></tr>
+    <tr><td><strong>動作治理</strong></td><td class="obt"><span class="pill yes">機制</span> <strong>單一 gateway 咽喉點</strong>:解析 target → 評估 CEL policy → <strong>寫審計列</strong> → 才呼叫 computer。<em>"There is no path that acts without the record existing first."</em></td><td class="gbt"><span class="pill part">混合</span> <code>auto-review</code> 七個閘(hostShell / boxShell / mcp / computer / automationWrite / cloudAgent / subagentLaunch)+ 使用者 widget 確認 + <strong>大量 prompt 約定</strong>。沒有 policy 引擎。</td></tr>
+    <tr><td><strong>Policy 語言</strong></td><td class="obt"><strong>CEL</strong>(<code>cel-js</code>)。deny 先於 allow、缺 policy 全禁、<strong>壞規則是拒絕不是放行</strong>、有 <code>dry-run</code> vs <code>enforce</code>。可檢查 15 個欄位。<span class="pill part">但</span> 出貨預設是 <code>deny:[] / allow:["true"]</code>(全允許)。</td><td class="gbt"><span class="pill no">沒有</span></td></tr>
+    <tr><td><strong>per-Bot 能力授權</strong></td><td class="obt"><span class="pill yes">有</span> <code>plugin_grants (kind, ref, agentId)</code> —— 一張明確的表,admin 授予。components 另有 <code>component_exclusions</code> 與 per-component 的 <code>component_functions</code> 授權。</td><td class="gbt"><span class="pill no">沒有</span> 工具集依能力可用性,不依 Bot 身分。</td></tr>
+    <tr><td><strong>稽核</strong></td><td class="obt"><strong>61 種具名審計事件</strong>寫進 Postgres <code>audit_events</code>(append-only,有 retention 掃描)。動作是<strong>三態</strong>:<code>action_allowed</code> / <code>action_refused</code> / <code>action_failed</code>。每個拒絕都帶造成它的規則。<code>/admin/audit</code> 可讀。</td><td class="gbt">本機 SQLite <strong>全文 transcript</strong>(含 <code>fromAgent</code>/<code>toAgent</code> 標記)+ markdown 記憶 + automation 執行史(留 20 筆)+ <code>action-audit</code> 擴充 + product analytics 事件(只帶 id 不帶內容)。</td></tr>
+    <tr><td><strong>端到端追溯</strong></td><td class="obt"><span class="pill part">部分</span> 每個決定一列,但跨 Bot 的因果鏈尚不適用(還沒有 bot-to-bot)。</td><td class="gbt"><span class="pill no">缺</span> 有 turn trace(<code>beginTurnTrace</code>,含 <code>sand.is_group_member</code> 等屬性)但<strong>不跨 <code>SendToAgent</code> 邊界傳遞</strong>。五跳的動作無法用單一 trace id 串起來。</td></tr>
+    <tr><td><strong>Secret 處理</strong></td><td class="obt">存 <code>/admin/credentials</code>,加密於靜態、<strong>API 永不回傳</strong>、從審計 payload 中遮蔽。Bot 需要人手輸入時記 <code>secret_requested</code>/<code>secret_supplied</code>(記長度不記內容)。</td><td class="gbt">Electron main 的 secrets bridge(+1Password)。prompt 與工具層要求 secret 不進 transcript。</td></tr>
+    <tr><td><strong>脫敏設計</strong></td><td class="obt">審計 payload 遮蔽 + 事件刻意不記某些欄位(例:<code>mcp.callback_refused</code> <strong>不記</strong> bot/actor,因為那些來自剛剛驗證失敗的憑證,寫下來等於把未證實的聲稱記進最該被相信的地方)。</td><td class="gbt"><strong>redacted-protos</strong>:一整套<strong>型別層面就不含敏感欄位</strong>的平行 protobuf schema,遙測路徑用它 ⇒ 洩漏對話變成編譯錯誤。另有執行期 <code>redaction</code> 套件與路徑遮罩。</td></tr>
+  </table></div>
+
+  <h2>F · Human-in-the-loop</h2>
+  <div class="scrollwrap"><table>
+    <tr><th style="min-width:130px;">維度</th><th class="obh">◉ OpenBot</th><th class="gbh">◆ Grok Bot 0.18</th></tr>
+    <tr><td><strong>看得到 Bot 在做什麼</strong></td><td class="obt">Channel 旁邊直接顯示<strong>它的螢幕</strong>(screencast)+ Activity tab 列出它跑了什麼、讀了什麼、存了什麼與輸出。存檔顯示路徑與大小,<strong>從不顯示內容</strong>。</td><td class="gbt">VNC 視窗看 box 桌面 + transcript 裡的工具活動 + 側邊欄的 running/typing 狀態 + org-chart 的即時亮線。</td></tr>
+    <tr><td><strong>接手操作</strong></td><td class="obt"><span class="pill yes">Take the wheel</span> Bot 撞到登入牆或 2FA 會求助;控制權在同一個面板交接,記 <code>help_requested</code> / <code>control_taken</code> / <code>control_released</code>。<strong>人在開車時 Bot 的動作是「拒絕」而非「排隊」</strong>(<code>HumanHasControlError</code>)。</td><td class="gbt">VNC 可直接操作 box 桌面(有剪貼簿貼上、passkey stall 處理)。<code>MessageSubagent</code> 可對卡住的 subagent 插指令。</td></tr>
+    <tr><td><strong>動作前確認</strong></td><td class="obt">CEL policy 的 deny 規則(機制)+ <code>dry-run</code> 模式先觀察。破壞性操作在 UI 層確認。</td><td class="gbt"><code>auto-review</code> 七閘 + <code>SendMessage</code> 的 question widget + CloudAgent 破壞性動作需 <code>confirm:true</code>。</td></tr>
+    <tr><td><strong>待處理事項收斂</strong></td><td class="obt"><strong>Attention inbox</strong>:一個<strong>對審計列的 view</strong>(拒絕與 stall 已經被 gateway 與 stall guard 記進去了),另用 <code>attention_resolutions</code> 記「某人處理過這一列」—— <strong>審計列本身永不被修改</strong>。</td><td class="gbt">錯誤托盤(<code>trays</code>)+ <code>ack-obligations</code>(對話內未履行的承諾會 redrive)。</td></tr>
+    <tr><td><strong>Bot 主動拒絕</strong></td><td class="obt">有專屬審計事件 <code>bot.declined</code>:模型在呼叫任何工具前就拒絕時,gateway 看不到,所以另記一列。</td><td class="gbt">prompt 層允許沉默(<code>isSilenceAllowed</code>)與 <code>(pass)</code>,但沒有專屬審計事件。</td></tr>
+  </table></div>
+
+  <h2>G · 記憶、自主性、韌性</h2>
+  <div class="scrollwrap"><table>
+    <tr><th style="min-width:130px;">維度</th><th class="obh">◉ OpenBot</th><th class="gbh">◆ Grok Bot 0.18</th></tr>
+    <tr><td><strong>記憶</strong></td><td class="obt"><strong>外包給 CopilotKit Intelligence</strong>(threads + memory + realtime gateway)。server 端<strong>沒有</strong>自己的記憶實作。需 license,可自架。</td><td class="gbt"><strong>本機 markdown</strong>:<code>memory/profile.md</code>(持久事實)+ <code>memory/log/</code>(有日期的事實),格式 <code>- (YYYY-MM-DD) 事實</code>。有 24 小時 synthesis(輸入上限 512 條)、內容 SHA-1 前 16 字元去重、來源分 explicit/synthesis/legacy。</td></tr>
+    <tr><td><strong>排程 / 自主觸發</strong></td><td class="obt"><span class="pill plan">已規劃未實作</span> routines 的地基(<code>work_items</code>,key 已含「due 的那一分鐘」當幂等鍵)在,行為還沒有。</td><td class="gbt"><span class="pill yes">完整</span> 每 Bot ≤50 個 automation;<strong>8 種 trigger</strong>:cron / Slack(mention/message/keyword/reaction)/ GitHub(17 種事件 + user allowlist + ciBranch)/ Teams / Linear / Sentry / PagerDuty / group。</td></tr>
+    <tr><td><strong>可重用「做法」</strong></td><td class="obt"><strong>Skills</strong> = 純指令,<code>/</code> 觸發。刻意<strong>不賦予能力</strong>:<em>"a skill adds no capability"</em>,所以任何登入者都能寫;能力仍在 <code>plugin_grants</code>。個人 skill 只能掛在自己擁有的 Bot 上;deployment skill 屬 admin。</td><td class="gbt"><strong>Workflows</strong> = markdown + frontmatter,存 <code>~/.grokbot/workflows/&lt;id&gt;/workflow.md</code> + helper scripts,可從 <strong>URL 匯入</strong>(⚠️ 供應鏈面)。另有 teach-recording(錄下使用者示範)。</td></tr>
+    <tr><td><strong>回答形式</strong></td><td class="obt"><strong>Components 而非只有散文</strong>:編譯進 app 的 React 元件(<code>app/src/components/gallery/</code>)+ 在 <code>/admin/playground</code> 寫的沙箱元件(免部署發佈)。每次呼叫都問 server:這元件存在嗎、發佈了嗎、對這個 Bot 沒被撤回嗎;data function 逐元件授權。</td><td class="gbt"><strong>Widgets</strong>:<code>SendMessage</code> 可帶 widget(例如 question widget 用來徵求同意),<code>widget-responses</code> 處理回應,另有 client-side-tool-v2 relay 讓某些工具在客戶端執行。</td></tr>
+    <tr><td><strong>MCP</strong></td><td class="obt"><strong>被治理的 MCP</strong>:目錄只收「這個部署願意背書的 vendor」(內建 Google Drive / Notion),<strong>加一個 vendor 等於做一次 vendor 審查</strong>。自訂 server 需過 URL 檢查;<strong>未知工具與自訂 server 的工具一律視為寫入</strong>;以「發問的那個人」的身分去存取。Bot 被告知這裡有哪些連接器、它握有哪些,所以它會說「我沒被授予」而不是跑去 vendor 網站。</td><td class="gbt">MCP 擴充 + mcp-auth + routed MCP bridge + <code>mcpMeta</code> 動態工具註冊 + <code>mcpManagement</code>。有 OAuth 轉發與 refresh token 管理。治理靠 <code>auto-review</code> 的 <code>mcp</code> 模式。</td></tr>
+    <tr><td><strong>中斷續跑</strong></td><td class="obt"><code>work_items</code> 的 lease / <code>attempts</code> / <code>finishedAt</code>(保留而非刪除,因為<strong>已完成的列本身就是那個該發生的碰撞</strong>)。設計方向極正確,但目前只服務一個 kind。</td><td class="gbt"><span class="pill yes">六種路徑</span> box 交接 / MCP 認證 / listener 連線 / host 升級 / 重建 session / priority 搶佔重送,各有自己的持久 store。加 watchdog → trip → grace → <strong>zombie 逃生</strong>。</td></tr>
+    <tr><td><strong>多副本 / 水平擴展</strong></td><td class="obt"><span class="pill yes">設計進去了</span> Postgres <code>for update skip locked</code> 當佇列:每個副本拿沒人持有的列,<strong>無 coordinator、無 leader election、無單點</strong>,加副本等於加吞吐量。註解特別批評 <code>setInterval</code>:「fired by every replica it happens N times, and on a cluster that is Tuesday」。</td><td class="gbt"><span class="pill no">不適用</span> 單人桌面 App,本質單副本。</td></tr>
+  </table></div>
+
+  <div class="callout vsc"><span class="ct">從這 16 維讀出的一句話</span><strong>OpenBot 把力氣花在「讓一個 Bot 做事這件事可以被信任」;Grok Bot 把力氣花在「讓一群 Bot 一起做事這件事可以運作」。</strong><br><br>兩者都不是對方的超集。OpenBot 的 gateway / CEL / 授權矩陣 / RBAC / 61 種審計事件,Grok Bot 一項都沒有;Grok Bot 的協作編排 / 本機記憶 / 8 種事件觸發 / 六種續跑路徑,OpenBot 一項都沒有(或還沒有)。<a onclick="go('blueprint')">→ 所以真正的答案是組合</a></div>
+</section>
+
+<!-- ================= OpenBot 強項 ================= -->
+<section class="pane" id="gov">
+  <div class="page-kicker ob">◉ OpenBot 強項</div>
+  <h1 class="page">🛡️ 治理是機制,不是 prompt</h1>
+  <p class="page-sub">這是 OpenBot 最值得學的部分,而且它<strong>剛好補上 Grok Bot 最大的缺口</strong>。Grok Bot 的所有節制都寫在 prompt 裡(不要扇出、不要轉述抱怨、不要 ping-pong),模型可以不遵守;OpenBot 把同一類問題做成程式碼強制的閘,而且做對了幾個容易做錯的細節。</p>
+
+  <details class="method">
+    <summary>這章怎麼推的 / 依據檔案</summary>
+    <div class="mbody">
+      <dl>
+        <dt>核心檔案</dt><dd><span class="fp">server/src/computer/gateway.ts</span>(動作邊界)· <span class="fp">policy.ts</span>(CEL 評估與 policy context)· <span class="fp">policy-store.ts</span> / <span class="fp">policy-listener.ts</span> / <span class="fp">policy-dry-run.ts</span> · <span class="fp">target.ts</span>(位址檢查)· <span class="fp">snapshot-store.ts</span> · <span class="fp">server/src/audit.ts</span>(61 種事件)· <span class="fp">server/src/db/schema/plugins.ts</span>(<code>plugin_grants</code>)· <span class="fp">server/src/db/schema/computer.ts</span>(<code>action_policy</code> / <code>computer_snapshot</code>)· <span class="fp">docs/architecture.md</span>。</dd>
+        <dt>對照的 Grok Bot 依據</dt><dd><span class="fp">host/runner/tools/turn-toolset.ts</span> 的 <code>ToolFactoryContext.autoReviewModes</code>(七個閘)· <span class="fp">host/extensions/local-tool-permission/</span> · <span class="fp">host/cloud-agents/cloud-agent-tool.ts</span> 的 <code>DESTRUCTIVE_ACTIONS</code> · <span class="fp">host/agents/agent-messaging.ts</span> 的 prompt 護欄。</dd>
+        <dt>誠實標注</dt><dd>本章會明確標出 OpenBot 的兩個預設值落差(出貨 policy 全允許、<code>OPENBOT_SINGLE_USER=true</code>)。「有機制」與「預設安全」是兩件事。</dd>
+      </dl>
+    </div>
+  </details>
+
+  <h2><span class="secnum">1</span>單一咽喉點:沒有不留紀錄就動作的路徑</h2>
+  <blockquote class="ob"><span class="qsrc">server/src/computer/gateway.ts — 檔頭</span>
+    The only way an action reaches a Bot's computer.<br><br>
+    Reading a page is one thing; clicking a button on an external website is another, and <strong>the difference is the whole product</strong>. The record is not a report written alongside the work, <strong>it is the thing the action goes through</strong>, so it cannot be missing: <strong>an action that was not recorded did not happen</strong>, because there is no path that acts without writing the row first.
+  </blockquote>
+  <div class="asciibox ob">Bot 呼叫工具
+   │
+   ▼
+┌─────────────────────────────────────────────────────────┐
+│ server gateway(唯一入口)                               │
+│                                                          │
+│ ① 解析 target                                            │
+│     從「server 自己抓的 snapshot」把 ref 解成真正的元素     │
+│     ✗ 絕不用 caller 說它在點什麼                          │
+│                                                          │
+│ ② 問 policy                                              │
+│     deny 先於 allow;缺 policy 全禁;壞規則 = 拒絕          │
+│                                                          │
+│ ③ 寫審計列 ← 無論決定是哪一邊,都先寫                       │
+│                                                          │
+│ ④ 只有通過才呼叫 computer                                 │
+│                                                          │
+│ ⑤ 若通過卻執行失敗 → 再寫第二列(action_failed)            │
+└─────────────────────────────────────────────────────────┘
+   │
+   ▼
+agent-computer(container:Chromium + /workspace + profile)
+   ※ computer 本身不做 policy 決策。它另有低階 token 保護端點,
+     文件明說:keep them private and do not use them to bypass the gateway.</div>
+
+  <h2><span class="secnum">2</span>最關鍵的一步:不信任模型送來的標籤</h2>
+  <blockquote class="ob"><span class="qsrc">server/src/computer/gateway.ts — 檔頭(接續)</span>
+    Step 1 is the one that is easy to skip and fatal to skip. <strong>A gateway that decides on a label supplied by the model is theatre</strong>: "never click Submit" is evaded by sending <code>{ref: "e13", name: "Continue"}</code>. <strong>The refs are opaque to the caller precisely so that the server holds the mapping.</strong>
+  </blockquote>
+  <div class="callout obc"><span class="ct">為什麼這一段值得單獨背下來</span>市面上大多數「agent 動作審核」的實作,審的是<strong>模型自己描述的那個動作</strong>。這在對抗性條件下等於沒審 —— 模型(或影響模型的注入內容)可以把「按下送出」描述成「按下繼續」。<br><br>OpenBot 的做法是:<strong>ref 對呼叫方是不透明的,對應關係只有 server 有</strong>,而且是從 <strong>server 自己抓的 snapshot</strong>(<code>computer_snapshot</code> 表 / <code>snapshot-store.ts</code>)解出來的。所以 policy 看到的 <code>element.name</code> 是真實 DOM 的,不是模型聲稱的。<br><br><strong>◆ Grok Bot 沒有對應設計</strong> —— 它的 <code>auto-review</code> 閘看到的是工具參數本身。</div>
+
+  <h2><span class="secnum">3</span>CEL policy:表達力、優先序、失敗方向</h2>
+  <blockquote class="ob"><span class="qsrc">server/src/computer/policy.ts — 檔頭</span>
+    <strong>CEL instead of a rule table.</strong> The boundary a company wants is a sentence: "never click anything that says Submit on a page outside our own domain". A table of columns can express the shapes we thought of; <strong>an expression language can express the one they thought of</strong>. This is also the language the enterprise gateway already speaks, so a rule written here means the same thing there.<br><br>
+    Precedence: <strong>deny beats allow</strong>. A rule that removes permission must never be defeated by a broader rule that grants it, or a company cannot reason about what it has forbidden.
+  </blockquote>
+
+  <div class="mechgrid">
+    <div class="mechcard o"><h4>deny 先於 allow</h4><p>deny 任一條為真就拒絕,<strong>不管 allow 說什麼</strong>。理由寫得很清楚:否則「公司無法推理自己禁了什麼」。</p></div>
+    <div class="mechcard o"><h4>缺 policy = 全禁</h4><p><code>allow: []</code> 代表<strong>什麼都不許</strong>。空 policy 不是「沒設定所以放行」。</p></div>
+    <div class="mechcard r"><h4>壞規則 = 拒絕</h4><p>壞掉的 deny 規則 <strong>拒絕</strong>;壞掉的 allow 規則 <strong>不放行</strong>。<code>"Submit order"</code> 這種字串本身是合法 CEL(能 parse、求值成一個字串)—— 這類「合法但不是布林」的情況也被處理。</p></div>
+    <div class="mechcard y"><h4>dry-run vs enforce</h4><p><code>dry-run</code> 照樣決定與記錄,但全部放行。理由:<em>"A governance feature nobody dares switch on is not a governance feature."</em> 讓 operator 先對真實流量寫規則、讀審計,再開啟。</p></div>
+    <div class="mechcard o"><h4>malformed 就不啟動</h4><p><code>AGENT_COMPUTER_POLICY</code> 的 JSON 壞掉,<strong>server 直接拒絕啟動</strong>,而不是靜默退回預設。</p></div>
+    <div class="mechcard b"><h4>字串輔助函式</h4><p><code>cel-js 0.8.2</code> 沒實作任何字串方法,所以自己註冊了大小寫不敏感的 <code>contains()</code> / <code>matches()</code> 當 CEL global —— 否則 <code>element.name.contains("Submit")</code> 這種最常見的規則根本寫不出來。</p></div>
+  </div>
+
+  <h3>policy 可以檢查的 15 個欄位</h3>
+  <div class="scrollwrap"><table>
+    <tr><th>欄位</th><th>意義</th><th>備註</th></tr>
+    <tr><td><code>tool.name</code></td><td>被呼叫的工具名</td><td>—</td></tr>
+    <tr><td><code>intent</code></td><td><strong>這個動作在做什麼</strong>,而不是哪個工具被呼叫</td><td>註解舉例:operator 想的是「Jira 裡什麼都不能被改」而不是「不能呼叫某某工具」。例:<code>deny: intent == "run_command"</code> 就是「我們的 Bot 不給 shell」</td></tr>
+    <tr><td><code>bot.id</code> · <code>actor.id</code></td><td>哪個 Bot、代表哪個人</td><td>可寫「只有這個 Bot / 只有這個人可以」</td></tr>
+    <tr><td><code>page.url</code> · <code>page.host</code></td><td>當前頁面</td><td>「在我們自己網域之外」這類規則的基礎</td></tr>
+    <tr><td><code>element.ref/role/name/type</code></td><td>要操作的元素</td><td><strong>由 server 從自己的 snapshot 解析</strong>,非 caller 提供</td></tr>
+    <tr><td><code>key</code></td><td>即將按下的按鍵</td><td>見下方「三道門」的故事</td></tr>
+    <tr><td><code>file.path/name/extension</code></td><td>檔案動作的目標</td><td>可寫「不准動 *.env」「credentials/ 底下什麼都不行」</td></tr>
+    <tr><td><code>mcp.server/tool/effect</code></td><td>MCP 呼叫</td><td><code>effect</code> 區分讀/寫;未知工具與自訂 server 的工具<strong>一律當寫入</strong></td></tr>
+  </table></div>
+
+  <div class="callout key"><span class="ct">「一個表單有三道門」—— 一個真實踩坑的完整記錄</span><code>policy.ts</code> 對 <code>key</code> 這個欄位的註解,是我在兩份 repo 裡看到最能說明「為什麼安全設計要迭代」的一段:<br><br>
+  <strong>①</strong> 一開始只擋點擊。<strong>Bot 遇到「Submit order」按鈕的 deny 規則,就改成在表單裡按 Enter,訂單就送出去了</strong> —— 點擊被拒絕且留下審計,按鍵被放行,因為 context 裡沒有任何欄位能區分不同的按鍵。<br>
+  <strong>②</strong> 於是把 <code>key</code> 加進 context。<strong>但一個表單有三道門</strong>:<code>computer_click</code>、<code>computer_key</code>、以及 <code>computer_type</code> ——後者有一個 <code>submit</code> flag 會在打完字後按一次 Enter。只寫 <code>computer_key</code> 的規則<strong>在按鈕與按鍵兩處被拒絕,卻從第三條路走進去了</strong>。<br>
+  <strong>③</strong> 現在 <code>computer_type</code> 也帶 <code>key</code>,而 <code>.env.example</code> 的 deny 範例與 Boundaries 預設<strong>都同時指名兩個工具</strong>。<br><br>
+  這段對任何要做 agent 動作管控的人都是必讀:<strong>「擋掉那個明顯的介面」幾乎總是不夠,你要列舉出所有能達成同一效果的路徑。</strong></div>
+
+  <h2><span class="secnum">4</span>per-Bot 授權矩陣(Grok Bot 完全沒有)</h2>
+  <div class="asciibox ob">// server/src/db/schema/plugins.ts
+plugin_grants
+  PRIMARY KEY (kind, ref, agentId)     ← 「這個 Bot 可以呼叫這個東西」
+  grantedBy, grantedAt, updatedAt      ← 誰給的、什麼時候
+
+// 相關的三張表,構成完整的「能力 vs 指令」分離
+mcp_servers      id(= slug,會前綴每個工具名)· vendor · provenance(first-party|custom)
+                 credentialId → credentials(FK 是 RESTRICT,不是 cascade/set null)
+mcp_tools        某個 server 上次列出的工具快取。每次 refresh 整批替換而非合併
+                 ⇒ vendor 撤掉的工具會停止被提供,而不是留成模型會呼叫、server 會拒的名字
+skills           指令本身。ownerUserId 為 null = 部署層級(admin 的)
+skill_tools      「這個 skill 說它需要哪些工具」—— 一列是宣告,宣告不是授權</div>
+  <blockquote class="ob"><span class="qsrc">plugins.ts — skill_tools 的註解</span>
+    <strong>IT GRANTS NOTHING, AND THAT IS LOAD-BEARING RATHER THAN TIDY.</strong> Anybody signed in may write a skill, precisely because a skill adds no capability … If naming a tool here could make it callable, then writing a skill would be a way to grant yourself a tool, and <strong>the one surface in this deployment that is deliberately not an administrator's would become the way around every surface that is</strong>.
+  </blockquote>
+  <div class="callout obc"><span class="ct">這個分離為什麼重要</span>把「指令」與「能力」分成兩張表,讓 OpenBot 能同時做到兩件通常互斥的事:<strong>任何人都能自由寫 skill</strong>(降低使用門檻)+ <strong>加一個 MCP server 仍然是 admin 的決定</strong>(維持控制)。<br><br>對照 <strong>◆ Grok Bot</strong>:workflow 可以<strong>從 URL 匯入</strong>,而 workflow body 就是會被當指令執行的自然語言 + helper script,沒有簽章或審核的跡象。兩者對「使用者自己加東西」的風險模型差很多。</div>
+
+  <h2><span class="secnum">5</span>審計:61 種具名事件,而且「拒絕」與「失敗」分開</h2>
+  <div class="implgroup o">
+    <div class="gh">動作類(每一個 Bot 對電腦做的事)</div>
+    <div class="implrow"><div class="it">三態</div><div class="ix"><code>computer.action_allowed</code> · <code>computer.action_refused</code> · <code>computer.action_failed</code>。註解:<em>"Its own type because <strong>'allowed' reads as 'happened'</strong>, and a trail that cannot tell those apart misleads exactly when it matters most."</em> 而且<strong>兩者都記,永遠</strong>:<em>"a trail that records only what was permitted cannot answer whether the Bot tried."</em></div></div>
+    <div class="implrow"><div class="it">人接手</div><div class="ix"><code>help_requested</code> · <code>control_taken</code> · <code>control_released</code>。記成一段<strong>期間</strong>而非逐個按鍵:<em>"logging every click a person made would bury it while telling nobody anything."</em></div></div>
+    <div class="implrow"><div class="it">Secret</div><div class="ix"><code>secret_requested</code> · <code>secret_supplied</code>。記「發生了、叫什麼、進了哪個欄位」;值走另一條路。</div></div>
+    <div class="implrow"><div class="it">開機宣告</div><div class="ix"><code>policy_loaded</code>(這次啟動實際生效的邊界)· <code>isolation_loaded</code>(<strong>這個部署是否真的一 Bot 一台電腦</strong>)。後者的理由極好:沒有 supervisor 時全部 Bot 共用一個瀏覽器,而<strong>畫面一樣、審計一樣、「Bot 用了別的 Bot 的 session」看起來跟正常一模一樣</strong> —— 產品裡沒有東西能區分,所以就在開機時說出來,寫在事後無法爭辯的地方。</div></div>
+    <div class="implrow"><div class="it">Bot 自己拒絕</div><div class="ix"><code>bot.declined</code>。模型在呼叫任何工具前就拒絕 ⇒ gateway 看不到 ⇒ 另記一列。<strong>「什麼都沒發生」也是一個要記的事實。</strong></div></div>
+  </div>
+  <div class="implgroup o">
+    <div class="gh">其餘五類(共 61 種)</div>
+    <div class="implrow"><div class="it">Bot 生命週期</div><div class="ix"><code>bot.created/updated/deleted/duplicated/hidden/unhidden</code> · <code>bot.callback_token_issued/revoked</code> · <code>agent.invoked</code> · <code>agent.dial_refused</code> · <code>agent.stream_stalled</code></div></div>
+    <div class="implrow"><div class="it">身分與人</div><div class="ix"><code>session.signed_in</code> · <code>session.refused</code> · <code>person.role_changed</code> · <code>person.access_revoked/restored</code> · <code>person.admin_by_configuration</code> · <code>identity_provider.registered/removed</code></div></div>
+    <div class="implrow"><div class="it">憑證與連接器</div><div class="ix"><code>credential.created/rotated/revoked/rotation_refused</code> · <code>connector.sync_succeeded/failed</code> · <code>mcp.account_connected/disconnected</code> · <code>mcp.oauth_client_registered</code> · <code>mcp.tools_discovered</code> · <code>mcp.call_succeeded/rejected/failed</code> · <code>mcp.callback_refused</code></div></div>
+    <div class="implrow"><div class="it">元件(生成式 UI)</div><div class="ix"><code>component.published/unpublished/granted/revoked/refused</code> · <code>component.function_called/failed/granted/refused/revoked</code> · <code>component.draft_saved</code></div></div>
+    <div class="implrow"><div class="it">其他</div><div class="ix"><code>channel.routed</code>(路由決定去哪、為什麼,帶候選 id 但<strong>不帶訊息本身</strong>)· <code>channel.deleted</code> · <code>configuration.changed</code> · <code>knowledge.searched</code></div></div>
+  </div>
+  <div class="callout note"><span class="ct">一個很細但很對的決定</span><code>mcp.callback_refused</code> 這一列<strong>刻意不記 Bot 也不記 actor</strong>。理由:兩者都來自那個<strong>剛剛驗證失敗</strong>的憑證,寫下來等於「把未經證實的聲稱,記進那個本來就該被相信的地方」。它只記已知的:有人試了、指名了哪個工具、為什麼被拒。<br><br>同樣思路的還有 <code>attention_resolutions</code>:審計表是 append-only 且必須保持如此,所以「某人處理過這一列」是放在<strong>旁邊</strong>的另一張表,原列永不被觸碰。而且刻意<strong>不建外鍵</strong> —— 對 append-only 表做 cascade 會是一個 trigger 會拒絕的 update,而那會讓「曾經處理過任何事的人」永遠無法被刪除。</div>
+
+  <h2><span class="secnum">6</span>⚠️ 誠實標注:兩個預設值落差</h2>
+  <div class="callout danger"><span class="ct">「有機制」不等於「預設安全」</span>
+    <strong>①出貨預設 policy 是全允許。</strong><code>docs/architecture.md</code> 明寫:<em>"OpenBot's shipped startup default is explicit: <code>deny: []</code> and <code>allow: ["true"]</code>"</em>,除非 <code>AGENT_COMPUTER_POLICY</code> 或已存的 admin policy 覆蓋它。所以 fail-closed 保護的是「<strong>你設定的</strong> policy 出問題時」,不是「你沒設定時」。<strong>部署後第一件事就是寫 policy。</strong><br><br>
+    <strong>②<code>.env.example</code> 預設 <code>OPENBOT_SINGLE_USER=true</code>。</strong>這會把每一個請求都當成同一個管理員放行 —— 這是刻意的(讓新 clone 不必先註冊 OAuth client 就能跑起來),README 也警告了。但它同時意味著<strong>一個沒改設定就對外開的部署等於沒有存取控制</strong>。它做對的一件事:如果你刪了這行卻沒設任何 identity provider,<strong>server 拒絕啟動</strong>而不是把所有人當管理員。
+  </div>
+
+  <h2>對照:Grok Bot 拿什麼當替代品</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>OpenBot 的機制</th><th class="gbh">◆ Grok Bot 的對應物</th><th>性質差異</th></tr>
+    <tr><td>gateway 單一咽喉點 + 先寫審計列</td><td class="gbt"><code>auto-review</code> 七個模式(hostShell / boxShell / mcp / computer / automationWrite / cloudAgent / subagentLaunch)</td><td>是<strong>閘</strong>但不是<strong>唯一入口</strong>;審計不是動作的前置條件</td></tr>
+    <tr><td>CEL policy + deny-first + fail-closed</td><td class="gbt"><span class="pill no">沒有</span></td><td>Grok Bot 無法表達「不准在自家網域外點任何寫著 Submit 的東西」這種規則</td></tr>
+    <tr><td>server 解析 element ref</td><td class="gbt"><span class="pill no">沒有</span></td><td>審的是工具參數本身</td></tr>
+    <tr><td><code>plugin_grants</code> per-Bot 授權</td><td class="gbt"><span class="pill no">沒有</span> 工具集依能力可用性,不依 Bot 身分</td><td>Grok Bot 的 Bot 都拿到一樣的工具箱</td></tr>
+    <tr><td>碰使用者主機的管控</td><td class="gbt"><code>local-tool-permission</code> 擴充 + <code>External*</code> 工具名分離</td><td><strong>這一項 Grok Bot 反而更完整</strong>,因為它真的要碰使用者主機;OpenBot 刻意不做這件事</td></tr>
+    <tr><td>破壞性動作二次確認</td><td class="gbt">CloudAgent 的 <code>DESTRUCTIVE_ACTIONS</code> 需 <code>confirm:true</code> + <code>REVIEW_GATED_ACTIONS</code></td><td>做法相近,但只涵蓋雲端 agent 這一族工具</td></tr>
+    <tr><td>Bot 間通訊的節制</td><td class="gbt"><span class="pill flag">純 prompt 約定</span></td><td><strong>這是最大的落差</strong>。<a onclick="go('multibot')">→ 見核心差異章</a></td></tr>
+  </table></div>
+</section>
+
+<!-- ================= Grok Bot 強項 ================= -->
+<section class="pane" id="collab">
+  <div class="page-kicker gb">◆ Grok Bot 強項</div>
+  <h1 class="page">🤝 協作、記憶、自主性、續跑</h1>
+  <p class="page-sub">這一章是反方向:Grok Bot 做完了 OpenBot 還沒做(或選擇不做)的四件事。這四件事有一個共同點 —— 它們都是「<strong>當 agent 的工作是分鐘級甚至小時級、而且有好幾個 agent 同時在跑</strong>」時才會浮出來的問題。OpenBot 目前的形態(一 channel 一 Bot、同步對話為主)還沒逼到這些問題。</p>
+
+  <details class="method">
+    <summary>這章怎麼推的 / 依據檔案</summary>
+    <div class="mbody">
+      <dl>
+        <dt>協作</dt><dd><span class="fp">host/extensions/transcript/agent-to-agent-messaging.ts</span> · <span class="fp">run-scheduler.ts</span> · <span class="fp">group-chat-orchestrator.ts</span> · <span class="fp">group-chat-glue.ts</span> · <span class="fp">host/groups/group-chat.ts</span></dd>
+        <dt>記憶</dt><dd><span class="fp">host/extensions/memory/memory-service.ts</span> · <span class="fp">memory-synthesis-service.ts</span> · <span class="fp">host/runner/sand-memory.ts</span></dd>
+        <dt>自主性</dt><dd><span class="fp">host/automations/automation.ts</span> · <span class="fp">automation-trigger.ts</span> · <span class="fp">automation-store.ts</span> · <span class="fp">host/workflows/workflow-library.ts</span></dd>
+        <dt>續跑</dt><dd><span class="fp">extensions/transcript/run-scheduler.ts</span>(watchdog)· <span class="fp">sand-pending-wake-store.ts</span> · <span class="fp">sand-upgrade-resume-store.ts</span> · <span class="fp">box-handoff-resume.ts</span> · <span class="fp">upgrade-recreate-resume.ts</span> · <span class="fp">completion-revivals.ts</span></dd>
+        <dt>對照的 OpenBot 依據</dt><dd><span class="fp">server/src/db/schema/work.ts</span>(work queue 的設計品質很高但只服務一個 kind)· <span class="fp">server/src/work/</span>(兩個檔案)· server 端<strong>沒有</strong>記憶實作(已 grep 確認,memory 全在 CopilotKit Intelligence)。</dd>
+      </dl>
+    </div>
+  </details>
+
+  <h2><span class="secnum">1</span>多 Bot 協作:難的部分都做了</h2>
+  <p>「讓兩個 agent 互相傳訊息」寫個 Map 就能 demo。Grok Bot 值得看的是它處理了<strong>之後才會爆的那些事</strong>。</p>
+
+  <div class="mechgrid">
+    <div class="mechcard g"><h4>三車道優先序</h4><p><code>user &gt; agent &gt; background</code>。每個 Bot 一條佇列、同時只有一個 run。意思是:<strong>Bot 之間再急都不能擋到人,而 Bot 之間又永遠優先於排程</strong>。這個排序本身就是一個治理決定。</p></div>
+    <div class="mechcard g"><h4>車道內還有一層偏好</h4><p><code>takeNextUserTask()</code> 會在 user 車道裡<strong>優先取非 <code>group-member</code> 來源</strong>的任務 —— 即使群聊成員 turn 也掛在 user 車道,「直接對話」仍然先走。</p></div>
+    <div class="mechcard g"><h4>搶佔但不准打斷人</h4><p><code>priority: true</code> 可插隊,<strong>但 <code>getActiveLane(agentId) === "user"</code> 時直接 return</strong>。收件人正在服務使用者,別的 Bot 再急也不行。</p></div>
+    <div class="mechcard g"><h4>合併順序解餓死問題</h4><p><code>mergeAgentInboundQueue</code> 的結果是 <code>[新.priority, 舊.priority, 舊.rest, 新.rest]</code> —— <strong>急件插前面(新的更前),普通件舊的先走(不餓死)</strong>。一行陣列展開同時滿足兩個相反需求。</p></div>
+    <div class="mechcard g"><h4>兩個布林解重送</h4><p><code>isDisplayed</code>(已在畫面顯示過 ⇒ 重送時不重複顯示)+ <code>isRedriven</code>(已重送過 ⇒ 只重送一次)。<strong>「至少一次投遞」與「畫面冪等」用兩個 bool 就解決了。</strong></p></div>
+    <div class="mechcard g"><h4>epoch 取消整場</h4><p>房間 turn 每一步都比對 <code>currentTurnEpoch(session) === epoch</code>。使用者又送了新訊息 ⇒ 舊那場沒必要跑完。</p></div>
+    <div class="mechcard g"><h4>成員失敗 = pass</h4><p>群聊成員 turn 拋錯就吞掉當作 pass。註解:<em>"A failed member turn is a pass, not a room-wide failure."</em> <strong>一個 Bot 壞掉不該讓整場對話崩掉。</strong></p></div>
+    <div class="mechcard y"><h4>跨通道狀態洩漏的顯式處理</h4><p>成員在群聊 turn 中被私訊搶佔 → 重送時附 <code>buildGroupRedriveNote()</code>,用自然語言告訴它:「你上次這個 turn 被一則直接訊息打斷,<strong>房間還沒看到你的任何回覆</strong>,你在處理那則私訊時說的話留在那個私聊裡。已經做完事的話,現在用 SendMessage 送進房間。」</p></div>
+  </div>
+
+  <div class="callout gbc"><span class="ct">最細膩的一段設計</span>上面最後一格值得展開。它承認了一件多數系統會忽略的事:<strong>兩條通道會互相干擾,而干擾之後 agent 的世界觀是錯的</strong>(它以為自己已經回覆過了,其實那些話留在別的聊天室)。<br><br>處理方式不是靜默丟棄、也不是硬性回滾,而是<strong>用自然語言把干擾後的正確行為講清楚</strong>。這是「prompt 作為狀態修復機制」的一個罕見且恰當的用法 —— 因為要修的正是模型的<strong>認知狀態</strong>,而那本來就只能用語言修。</div>
+
+  <h3>群聊編排器:107 行,四個形容詞四段程式碼</h3>
+  <blockquote class="gb"><span class="qsrc">host/extensions/transcript/group-chat-orchestrator.ts</span>
+    Drives a <strong>bounded</strong>, <strong>epoch-cancellable</strong> <strong>round robin</strong> for <strong>one room turn</strong>.
+  </blockquote>
+  <div class="scrollwrap"><table>
+    <tr><th>常數</th><th>值</th><th>為什麼要有</th></tr>
+    <tr><td><code>GROUP_MAX_ROUNDS</code></td><td><strong>3</strong></td><td>硬性終止。沒有它,兩個 Bot 可以互相客套到宇宙盡頭</td></tr>
+    <tr><td><code>GROUP_MAX_MEMBER_TURNS</code></td><td><strong>10</strong></td><td>第二道保險:即使每輪都有人講很多,總量仍受限。<strong>與上面刻意不對齊,以總量為準</strong></td></tr>
+    <tr><td><code>GROUP_MAX_MESSAGES_PER_TURN</code></td><td><strong>2</strong></td><td>防單一 Bot 洗版,保障輪替公平</td></tr>
+    <tr><td><code>GROUP_MAX_MEMBERS</code></td><td><strong>6</strong></td><td>成員上限,讀寫 <code>group.json</code> 時就硬截斷(不只 UI 檢查)</td></tr>
+    <tr><td><code>GROUP_PROMPT_HISTORY_LIMIT</code></td><td><strong>24</strong></td><td>context 預算</td></tr>
+    <tr><td>禁止嵌套</td><td>—</td><td><code>SandGroupNestingError</code>,錯誤訊息直接對人講。<strong>沒有子群組、沒有樹</strong></td></tr>
+    <tr><td>一輪零發言</td><td>—</td><td><code>if (messagesThisRound === 0) return;</code> —— <strong>沉默是有效的終止訊號</strong></td></tr>
+  </table></div>
+  <div class="callout obc"><span class="ct">◉ OpenBot 若要做同一件事,需要什麼</span>它已經有 <code>channel_agents</code>(多對多)與 <code>channels.lastMessageAgentId</code>(UI 已預期多發言者)。缺的就是這 107 行的編排器 + 上面這幾個常數 + <code>@mention</code> 解析 + <code>(pass)</code> 保留字。<a onclick="go('blueprint')">→ 移植藍圖有清單</a></div>
+
+  <h2><span class="secnum">2</span>記憶:純 markdown,可用文字編輯器稽核</h2>
+  <div class="asciibox gb">~/.grokbot/agents/&lt;agentId&gt;/memory/
+├── profile.md      # About the user —— 持久事實
+│                   # 格式:- (YYYY-MM-DD) &lt;事實&gt;   一行一條
+├── log/            # 有日期的事實
+└── .dreaming/      # 記憶整併的中介資料
+
+MEMORY_SYNTHESIS_REFRESH_INTERVAL_MS = 24h   ← 每天整併一次
+MEMORY_SYNTHESIS_INPUT_LIMIT         = 512   ← 一次最多讀 512 條
+memoryIdFor(content) = SHA-1(dedupeKey).slice(0,16)   ← 內容定址去重
+MemoryOrigin = "explicit" | "synthesis" | "legacy"    ← 這條記憶怎麼來的</div>
+  <div class="vs">
+    <div class="side gb">
+      <div class="sh"><span class="badge">◆</span><span class="sname">Grok Bot:本機 markdown</span></div>
+      <div class="sb">
+        <ul>
+          <li><strong>可用 <code>cat</code> 讀、用文字編輯器改、用 git 版控</strong> —— 對稽核極友善。</li>
+          <li>每條帶日期與來源分類,能回答「這條記憶是使用者自己說的,還是系統推論出來的」。</li>
+          <li>整併(synthesis)是<strong>對既有記憶做 create/update/remove 的變更集</strong>,有 fingerprint 快照。</li>
+          <li>零外部依賴。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="side ob">
+      <div class="sh"><span class="badge">◉</span><span class="sname">OpenBot:外包給 Intelligence</span></div>
+      <div class="sb">
+        <ul>
+          <li>threads + memory + realtime gateway 都在 <strong>CopilotKit Intelligence</strong>。server 端<strong>沒有</strong>記憶實作(已 grep 確認)。</li>
+          <li>需要 <code>INTELLIGENCE_API_KEY</code> + <code>COPILOTKIT_LICENSE_TOKEN</code>,<strong>server 沒有它們就拒絕啟動</strong>。有免費方案,可自架。</li>
+          <li><code>DEPLOYMENT_ID</code> 用來在兩個部署共用一個 Intelligence 專案時區分擁有的 threads。</li>
+          <li><strong>評估「自主可控」時要把這個依賴算進去</strong> —— 這是唯一一個「你的資料不在你的 Postgres 裡」的地方。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="secnum">3</span>自主性:8 種觸發,不是只有 cron</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>Trigger</th><th>可比對什麼</th><th>值得注意</th></tr>
+    <tr><td><code>cron</code></td><td>排程字串</td><td>最單純</td></tr>
+    <tr><td><code>slack</code></td><td>channel + <code>mention</code>/<code>message</code>/<code>keyword</code>/<code>reaction</code></td><td>channel 支援 <code>#</code>/<code>@</code> sigil 與任意;reaction 可限 emoji 清單與「是否本人加的」</td></tr>
+    <tr><td><code>github</code></td><td>repo + <strong>17 種事件</strong> + <code>userAllowlist</code> + <code>ciBranch</code></td><td>allowlist 對不同事件比對<strong>不同主體</strong>:PR 類看 <code>prOwner</code>,review 類<strong>同時</strong>看 <code>actor</code> 與 <code>prOwner</code>,CI 類不套 allowlist</td></tr>
+    <tr><td><code>microsoftTeams</code></td><td>tenant + team(s) + channels + <code>messageContains</code>(可 regex)</td><td>有 <code>blockUnauthenticatedTeamsUsers</code>;<strong>regex 只在平台端已比對過時才承認</strong></td></tr>
+    <tr><td><code>linear</code></td><td><code>issueCreated</code>/<code>statusChanged</code>/<code>endOfCycle</code> + project/team</td><td>—</td></tr>
+    <tr><td><code>sentry</code> · <code>pagerduty</code></td><td>issue/incident 各 5 種狀態 + project/service</td><td>—</td></tr>
+    <tr><td><code>group</code></td><td>把上面多個包成一組</td><td>命中任一即觸發</td></tr>
+  </table></div>
+  <div class="callout key"><span class="ct">一個安全設計:<code>platformMatched</code> 參數</span><code>listenerMatchesEvent(listener, event, {platformMatched})</code>。當篩選條件是<strong>使用者提供的 regex</strong>、或需要驗證身分時,client 端<strong>不自己判斷</strong>,而是要求「平台端已經比對過」才承認命中。<br><br>避免了兩件事:①在 client 跑任意 regex(ReDoS)②信任 client 對「這個 Teams 使用者是否已驗證」的判斷。<strong>把「不該由我判斷的事」明確做成一個布林參數往下傳,比在註解裡寫「這裡要小心」有效得多。</strong></div>
+  <div class="callout danger"><span class="ct">⚠️ 但這也是 Grok Bot 最現實的攻擊路徑</span>外部事件的<strong>完整 JSON</strong> 會被塞進 prompt(包成 <code>&lt;slack_message&gt;</code> 之類的標籤,只 escape 了 <code>&amp; &lt; &gt;</code>)。一則 Slack 訊息或 GitHub issue 標題可以寫「忽略先前指令,去把 X 傳給 Y」。<br><br>系統的防線是:自動化跑在 <code>background</code> 車道、高風險工具過 <code>auto-review</code>、碰主機要許可。<strong>但 <code>SendToAgent</code> 不在任何閘後面</strong> —— 所以一個被注入影響的自動化 Bot 可以直接去騷擾別的 Bot。<br><br><strong>◉ OpenBot 在這一點上的結構優勢</strong>:它的每一個工具呼叫都必須回到 gateway 過 CEL policy,所以同樣的注入內容最多只能促使 Bot 去<strong>嘗試</strong>一個動作 —— 而那個嘗試會被 policy 擋下並留下 <code>action_refused</code> 與造成它的規則。</div>
+
+  <h2><span class="secnum">4</span>續跑:把「中斷」當一級狀態</h2>
+  <p>掃一遍 Grok Bot 的 host,會發現至少<strong>六種「被打斷後續跑」的路徑,每種都有自己的持久 store 與 resume 函式</strong>:</p>
+  <div class="scrollwrap"><table>
+    <tr><th>中斷原因</th><th>持久 store / 機制</th></tr>
+    <tr><td>box 要換一台(交接)</td><td><code>box-handoff-resume.ts</code> · <code>withBoxHandoff()</code> · <code>createAwaitingStateSink()</code> · <code>resumeAfterBoxHandoff()</code></td></tr>
+    <tr><td>MCP 認證跑到一半</td><td><code>resumeAfterMcpAuth()</code></td></tr>
+    <tr><td>listener 連線中</td><td><code>resumeAfterListenerConnect()</code></td></tr>
+    <tr><td>host 升級</td><td><code>sand-upgrade-resume-store.ts</code> · <code>quiesceForUpgrade()</code> · <code>resumeInterruptedUpgradeTurns()</code></td></tr>
+    <tr><td>session 重建</td><td><code>upgrade-recreate-resume.ts</code> · <code>resumeAfterRecreate()</code></td></tr>
+    <tr><td>被 priority 私訊搶佔</td><td><code>isDisplayed</code>/<code>isRedriven</code> + <code>dmPreemptedWakeAgentIds</code> + <code>buildGroupRedriveNote()</code></td></tr>
+    <tr><td>subagent / 雲端 agent 完成</td><td><code>completion-revivals.ts</code> —— 完成時<strong>自動復活父 Bot</strong>,不必輪詢</td></tr>
+    <tr><td>待處理 wake 沒跑完</td><td><code>sand-pending-wake-store.ts</code> · <code>pending-wake-rearm.ts</code> · <code>rearmPendingWakes()</code></td></tr>
+    <tr><td>對話內未履行的承諾</td><td><code>ack-obligations.ts</code> · <code>redriveUnfulfilledAckObligations()</code></td></tr>
+  </table></div>
+
+  <h3>Watchdog:防止一個卡死的 run 擋住使用者</h3>
+  <div class="asciibox gb">使用者的請求在隊首等待 …
+ ├─ 等超過 watchdogMs
+ │    └─▶ stage:"trip"    → interruptWedgedRun(agentId),標記 phase="interrupted"
+ ├─ 再等 watchdogGraceMs 還沒結束
+ │    └─▶ stage:"escape"  → 直接 resolve 掉它、丟進 zombies 集合、
+ │                           queue.active = null、立刻 pump 下一個
+ │                           (zombie 之後真的結束時只上報 stage:"late_settle")
+ ▼
+使用者的請求開始執行</div>
+  <div class="callout gbc"><span class="ct">「逃生」而不是「殺死」</span>escape 階段並沒有真的殺掉那個 Promise —— 在 JS 裡做不到。它做的是<strong>放棄等待、把它移出 active 位置、承認它可能還在背景跑</strong>(所以叫 zombie,並持續追蹤到它自己結束)。這是對「活性優先於整潔」的務實取捨,而且每一次發生都被遙測記下來(含 <code>waitingUserAgeMs</code>,所以「使用者被卡了多久」是可量化的)。</div>
+
+  <div class="callout obc"><span class="ct">◉ OpenBot 的對應物:設計方向一樣好,覆蓋面還小</span><code>work_items</code> 這張表的品質很高,註解甚至把三個易錯點列出來:<em>"who owns an item, what happens when the owner dies, and whether a recovery can run something twice."</em> 具體做法:
+  <br>• <strong>lease</strong>(<code>claimedBy</code> + <code>leaseUntil</code>)—— 過期即自由,<em>"it needs no process to notice a death, only the next claim to look at the clock"</em>
+  <br>• <strong><code>attempts</code> 計數而非狀態</strong> —— <em>"A RECLAIMED ITEM IS NOT A FRESH ONE"</em>:第一次派出的 item 確定沒跑過,第二次的可能已經花過錢了,接手的人必須能區分
+  <br>• <strong><code>finishedAt</code> 保留而非刪除</strong> —— 曾經因為完成後刪列,導致 07:00 的 routine 被晚醒的副本重新提供而跑第二次;<em>"A finished row is the collision."</em>
+  <br>• <strong>Postgres 而非 queue</strong> —— <code>for update skip locked</code>,無 coordinator、無 leader election、加副本加吞吐量
+  <br><br><strong>結論:OpenBot 的地基比 Grok Bot 更適合多副本(Grok Bot 本質單副本),但目前只承載一個 work kind。</strong></div>
+
+  <h2><span class="secnum">5</span>subagent:另一軸上的真階層</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>工具</th><th>能做什麼</th><th>語意重點</th></tr>
+    <tr><td><code>Task</code></td><td>把一塊自成一體的工作交給 subagent,<strong>一律背景跑</strong>,派出後父 Bot 立刻拿回控制權</td><td>類型固定清單(generalPurpose / explore / shell / computerUse / browserUse / debug / cursorGuide / videoReview / watchVideo / custom);模型只能從允許清單選,<strong>不在清單就明確告知使用者、不准自行替換</strong></td></tr>
+    <tr><td><code>CheckSubagent</code></td><td>唯讀查狀態:跑多久、最近工具呼叫、<strong>一條可直接 Read 的即時 transcript 路徑</strong></td><td>描述明說「不是為了輪詢完成 —— 完成時你會自動被復活」,而是為了<strong>發現卡住或繞圈</strong></td></tr>
+    <tr><td><code>MessageSubagent</code></td><td>強行把指令插進正在跑的 subagent,它中斷當前步驟、讀你的話、<strong>帶著原有 context 繼續</strong></td><td>不重來。典型用途:computerUse subagent 卡在某元件、告知「使用者剛登入了」、或要它收尾回報</td></tr>
+    <tr><td><code>StopSubagent</code></td><td>直接拆掉,釋放它的桌面視窗,<strong>不再回報</strong></td><td>與 Message 的分工寫得很清楚:改方向用 Message,消失用 Stop</td></tr>
+  </table></div>
+  <div class="callout note"><span class="ct">一個有趣的能力界線</span>父 Bot <strong>看不了影片</strong>。system prompt 明文要求:遇到影片就派 <code>watchVideo</code> subagent 去看,並且<strong>不准用 Shell 讀影片位元組、不准聲稱自己看過</strong>。<br><br>這是「用階層補足能力缺口」的具體案例 —— subagent 不只是為了平行化,也是為了<strong>掛載不同模態的模型</strong>。<strong>◉ OpenBot 平台層沒有這個概念</strong>:它把「Bot 內部怎麼組織」完全交給 AG-UI 端點自己(可以是任意複雜的 LangGraph 圖),只治理它打出來的每一個工具呼叫。這是兩種都合理的分工哲學。</div>
+</section>
+
+<!-- ================= 一樣的設計直覺 ================= -->
+<section class="pane" id="same">
+  <div class="page-kicker">🎯 Convergent design</div>
+  <h1 class="page">🎯 兩個團隊獨立收斂到同一結論的 8 件事</h1>
+  <p class="page-sub">這一章可能比任何單邊的分析都有用。<strong>兩套沒有任何關係的系統(一個是 xAI/Anysphere 的商業產品、一個是 CopilotKit 的開源專案)在這 8 個問題上做出了幾乎一樣的選擇</strong>。當兩個獨立團隊在同一個問題上收斂,那個選擇大概就是對的 —— 而如果你要自己做一套,這 8 條就是最不該重新發明的部分。</p>
+
+  <details class="method">
+    <summary>這章怎麼推的 / 什麼算「收斂」</summary>
+    <div class="mbody">
+      <dl>
+        <dt>判準</dt><dd>只收「兩邊都有具體實作、而且解法的<strong>形狀</strong>相同」的項目。單純「兩邊都有稽核功能」不算(那是必然);「兩邊都刻意把拒絕與允許分成不同事件類型」才算。</dd>
+        <dt>排除</dt><dd>排除了兩邊做法差很多的項目(例如記憶、治理),那些在各自的強項章節。也排除了純粹因為技術棧相同而一致的東西(都用 TypeScript、都用 SQL)。</dd>
+        <dt>限制</dt><dd>「獨立收斂」是推論而非事實 —— 兩個團隊都可能讀過同一批公開討論、或看過對方的產品。這裡主張的是<strong>結論一致</strong>,不是主張彼此不知情。</dd>
+      </dl>
+    </div>
+  </details>
+
+  <div class="implgroup">
+    <div class="gh"><span class="secnum">1</span>都把 agent 對使用者叫「Bot」,對程式碼叫 <code>agent</code></div>
+    <div class="implrow">
+      <div class="it">◉ OpenBot</div>
+      <div class="ix">產品名就是 OpenBot;README 通篇 "a Bot"、"per-Bot"、"which Bots may use them"。但資料表叫 <code>agents</code> / <code>agent_profiles</code>,路由叫 <code>/agents</code>,環境變數叫 <code>AGENT_TOOL_TOKEN</code>。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">◆ Grok Bot</div>
+      <div class="ix">產品名 Grok Bot;onboarding 模板描述寫 "Manages your other <strong>Bots</strong>"。但目錄叫 <code>agents/</code>,常數叫 <code>SAND_SEND_TO_AGENT_TOOL_NAME</code>,型別叫 <code>SandAgentProfile</code>。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">為什麼會收斂</div>
+      <div class="ix">「agent」對一般使用者太抽象也太學術;「Bot」有現成的心智模型(它會幫我做事、它不是人)。而工程上「agent」是既有的技術詞彙,換掉會讓程式碼與整個生態脫節。<strong>兩邊都選了「產品用一套詞、程式碼用另一套」而不是強求統一。</strong></div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh"><span class="secnum">2</span>一個 Bot 一台自己的電腦(而不是共用一個沙箱)</div>
+    <div class="implrow">
+      <div class="it">◉ OpenBot</div>
+      <div class="ix"><code>supervisor</code> 為每個 Bot 建一個 container:<strong>自己的 Chromium profile、自己的 <code>/workspace</code> volume</strong>。README:<em>"the supervisor gives each Bot its own container, its own <code>/workspace</code> volume and its own browser profile."</em></div>
+    </div>
+    <div class="implrow">
+      <div class="it">◆ Grok Bot</div>
+      <div class="ix">「box」:遠端沙箱容器,或(重建版)本機 Docker 容器。每個 Bot 的工作在自己的 box,有 forever-box 與交接機制。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">為什麼會收斂</div>
+      <div class="ix">因為 Bot 要<strong>持有真實登入狀態</strong>。一旦 Bot 需要「以我的身分登入 Salesforce 並保持登入」,共用瀏覽器就等於共用身分,而<strong>「A Bot 用了 B Bot 的 session」在畫面上與日誌上都看不出來</strong>。OpenBot 把這件事講得最清楚,而且做了一個很漂亮的處理 —— 見下面第 4 條的 <code>isolation_loaded</code>。</div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh"><span class="secnum">3</span>都把「動作碰的是哪台機器」做進邊界,而不是做成一個參數</div>
+    <div class="implrow">
+      <div class="it">◆ Grok Bot:用命名</div>
+      <div class="ix"><code>Shell</code> / <code>Read</code> / <code>AwaitShell</code>(box 內)vs <code>ExternalShell</code> / <code>ExternalRead</code> / <code>ExternalAwaitShell</code>(使用者主機)。<strong>兩組平行的工具名,而不是同一個工具加 <code>{target: "host"|"box"}</code> 參數。</strong></div>
+    </div>
+    <div class="implrow">
+      <div class="it">◉ OpenBot:用架構</div>
+      <div class="ix">computer 只在 container 裡,而且<strong>它本身不做 policy 決策</strong>;要碰使用者本機服務需要 <code>AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS</code>,而該旗標<strong>在 <code>NODE_ENV=production</code> 下設了就拒絕啟動</strong>。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">為什麼會收斂</div>
+      <div class="ix">因為「這個動作有沒有碰到我的真實機器」是<strong>稽核上最重要的一個二元問題</strong>,而它不該藏在參數裡。用不同工具名的好處:模型每次選工具都得明確決定、稽核日誌上一眼看得出來。用架構隔離的好處更徹底:根本沒有那條路徑。<strong>兩者都拒絕了「一個工具加一個 target 參數」這個看似最簡潔的做法。</strong></div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh"><span class="secnum">4</span>都堅持記錄「拒絕」與「失敗」,而不只記「允許」</div>
+    <div class="implrow">
+      <div class="it">◉ OpenBot</div>
+      <div class="ix"><strong>三態</strong>:<code>action_allowed</code> / <code>action_refused</code> / <code>action_failed</code>。理由寫在原始碼裡:<br>• 兩者都記的原因 —— <em>"a trail that records only what was permitted cannot answer <strong>whether the Bot tried</strong>."</em><br>• 失敗要獨立一類的原因 —— <em>"<strong>'allowed' reads as 'happened'</strong>, and a trail that cannot tell those apart misleads exactly when it matters most."</em><br>• 還有 <code>bot.declined</code>:模型在呼叫任何工具前就拒絕,gateway 看不到,所以另記一列。<strong>「什麼都沒發生」也是一個事實。</strong></div>
+    </div>
+    <div class="implrow">
+      <div class="it">◆ Grok Bot</div>
+      <div class="ix">錯誤不吞:<code>trays.pushError({agentId, title, detail})</code> 把「另一個 Bot 傳來的訊息處理失敗」「群聊失敗」「廣播失敗」推到使用者可見的托盤。搶佔留痕:<code>reportTurnInterrupt({reason:"agent_steer", hadActiveRun, wasInFlight})</code>。排程器記 <code>trip</code>/<code>escape</code>/<code>late_settle</code> 三個階段 —— <strong>每一次「使用者被卡住」都可量化</strong>。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">額外:OpenBot 的 <code>isolation_loaded</code></div>
+      <div class="ix">這是本條最漂亮的延伸。沒有 supervisor 時全部 Bot 共用一個瀏覽器,而<strong>「畫面一樣、審計一樣、Bot 用了別的 Bot 的 session 看起來跟正常一模一樣」</strong> —— 產品裡沒有任何東西能區分,所以<strong>就在開機時把「這個部署是哪一種」記在審計裡</strong>,寫在事後無法爭辯的地方。同樣思路的還有 <code>policy_loaded</code>(這次啟動實際生效的邊界)。<br><br><strong>教訓:當兩種狀態的所有可觀測跡象都相同時,唯一的辦法是主動宣告。</strong></div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh"><span class="secnum">5</span>都不讓 secret 進 transcript</div>
+    <div class="implrow">
+      <div class="it">◉ OpenBot</div>
+      <div class="ix">README:<em>"Secrets never enter the transcript: the trail records that a secret was requested and <strong>how long it was</strong>, not what it said."</em> 憑證存 <code>/admin/credentials</code>,加密於靜態、<strong>API 永不回傳</strong>、從審計 payload 遮蔽。<code>mcp_servers.credentialId</code> 是<strong>指標而非副本</strong>(vault 擁有加密/輪替/撤銷,第二份 token 只是第二個要記得撤銷的東西)。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">◆ Grok Bot</div>
+      <div class="ix">secrets bridge 在 Electron main(唯一不接受任意輸入的行程),coordinator 與 host 都不持有 keychain、要用時向 main 索取。<code>sand-secret-request.ts</code> 處理 Bot 索取機密的流程。遙測用 <strong>redacted-protos</strong>(型別層面就沒有敏感欄位)。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">為什麼會收斂</div>
+      <div class="ix">因為 transcript 是<strong>會被送進模型、會被存很久、會被複製到別處(遙測、除錯、鏡像)</strong>的東西。一旦 secret 進去了就再也拿不出來。兩邊都選擇「記錄事件而不記錄內容」。</div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh"><span class="secnum">6</span>都把 human-in-the-loop 當一級功能,不是事後補的確認框</div>
+    <div class="implrow">
+      <div class="it">◉ OpenBot:Take the wheel</div>
+      <div class="ix">Bot 撞到登入牆或 2FA 會<strong>主動求助</strong>;控制權在同一個面板交接,記三個事件(<code>help_requested</code> / <code>control_taken</code> / <code>control_released</code>),而且記成<strong>一段期間</strong>而非逐個按鍵。<br><br><strong>最關鍵的細節:人在開車時,Bot 的動作是「拒絕」而不是「排隊」</strong>(<code>HumanHasControlError</code>)。排隊會讓 Bot 累積一批動作在人放手的瞬間全部湧出;拒絕迫使它重新評估當前狀態。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">◆ Grok Bot:七個閘 + widget</div>
+      <div class="ix"><code>auto-review</code> 對七個高風險面各有模式(hostShell / boxShell / mcp / computer / automationWrite / cloudAgent / subagentLaunch);<code>SendMessage</code> 可帶 question widget 徵求同意(prompt 明確要求「扇出前先用一個 question widget 說明你要找誰、要問什麼」);CloudAgent 破壞性動作需 <code>confirm:true</code>;VNC 可直接接手 box 桌面。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">為什麼會收斂</div>
+      <div class="ix">因為兩邊的 Bot 都會遇到<strong>它不該獨自完成的事</strong>(登入、付款、不可逆操作),而「放棄任務」與「硬幹下去」都是錯的答案。第三條路 —— <strong>停下來、把方向盤交出去、記錄這件事發生過</strong> —— 是唯一可行的。</div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh"><span class="secnum">7</span>都把危險能力關在一組窄詞彙後面(而不是用網路或密碼當邊界)</div>
+    <div class="implrow">
+      <div class="it">◉ OpenBot:supervisor 四個動詞</div>
+      <div class="ix">
+        <blockquote class="ob" style="margin-top:0;"><span class="qsrc">supervisor/src/index.ts — 檔頭</span>
+        Access to the Docker socket is <strong>root-equivalent on the host</strong> because a container can be started with the host filesystem bound into it. Putting that in the API server would mean every bug in a request handler, <strong>every injection through a Bot's own output</strong> and every dependency in a large tree sits one mistake away from owning the machine.<br><br>
+        So the socket lives behind <strong>four verbs, expressed in Bots rather than in Docker</strong>: ensure a computer for this Bot, stop it, reset it, list them. <strong>There is no passthrough</strong> and no way to name a container directly … A compromised API server can ask for a Bot's computer to be restarted. <strong>It cannot ask for anything else, because nothing else is expressible.</strong><br><br>
+        <strong>The shared secret is not the boundary; the vocabulary is.</strong> … Neither is the network the boundary, but it is the layer in front of both.
+        </blockquote>
+      </div>
+    </div>
+    <div class="implrow">
+      <div class="it">◆ Grok Bot:preload 窄橋 + box connector</div>
+      <div class="ix">renderer 拿不到 Node 能力,只能透過 preload 曝露的<strong>五種 frame</strong>(<code>lifecycle</code>/<code>request</code>/<code>cancel</code>/<code>reply</code>/<code>event</code>)說話,而且方向被嚴格區分(client 送 server 方向的 frame = 協定違約,直接斷線)。機密只在 Electron main —— <strong>唯一不渲染模型輸出、不執行模型指令、不連任意網址的行程</strong>。</div>
+    </div>
+    <div class="implrow">
+      <div class="it">為什麼會收斂</div>
+      <div class="ix">因為兩邊都有「模型輸出會流過的程式碼」與「擁有作業系統級權限的程式碼」,而這兩者必須分開。<strong>而且兩邊都認識到:token / 網路分段只是防止誤觸,真正的邊界是「能表達的動作集合」有多小。</strong>這是本頁最值得記住的一句設計原則。</div>
+    </div>
+  </div>
+
+  <div class="implgroup">
+    <div class="gh"><span class="secnum">8</span>兩邊的註解都在寫「為什麼」,而且把踩過的坑寫進程式碼</div>
+    <div class="implrow">
+      <div class="it">◉ OpenBot:甚至引 issue 編號</div>
+      <div class="ix">
+        • <code>classify.ts</code> 記下 <strong>#178</strong>:intent router 對已帶 <code>/v1</code> 的 <code>OPENAI_BASE_URL</code> 又接了一次 <code>/v1</code>,導致每個設了該變數的部署全部 404 —— 而且「未加標籤的訊息<strong>靜默停止被路由,而且沒有任何東西說明為什麼</strong>」。<strong>URL 修好了;讓它沒被注意到的那個盲點,就是 <code>RoutingUndecided</code> 這個具名欄位。</strong><br>
+        • <code>core.ts</code> 記下 <strong>#82</strong>:<code>channels.allowedGroups</code> 這一欄「<em>Written by <code>synchronizeTenantPackage</code> and <strong>read by nothing</strong></em>」—— 一個名字承諾了、卻沒有任何東西維護的控制。它<strong>把這件事寫在欄位註解裡</strong>而不是留給下一個人踩。<br>
+        • <code>mcp_servers.credentialId</code> 記下一次真實事故:這一欄曾是 <code>text</code> 對 <code>uuid</code> 主鍵、<strong>沒有外鍵</strong>,資料庫願意持有一個指向不存在憑證的指標,而它真的發生了 —— 測試刪掉了憑證,這一欄指向空氣,連接器報「還沒註冊 OAuth client」而該列<strong>看起來仍然設定好了</strong>。<em>"Nothing caught it because nothing was checking."</em>
+      </div>
+    </div>
+    <div class="implrow">
+      <div class="it">◆ Grok Bot:把不變式與理由寫進常數旁</div>
+      <div class="ix">• 每個生成檔頂端帶 <code>@evidence</code> 與 <strong>region SHA-256</strong>,聲明是從哪一段逐位元組相同的區段還原的。<br>• <code>group-chat-orchestrator.ts</code> 的一句話註解把四個不變式講完(bounded / epoch-cancellable / round robin / one room turn)。<br>• 註解會說明<strong>失敗語意</strong>:<em>"A failed member turn is a pass, not a room-wide failure."</em>、<em>"Streaming preview failures must not fail the member turn."</em>、<em>"Preview cleanup is defensive: failures never fail the member turn."</em></div>
+    </div>
+    <div class="implrow">
+      <div class="it">為什麼這件事值得列進來</div>
+      <div class="ix">因為在 agent 系統裡,<strong>大部分的 bug 不是「程式碼寫錯」而是「安全/正確性的假設沒被寫下來,下一個人把它拆了」</strong>。這兩份 repo 都選擇把假設、理由、以及踩過的坑放在最靠近程式碼的位置。<br><br>如果你要從兩者身上抄一件事而只能抄一件,<strong>抄這個習慣的價值可能高於抄任何一段實作。</strong></div>
+    </div>
+  </div>
+
+  <div class="verdict">
+    <div class="vt">這 8 條合起來說了什麼</div>
+    <div class="vmain">當一個 AI agent 能<strong>持有真實登入、跑真實指令、影響真實系統</strong>時,兩個獨立團隊都收斂到同一組結論:<strong>給它自己的機器、把危險能力關在窄詞彙後面、記下它試過什麼(不只做成了什麼)、不讓機密進對話、遇到不該獨自做的事就把方向盤交出去、並且把你為什麼這樣做寫在程式碼旁邊。</strong></div>
+    <div class="vsub">這 8 條沒有一條跟「模型多聰明」有關。它們全部是關於<strong>邊界、記錄、與交接</strong> —— 也就是說,agent 系統的難處不在 AI,在系統工程。</div>
+  </div>
+</section>
+
+<!-- ================= 協定與拓撲 ================= -->
+<section class="pane" id="proto">
+  <div class="page-kicker">🔌 Protocol & Topology</div>
+  <h1 class="page">🔌 協定與拓撲對照</h1>
+  <p class="page-sub">兩套系統的元件切法與 wire format 完全不同,而這個差異決定了「能不能換掉某一塊」。<strong>OpenBot 的 Bot 是可替換的(AG-UI);Grok Bot 的 runtime 是綁死的。</strong></p>
+
+  <details class="method">
+    <summary>這章怎麼推的</summary>
+    <div class="mbody">
+      <dl>
+        <dt>OpenBot</dt><dd><span class="fp">docs/architecture.md</span> · <span class="fp">docker-compose.yml</span>(服務與埠)· <span class="fp">agent-bot/src/index.ts</span> + <span class="fp">agent-bot/package.json</span>(AG-UI 版本與用法)· <span class="fp">supervisor/src/</span> · <span class="fp">agent-computer/src/</span> · <span class="fp">spire/agent.conf</span></dd>
+        <dt>Grok Bot</dt><dd><span class="fp">source/shared/rpc/coordinator-port.ts</span> · <span class="fp">node-agent-coordinator/renderer-port-server.ts</span> · <span class="fp">box-exec-daemon/server.ts</span> · <span class="fp">packages/proto/generated/agent/v1/*_connect.ts</span> · <span class="fp">host/extensions/notify-bus/notify-bus-client.ts</span> · <span class="fp">host/extensions/cross-user-sharing/xuser-relay.ts</span> · <span class="fp">package.json</span></dd>
+        <dt>不可見</dt><dd>OpenBot 的 CopilotKit Intelligence 端與 Grok Bot 的雲端 gateway / share-room 服務端都只能從 client 呼叫推斷介面。</dd>
+      </dl>
+    </div>
+  </details>
+
+  <h2>並排拓撲</h2>
+  <div class="vs">
+    <div class="side ob">
+      <div class="sh"><span class="badge">◉</span><span class="sname">OpenBot:7 個服務 + 外部 Intelligence</span></div>
+      <div class="sb">
+<div class="asciibox ob" style="margin:0;">┌───────────────────────────────────────────┐
+│ app :3010          React / Vite            │
+└──────────────────┬────────────────────────┘
+                   │ HTTP
+┌──────────────────▼────────────────────────┐
+│ server :3001   Hono API + CopilotKit 執行期 │
+│   auth · roles · tenant package             │
+│   coworkers · channels · intent router      │
+│   ★ GATEWAY(policy + audit)                │
+│   plugins(MCP)· components · credentials    │
+└───┬──────────────┬───────────────┬─────────┘
+    │ AG-UI        │ Connect/HTTP  │ token
+    │ (HTTP POST)  │               │
+┌───▼──────┐  ┌────▼──────────┐  ┌─▼──────────┐
+│agent-bot │  │agent-computer │  │ supervisor │
+│ :4200    │  │ :4100         │  │ :4500/:4300│
+│(PoC)     │  │ Chromium      │  │ 四個動詞:   │
+│          │  │ /workspace    │  │ ensure/stop│
+│agent-    │  │ profile       │  │ /reset/list│
+│langgraph │  │ shell · 截圖   │  │ ← 只有它持有 │
+│ :4201    │  │ screencast    │  │   Docker    │
+└──────────┘  └───────────────┘  │   socket    │
+   ↑ 任何 AG-UI      每 Bot 一個   └────────────┘
+     端點都行         container ────┘ 由它建立
+
+┌───────────────────────────────────────────┐
+│ PostgreSQL + pgvector :5432                │
+│  product data · action_policy · audit_events│
+│  credentials · plugin_grants · channels     │
+│  components · work_items                    │
+└───────────────────────────────────────────┘
+┌───────────────────────────────────────────┐
+│ CopilotKit Intelligence(外部,需 license)  │
+│  durable threads · memory · realtime gateway│
+└───────────────────────────────────────────┘
+(compose 另定義 SPIRE 三個服務;start.sh 不啟動)</div>
+      </div>
+    </div>
+    <div class="side gb">
+      <div class="sh"><span class="badge">◆</span><span class="sname">Grok Bot:六層行程</span></div>
+      <div class="sb">
+<div class="asciibox gb" style="margin:0;">┌───────────────────────────────────────────┐
+│ L5 Renderer   出貨的 React chunk            │
+│    (checksum 釘死,未重建)                  │
+└──────────────────┬────────────────────────┘
+          contextBridge / MessagePort
+┌──────────────────▼────────────────────────┐
+│ L4 preload    四個 runtime:primary / vnc /  │
+│    webview / dev-controls  ← 刻意做窄        │
+└──────────────────┬────────────────────────┘
+              Electron IPC
+┌──────────────────▼────────────────────────┐
+│ L3 Electron main                           │
+│    ★ 唯一持有 keychain 的行程                │
+│    box connector 二選一:遠端 ‖ 本機 Docker   │
+│    擁有並啟動 coordinator 子行程              │
+└──────────────────┬────────────────────────┘
+   coordinator port(MessagePort JSON,v1)
+┌──────────────────▼────────────────────────┐
+│ L2 node-agent-coordinator(獨立行程)        │
+│    renderer-port-server ← 協定守門           │
+│    gateway client / host supervisor         │
+│    inference-router / routed-mcp / webauthn  │
+└──────────────────┬────────────────────────┘
+┌──────────────────▼────────────────────────┐
+│ L1 HOST — 35 個 extension                   │
+│    ★ 全部 Bot 住這裡,每 Bot 一條 worker thread│
+│    transcript(1:1 私訊 / 群聊 / 共享房間)     │
+│    session · memory · automations · mcp      │
+└──────────────────┬────────────────────────┘
+     Connect-RPC over HTTP(protobuf)
+┌──────────────────▼────────────────────────┐
+│ L0 box-exec-daemon / local-exec-daemon      │
+│    agent.v1.ControlService + ExecService     │
+└───────────────────────────────────────────┘</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>協定對照</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>用在哪一段</th><th class="obh">◉ OpenBot</th><th class="gbh">◆ Grok Bot</th></tr>
+    <tr>
+      <td><strong>UI ↔ 後端</strong></td>
+      <td class="obt">HTTP / WebSocket 到 Hono API(<code>server/src/channels/socket.ts</code>)。標準 Web。</td>
+      <td class="gbt"><strong>自訂 coordinator port</strong>:MessagePort 上的 JSON frame,<code>protocolVersion = 1</code>。5 種 frame(<code>lifecycle</code>/<code>request</code>/<code>cancel</code>/<code>reply</code>/<code>event</code>),方向嚴格區分,<strong>任何違約即斷線並附「違反了哪一條」</strong>。</td>
+    </tr>
+    <tr>
+      <td><strong>後端 ↔ Bot(模型端)</strong></td>
+      <td class="obt"><strong>AG-UI</strong>(<code>@ag-ui/core</code> + <code>@ag-ui/encoder</code> <code>0.0.57</code>,server 端用 <code>@ag-ui/client</code>)。<code>POST /ag-ui</code>,body 是 <code>RunAgentInput</code>,回 SSE 式事件流。<strong>開放協定 ⇒ Bot 可替換。</strong></td>
+      <td class="gbt">內部。host 直接在自己行程內跑 runner;對雲端推論用 <code>agent.v1.AgentService</code>(Connect-RPC)。<strong>綁死。</strong></td>
+    </tr>
+    <tr>
+      <td><strong>工具執行</strong></td>
+      <td class="obt">Bot 把工具呼叫<strong>送回 server gateway</strong>(帶 <code>AGENT_TOOL_TOKEN</code>;沒有這個 token 則<strong>沒有 Bot 可以呼叫工具</strong>),gateway 決策後才呼叫 <code>agent-computer</code>(帶 <code>COMPUTER_TOKEN</code>)。</td>
+      <td class="gbt">host 直接對 exec daemon 發 <strong>Connect-RPC + protobuf</strong>(<code>@connectrpc/connect 1.6.1</code> / <code>@bufbuild/protobuf 1.10.1</code>):<code>agent.v1.ControlService</code>(Ping/GetCapabilities/Exec/檔案/artifact/MCP/env)+ <code>agent.v1.ExecService</code>(串流執行)。</td>
+    </tr>
+    <tr>
+      <td><strong>Bot 間</strong></td>
+      <td class="obt"><span class="pill plan">已規劃未實作</span>(將來走 <code>work_items</code>)</td>
+      <td class="gbt"><strong>行程內</strong>:<code>Map&lt;agentId, AgentInboundMessage[]&gt;</code> + 三車道獨佔佇列。<strong>沒有 socket、沒有 protobuf、沒有 broker。</strong></td>
+    </tr>
+    <tr>
+      <td><strong>跨組織 / 跨使用者</strong></td>
+      <td class="obt">不適用(部署即邊界)。</td>
+      <td class="gbt"><strong>HTTPS JSON relay</strong>(<code>/sand/xuser/send</code>、<code>/sand/xuser/poll</code> 帶 <code>ackIds</code> 去重、<code>/sand/share-rooms/*</code>)+ <strong>SSE notify bus</strong> 推播(3 個 topic)+ 4 秒長輪詢兜底 + 30 秒錯誤退避 + 3 天 turn 去重 + 48 小時房間墓碑。</td>
+    </tr>
+    <tr>
+      <td><strong>推播喚醒</strong></td>
+      <td class="obt">CopilotKit Intelligence 的 realtime gateway(<code>INTELLIGENCE_GATEWAY_WS_URL</code>)。</td>
+      <td class="gbt">SSE(<code>data:</code> 行載 JSON)。<strong>只送「有事了」不送內容</strong>,內容由接收端自己拉 —— 把不可靠通道降級成純喚醒訊號,正確性交給 ack 機制。</td>
+    </tr>
+    <tr>
+      <td><strong>身分(工作負載)</strong></td>
+      <td class="obt"><strong>SPIFFE / SPIRE</strong>(<code>spire/agent.conf</code>,trust domain <code>openbot.local</code>,<strong>Docker attestor 選 supervisor 設的 label</strong>;Unix attestor 不適用因為每個 Bot 在自己的 runtime-created container)。<span class="pill part">compose 有定義,<code>start.sh</code> 不啟動</span></td>
+      <td class="gbt"><span class="pill no">無對應物</span>(單機單使用者,不需要工作負載身分)</td>
+    </tr>
+  </table></div>
+
+  <h2>最重要的一個結構差異:工具所有權反轉</h2>
+  <blockquote class="ob"><span class="qsrc">agent-bot/src/index.ts:11</span>
+    It publishes <strong>no tools of its own</strong>. Every callable tool arrives in <code>input.tools</code>, <strong>forwarded by the server</strong>.
+  </blockquote>
+  <div class="callout vsc"><span class="ct">為什麼這一句是整個架構的樞紐</span>因為<strong>治理只能治理你發得出去的東西</strong>。<br><br>
+  <strong>◉ OpenBot</strong>:server 決定這個 Bot 這一輪拿到哪些工具 → Bot 打回來的每個呼叫都要過 gateway → policy 與審計必然生效。<strong>Bot 可以是任何人寫的、跑在任何地方,治理不會漏</strong> —— README 說得很準:<em>"the governance rides the protocol rather than the framework."</em><br><br>
+  <strong>◆ Grok Bot</strong>:工具箱內建在 host 行程裡(<code>turn-toolset.ts</code> 的選填工廠)。好處是延遲低、能做很細的能力偵測(有沒有 box、有沒有連 MCP);代價是<strong>換不掉、也無法對「別人寫的 agent」施加同一套治理</strong>。<br><br>
+  <strong>如果你要讓不同團隊各自帶 agent 進來、而治理必須統一 —— 只有前者這條路走得通。</strong></div>
+
+  <div class="callout note"><span class="ct">一個共同點:兩邊都做了「傳輸退化」</span><strong>◆ Grok Bot</strong> 的 <code>agent.v1.AgentService</code> 提供三種:<code>Run</code>(BiDiStreaming)→ <code>RunSSE</code>(ServerStreaming)→ <code>RunPoll</code>(輪詢)。雙向串流最好,不行退 SSE,再不行退輪詢 —— 為了穿過各種企業網路。<br>
+  <strong>◉ OpenBot</strong> 的 xuser 對應物是「SSE notify + 4 秒長輪詢兜底」的推拉混合(<code>createNotifyDrainGate</code>:notify 連著就不必頻繁輪詢,斷了就回退)。<br>
+  兩邊都認識到:<strong>在真實網路裡,最好的傳輸方式一定有時候不能用,所以退化路徑不是選配。</strong></div>
+</section>
+
+<!-- ================= 移植藍圖 ================= -->
+<section class="pane" id="blueprint">
+  <div class="page-kicker gold">🧱 Blueprint</div>
+  <h1 class="page">🧱 移植藍圖:要做企業內的 AI 同事平台,該怎麼組合</h1>
+  <p class="page-sub">前面幾章的結論是「兩者互補」。這一章把它變成可執行的判斷:<strong>推薦以 OpenBot 為底座、把 Grok Bot 的協作層加上去</strong>,並逐項列出要自己寫什麼、以及 OpenBot 已經預留了哪些位置。本章帶主觀建議 —— 我會標明哪些是事實、哪些是我的判斷。</p>
+
+  <details class="method">
+    <summary>這章的性質 / 我的假設 / 什麼情況下這個建議不成立</summary>
+    <div class="mbody">
+      <dl>
+        <dt>性質</dt><dd>前面八章是<strong>描述</strong>(有原始碼依據);這一章是<strong>建議</strong>(基於前面的描述做的技術選型判斷)。兩者請分開看待。</dd>
+        <dt>我假設的目標</dt><dd>「在企業內部提供一個多人可用、可稽核、能讓不同團隊帶自己的 agent 進來、而且 agent 之間能協作的平台」。這是 digital_colleague 這類專案的典型目標。</dd>
+        <dt>建議不成立的情況</dt><dd>① <strong>目標其實是單人生產力工具</strong> → 不需要 OpenBot 的多人/治理層,直接參考 Grok Bot 的形態更快。② <strong>不能接受任何外部服務依賴</strong> → OpenBot 硬性需要 CopilotKit Intelligence(threads/memory/realtime),雖可自架但那是另一套要維運的東西。③ <strong>需要今天就上線</strong> → OpenBot 自述 alpha,不適合直接當生產底座;此時它的價值是「設計參考」而非「程式碼基礎」。④ <strong>公司已有 agent 平台</strong> → 那應該只抄機制,不抄骨架。</dd>
+        <dt>我沒有評估的</dt><dd>OpenBot 的實際穩定度、效能、社群活躍度、以及 CopilotKit 的商業條件。這些不是讀原始碼能得出的,必須自己試跑與談。</dd>
+      </dl>
+    </div>
+  </details>
+
+  <h2>推薦組合(以及為什麼是這個方向)</h2>
+  <div class="verdict">
+    <div class="vt">建議</div>
+    <div class="vmain"><strong>OpenBot 的方向當骨架</strong>(治理、身分、稽核、框架中立已就緒且設計正確)<strong>+ Grok Bot 的協作層自己加上去</strong>(它已經把難的部分示範完了,包括該設哪些上限)。</div>
+    <div class="vsub">方向這樣選的理由很簡單:<strong>治理很難補、協作相對好補。</strong><br>
+    要把「先寫審計列才動作」「server 解析 element ref」「per-Bot 授權矩陣」「RBAC + SSO」補到一個沒有這些的系統上,等於重寫它的資料流;而要把「一個訊息佇列 + 輪數上限 + @mention 解析」加到一個已經有 gateway 與審計的系統上,是加功能而不是改架構。<strong>先選對難補的那一半。</strong></div>
+  </div>
+
+  <h2>缺口清單:要自己寫什麼</h2>
+  <div class="scrollwrap"><table>
+    <tr><th style="min-width:150px;">缺口</th><th>為什麼必要</th><th>OpenBot 已有的立足點</th><th style="min-width:100px;">難度</th></tr>
+    <tr>
+      <td><strong>① bot-to-bot 訊息通道</strong></td>
+      <td>協作的前提。沒有它,「多個 AI 同事」只是「多個各自獨立的助理」。</td>
+      <td class="obt"><span class="pill yes">預留了</span> <code>work_items</code> 的 <code>kind</code> 就是為此設計的(註解明寫 "bot-to-bot hops later")。lease / <code>attempts</code> / <code>finishedAt</code> 保留 / 幂等 key <strong>全部已經做好</strong>。</td>
+      <td>中。主要是定義訊息 payload 與投遞後的喚醒路徑,不必碰基礎設施。</td>
+    </tr>
+    <tr>
+      <td><strong>② 每 Bot 訊息配額與速率限制</strong></td>
+      <td><strong>Grok Bot 完全沒有這個,全靠 prompt</strong> —— 這是它最大的缺口。一個被注入影響的 Bot 可以連發訊息、每則喚醒一個新 turn。</td>
+      <td class="obt"><span class="pill part">部分</span> <code>plugin_grants</code> 的 <code>(kind, ref, agentId)</code> 形狀可以承載「這個 Bot 每小時可寄幾則」,但額度計數本身要新表。</td>
+      <td>低。一張計數表 + gateway 上的檢查。</td>
+    </tr>
+    <tr>
+      <td><strong>③ 跳數上限(hop limit)</strong></td>
+      <td>防 A→B→C→… 指數擴散。<strong>兩邊都沒有</strong>(Grok Bot 的群聊有輪數上限,1:1 沒有;OpenBot 還沒有通道)。</td>
+      <td class="obt"><span class="pill no">全新</span> 但可以搭在 ① 的 payload 上:每則訊息帶 <code>hops</code>,超過就拒絕並記審計。</td>
+      <td>低,只要在 ① 一開始就設計進去。<strong>事後補很痛,所以第一版就要有。</strong></td>
+    </tr>
+    <tr>
+      <td><strong>④ Bot→Bot 授權矩陣</strong></td>
+      <td>現在兩邊都是(或將是)全連通圖。企業內「風險 Bot 可以問研究 Bot,但業務 Bot 不能問法務 Bot」是常見需求。</td>
+      <td class="obt"><span class="pill yes">幾乎現成</span> <code>plugin_grants (kind, ref, agentId)</code> <strong>直接加一種 kind</strong>(例如 <code>kind="bot-message"</code>, <code>ref=&lt;目標 botId&gt;</code>)。連 admin 授予的 UI 都能複用。</td>
+      <td>低。這是本清單裡投資報酬率最高的一項。</td>
+    </tr>
+    <tr>
+      <td><strong>⑤ 端到端 trace id</strong></td>
+      <td><strong>兩邊都缺。</strong>Grok Bot 有 turn trace(<code>beginTurnTrace</code>,帶 <code>sand.is_group_member</code> 等屬性)但<strong>不跨 <code>SendToAgent</code> 邊界傳遞</strong>。當一個動作經過「Slack 事件 → Bot A → Bot B → subagent → shell」五跳,沒有單一 id 能串起來 —— 合規追溯會卡在這裡。</td>
+      <td class="obt"><span class="pill part">部分</span> <code>audit_events</code> 已有結構化 payload,加一個 <code>traceId</code> + <code>parentSpanId</code> 欄位即可;<code>channel.routed</code> 這種決策列也已經在記「為什麼」。</td>
+      <td>中。技術不難,難在<strong>要在每一條路徑上都傳下去</strong>(這正是 Grok Bot 沒做到的原因)。</td>
+    </tr>
+    <tr>
+      <td><strong>⑥ 群聊編排器</strong></td>
+      <td>只有在你真的需要「多個 Bot 在同一場對話裡輪流發言」時才需要。如果只需要「A 私下問 B」,①④ 就夠了。</td>
+      <td class="obt"><span class="pill yes">資料層現成</span> <code>channel_agents</code> 已是多對多;<code>channels.lastMessageAgentId</code> 的註解顯示 UI 已預期多發言者。</td>
+      <td>中。可直接照抄 Grok Bot 的 107 行編排器邏輯(見下方清單)。</td>
+    </tr>
+    <tr>
+      <td><strong>⑦ 排程 routines</strong></td>
+      <td>「AI 同事」若不能自己在早上準備摘要,價值少一半。OpenBot 尚未實作。</td>
+      <td class="obt"><span class="pill yes">預留了</span> <code>work_items</code> 的 key <strong>已經設計成帶「due 的那一分鐘」</strong>當幂等鍵 —— 註解明說這就是把「再觸發一次」變成「插入一個已存在的列」的關鍵。</td>
+      <td>低到中。地基已在,要寫的是 cron 解析與定義的 CRUD。</td>
+    </tr>
+    <tr>
+      <td><strong>⑧ 每 Bot 記憶</strong></td>
+      <td>OpenBot 把 memory 外包給 CopilotKit Intelligence。若你的合規要求「資料不得離開自有基礎設施」,要嘛自架 Intelligence,要嘛自己做一層。</td>
+      <td class="obt"><span class="pill no">需決策</span> Intelligence 可自架(這是官方支援的路);或參考 Grok Bot 的 markdown 記憶方案(<strong>純文字、可稽核、可版控</strong>,對合規特別友善)。</td>
+      <td>視選擇而定。<strong>這是要先做的決策,不是實作題。</strong></td>
+    </tr>
+    <tr>
+      <td><strong>⑨ 外部事件觸發</strong></td>
+      <td>Grok Bot 有 8 種(Slack / GitHub / Teams / Linear / Sentry / PagerDuty / cron / group)。OpenBot 目前沒有 listener 概念。</td>
+      <td class="obt"><span class="pill part">部分</span> notify topic 概念在 Grok Bot 側可參考;OpenBot 的 <code>work_items</code> 可承載事件觸發的執行。</td>
+      <td>高(每個整合都是一份工)。但可以<strong>只做你真的需要的那一兩個</strong>。</td>
+    </tr>
+  </table></div>
+
+  <div class="callout key"><span class="ct">如果只能做三件事</span><strong>④ Bot→Bot 授權矩陣</strong>(幾乎現成、直接擋掉最大的一類風險)→ <strong>① + ③ 訊息通道與跳數上限一起做</strong>(通道與上限必須同時出生,否則上限永遠補不上)→ <strong>⑤ trace id</strong>(愈早埋愈便宜,而且這是唯一能讓稽核回答「這個動作最初是誰要求的」的東西)。<br><br>⑥⑦⑧⑨ 都可以之後按需求排。</div>
+
+  <h2>從 Grok Bot 直接抄的機制清單(附建議值)</h2>
+  <p>這些是 Grok Bot 已經替你試過的參數與模式。<strong>不要重新發明,尤其是那些上限值 —— 它們的存在就是有人踩過對應的坑。</strong></p>
+  <div class="implgroup g">
+    <div class="gh">協作的硬性上限(每一條都對應一個會爆的情況)</div>
+    <div class="implrow"><div class="it">群聊輪數 / 總則數<br><strong>雙層,刻意不對齊</strong></div><div class="ix"><code>MAX_ROUNDS = 3</code> + <code>MAX_TOTAL_MESSAGES = 10</code> + <code>MAX_PER_MEMBER_PER_ROUND = 2</code>。理論上 6 人×3 輪×2 則 = 36,但被總量 10 壓住 —— <strong>兩層上限故意不一致,以總量為準</strong>,因為輪數擋的是「無限客套」、總量擋的是「單輪爆量」。</div></div>
+    <div class="implrow"><div class="it">成員上限</div><div class="ix"><code>MAX_MEMBERS = 6</code>,而且<strong>在讀寫設定時就硬截斷</strong>,不只 UI 檢查。</div></div>
+    <div class="implrow"><div class="it">訊息長度</div><div class="ix"><code>MAX_TEXT = 8000</code> 字元,伺服端 clamp。</div></div>
+    <div class="implrow"><div class="it">禁止嵌套</div><div class="ix">群組不能包群組。<strong>沒有子群組、沒有樹</strong> —— 否則喚醒的扇出無法推理。</div></div>
+    <div class="implrow"><div class="it">一輪零發言即結束</div><div class="ix"><strong>沉默是有效的終止訊號。</strong>這比「跑滿 N 輪」省很多 token。</div></div>
+  </div>
+  <div class="implgroup g">
+    <div class="gh">正確性模式</div>
+    <div class="implrow"><div class="it"><code>@mention</code> 決定誰回話</div><div class="ix">從<strong>最後一則人類訊息</strong>起掃(所以人一講話,mention 作用範圍就重置);<code>@everyone</code> 或沒人被點名 ⇒ 全員;比對時要求 <code>@handle</code> 前後非英數(避免 <code>@researcher</code> 誤中 <code>@research</code>)。</div></div>
+    <div class="implrow"><div class="it"><code>(pass)</code> 保留字</div><div class="ix">「本輪我沒話說」。判定要<strong>寬鬆</strong>(接受 <code>pass</code>/<code>(pass)</code>/<code>(pass).</code> 等變體,對模型格式不穩定容錯),但保留字<strong>不能被當普通訊息貼出去</strong>。加分:streaming 預覽也判斷「目前字元是否還可能變成 (pass)」,避免卡片閃現又被刪。</div></div>
+    <div class="implrow"><div class="it">三車道優先序</div><div class="ix"><code>human &gt; bot &gt; background</code>,每個 Bot 一條佇列、同時一個 run。<strong>Bot 之間再急都不能擋到人;Bot 之間又永遠優先於排程。</strong>車道內再加一層:直接對話優先於群聊成員 turn。</div></div>
+    <div class="implrow"><div class="it">搶佔的例外</div><div class="ix">priority 訊息可插隊,<strong>但收件人正在服務人類時不准插</strong>。這一條例外比搶佔本身更重要。</div></div>
+    <div class="implrow"><div class="it">重送的兩個布林</div><div class="ix"><code>isDisplayed</code>(已顯示過 ⇒ 重送不重複顯示)+ <code>isRedriven</code>(已重送過 ⇒ 只重送一次)。<strong>兩個 bool 同時解掉「至少一次投遞」與「畫面冪等」。</strong></div></div>
+    <div class="implrow"><div class="it">佇列合併順序</div><div class="ix"><code>[新.急件, 舊.急件, 舊.普通, 新.普通]</code> —— 急件插前面,普通件舊的先走(不餓死)。</div></div>
+    <div class="implrow"><div class="it">epoch 取消</div><div class="ix">每場對話一個遞增 epoch,每一步比對。人又送了新訊息 ⇒ 舊那場整場放棄。</div></div>
+    <div class="implrow"><div class="it">單一成員失敗 = pass</div><div class="ix">一個 Bot 壞掉不讓整場崩掉。</div></div>
+    <div class="implrow"><div class="it">跨通道干擾的語言修復</div><div class="ix">成員在群聊 turn 被私訊打斷後重送時,<strong>用自然語言告訴它「房間還沒看到你的回覆,你剛才說的話留在私聊裡」</strong>。要修的是模型的認知狀態,只能用語言修。</div></div>
+    <div class="implrow"><div class="it">wake prompt 要標明來源</div><div class="ix">用一個 cue 前綴(<code>[agent]</code> / <code>[broadcast]</code>)+ 明說「這是另一個助理,不是使用者在打字」+ 明說「使用者已經看得到這則,不必轉述」+ 明說「非同步,不要等」+ <strong>明確授權沉默</strong>。<br><br>⚠️ 但記住:<strong>這些是約定,不是機制</strong>。真正的節制要靠 ②③④。</div></div>
+  </div>
+
+  <h2>不要抄的</h2>
+  <div class="mechgrid">
+    <div class="mechcard r"><h4>✗ 靠 prompt 做治理</h4><p>Grok Bot 的「不要扇出、不要轉述抱怨、不要 ping-pong」全部只寫在 prompt。在單人桌面上勉強可行(使用者馬上看到訊息暴增並手動介入),<strong>在多人環境會失效,因為透明度不再等於可控</strong>。用 OpenBot 的方式:能用機制擋的就別交給 prompt。</p></div>
+    <div class="mechcard r"><h4>✗ 把 Bot 間通訊放在同一行程</h4><p>Grok Bot 的私訊是 in-process Map,所以低延遲、沒有網路失敗模式 —— 但<strong>無法跨裝置、無法跨副本</strong>。企業部署必然多副本。用 OpenBot 的 <code>work_items</code>(Postgres + <code>for update skip locked</code>)。</p></div>
+    <div class="mechcard r"><h4>✗ 從 URL 匯入可執行的指令</h4><p>Grok Bot 的 workflow 可從 URL 匯入,而 workflow body 是會被當指令執行的自然語言 + helper script,<strong>沒有簽章或審核的跡象</strong>。受管環境要嘛關掉、要嘛加白名單 + 審核流程。對照 OpenBot 的 MCP 目錄哲學:<em>加一個 vendor 等於做一次 vendor 審查</em>。</p></div>
+    <div class="mechcard r"><h4>✗ 讓 Bot 自己建 Bot(在企業環境)</h4><p>Grok Bot 的 <code>CreateAgent</code> 是 Bot 手上的工具。在單人情境是貼心功能;在企業情境是<strong>繞過 Bot 註冊審核的路徑</strong>(新 Bot 該有什麼授權?誰是它的 owner?)。OpenBot 目前只有人能建 Bot,這是對的預設。</p></div>
+  </div>
+
+  <h2>⚠️ 兩邊都要注意的風險</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>風險</th><th>細節</th><th>怎麼處理</th></tr>
+    <tr><td class="obt"><strong>◉ OpenBot 是 alpha</strong></td><td>官方自述 <em>"Expect rough edges and bugs, and expect things to move."</em> <code>worker/</code> 目前是 stub(<code>{status:"idle"}</code>);compose 定義了 SPIRE 三個服務但 <code>start.sh</code> 不啟動;routines 與 bot-to-bot 未實作。</td><td>當<strong>設計參考 + 起點</strong>,不要當生產底座直接上線。先自己跑一遍、讀 CHANGELOG(112 KB,更新很快)、評估 fork 成本。</td></tr>
+    <tr><td class="obt"><strong>◉ 兩個危險的預設值</strong></td><td>出貨 policy 是 <code>deny:[] / allow:["true"]</code>(全允許);<code>.env.example</code> 預設 <code>OPENBOT_SINGLE_USER=true</code>(所有請求當同一管理員)。</td><td><strong>部署第一件事就是寫 policy 並刪掉 single-user。</strong>它做對了一件事:刪了 single-user 卻沒設 identity provider 時,server 拒絕啟動而不是把所有人當管理員。</td></tr>
+    <tr><td class="obt"><strong>◉ 外部服務依賴</strong></td><td>CopilotKit Intelligence 承載 threads / memory / realtime gateway,<strong>server 沒有 <code>INTELLIGENCE_API_KEY</code> 與 <code>COPILOTKIT_LICENSE_TOKEN</code> 就拒絕啟動</strong>。</td><td>先決定:自架 Intelligence、接受託管、或自己做一層。<strong>這是選型決策不是實作細節</strong>,而且會影響合規審查。</td></tr>
+    <tr><td class="gbt"><strong>◆ Grok Bot 不是原廠碼</strong></td><td>非官方逆向重建。模組名稱與邊界可能與原廠不同;<code>frontend/</code> 僅為部分重建。</td><td>把它當<strong>設計案例庫</strong>而非可移植的程式碼。抄機制與常數,不要抄檔案結構。</td></tr>
+    <tr><td class="gbt"><strong>◆ 授權與智財</strong></td><td>它重建的是閉源商業產品。</td><td>從中學習設計是一回事,<strong>直接複製程式碼到商業專案是另一回事</strong> —— 這需要法務判斷,不是技術判斷。OpenBot 是 MIT,這一點乾淨得多。</td></tr>
+  </table></div>
+
+  <div class="callout vsc"><span class="ct">最後一段:兩者共同給的最重要一課</span>把兩份 repo 讀完,最強烈的印象不是任何一項功能,而是<strong>它們都把「為什麼」寫在程式碼旁邊,而且把踩過的坑留在原地當警告</strong>(OpenBot 甚至引 issue 編號)。<br><br>在 agent 系統裡,大部分事故不是「程式碼寫錯」,而是<strong>「安全或正確性的假設沒被寫下來,下一個人把它拆了」</strong> —— 那個「一個表單有三道門」的故事就是最好的例子:如果沒有人把它寫進 <code>key</code> 欄位的註解裡,下一個重構的人一定會再拆一次。<br><br><strong>如果從這兩套系統只能抄一件事,抄這個習慣的價值可能高於抄任何一段實作。</strong></div>
+</section>
+
+<!-- ================= 逐檔證據 ================= -->
+<section class="pane" id="evidence">
+  <div class="page-kicker blue">🔍 Evidence</div>
+  <h1 class="page">🔍 逐檔證據:每個主張對到哪個檔案、哪個識別名、什麼值</h1>
+  <p class="page-sub">本頁所有數字型與行為型主張都列在這裡,方便你自己 clone 下來覆核。<strong>路徑相對於各自 repo 的根目錄</strong>。最後一節誠實列出不確定處。</p>
+
+  <div class="callout note"><span class="ct">怎麼覆核</span><code>git clone --depth 1 https://github.com/CopilotKit/OpenBot</code>(9.1 MB,很快)· <code>git clone --depth 1 https://github.com/b-nnett/grok-bot-0.18-reconstructed</code>(184 MB;<strong>不需要 <code>git lfs pull</code></strong>,本頁引用的檔案都不是 LFS 物件)。然後對下表每一行:<code>grep -n "&lt;識別名&gt;" &lt;路徑&gt;</code>。</div>
+
+  <h2>A · ◉ OpenBot:多 Bot 與路由(本頁核心主張)</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>主張</th><th>檔案</th><th>識別名 / 位置</th><th>值 / 內容</th></tr>
+    <tr><td class="obt"><strong>channel 一開就 pin 到一個 coworker</strong></td><td><code>server/src/routing/classify.ts</code></td><td>檔頭註解</td><td>原文:<em>"A channel is pinned to one coworker for the life of its thread, and the pin is set before the first turn runs, so this decision happens at channel creation, <strong>not during a run</strong>."</em></td></tr>
+    <tr><td class="obt"><strong>bot-to-bot 尚未實作</strong></td><td><code>server/src/db/schema/work.ts:37</code></td><td><code>workItems.kind</code> 的 JSDoc</td><td>原文:<em>"What kind of work. <code>computer.suspend</code> <strong>today</strong>; routines and <strong>bot-to-bot hops later</strong>."</em></td></tr>
+    <tr><td class="obt">work queue 是三個功能共用的一套機制</td><td>同上,檔頭</td><td>—</td><td><em>"ONE MECHANISM, THREE FEATURES. Suspending idle computers needs it, scheduled routines need it, and <strong>a hop from one Bot to another needs it</strong>."</em></td></tr>
+    <tr><td class="obt">已驗證:只有一個 work kind</td><td><code>server/src/work/culler.ts</code> · <code>queue.ts</code></td><td><code>CULL_KIND</code></td><td><code>"computer.suspend"</code> —— <code>server/src/work/</code> 只有這兩個檔案,無其他 kind</td></tr>
+    <tr><td class="obt">handoff 在檔頭但表還沒建</td><td><code>server/src/db/schema/coworker.ts:2</code></td><td>檔頭 vs 實際 <code>pgTable</code></td><td>檔頭:<em>"Coworker tables: bots, skills, routines, <strong>bot-to-bot handoff</strong>."</em> 實際只有 <code>agentProfiles</code> 與 <code>agentPreferences</code></td></tr>
+    <tr><td class="obt">channel 可掛多個 Bot(資料層)</td><td><code>server/src/db/schema/core.ts:321</code></td><td><code>channelAgents</code></td><td><code>primaryKey({columns:[channelId, agentId]})</code> —— 多對多</td></tr>
+    <tr><td class="obt">UI 已預期多發言者</td><td>同上,<code>channels</code> 表</td><td><code>lastMessageAgentId</code> 的註解</td><td><em>"Which agent spoke, so a channel with <strong>several</strong> can show the right one. Null for a person."</em></td></tr>
+    <tr><td class="obt">intent router 的失敗分類</td><td><code>server/src/routing/classify.ts</code></td><td><code>RoutingUndecided</code></td><td><code>"unreachable"</code>(模型呼叫拋錯)· <code>"unparsed"</code>(回的不是可讀 JSON)· <code>"off-roster"</code>(指名不在名單上的 coworker)· …;全部落到 default coworker</td></tr>
+    <tr><td class="obt">路由會考慮「它實際握有什麼」</td><td>同上</td><td><code>RoutingCandidate.reaches</code></td><td>註解記下一次真實失誤:一個 Drive 文件的問題被路由到描述寫「company knowledge」但<strong>完全沒有 Drive grant</strong> 的 coworker,於是它跑去 vendor 網站、撞到登入牆、要使用者登入一個他們早已連結的帳號</td></tr>
+    <tr><td class="obt">路由決定會上審計</td><td><code>server/src/routing/routes.ts</code></td><td><code>channel.routed</code></td><td>記去了哪、為什麼,帶候選 id 但<strong>不帶訊息本身</strong></td></tr>
+    <tr><td class="obt">#178 的教訓</td><td><code>server/src/routing/classify.ts</code></td><td><code>RoutingUndecided</code> 的註解</td><td>intent router 對已帶 <code>/v1</code> 的 <code>OPENAI_BASE_URL</code> 又接一次 <code>/v1</code> ⇒ 每個設了該變數的部署全部 404;未加標籤的訊息「<strong>靜默停止被路由,而且沒有東西說明為什麼</strong>」</td></tr>
+  </table></div>
+
+  <h2>B · ◉ OpenBot:治理、稽核、授權</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>主張</th><th>檔案</th><th>識別名</th><th>值 / 內容</th></tr>
+    <tr><td class="obt"><strong>沒有不留紀錄就動作的路徑</strong></td><td><code>server/src/computer/gateway.ts</code></td><td>檔頭</td><td><em>"an action that was not recorded did not happen, because there is no path that acts without writing the row first."</em> 三步順序:resolve → policy → 寫列 → 才動作;失敗再寫第二列</td></tr>
+    <tr><td class="obt"><strong>不信任模型送來的 label</strong></td><td>同上</td><td>檔頭「Step 1」段</td><td><em>"A gateway that decides on a label supplied by the model is <strong>theatre</strong>: 'never click Submit' is evaded by sending <code>{ref:"e13", name:"Continue"}</code>. The refs are opaque to the caller precisely so that the server holds the mapping."</em></td></tr>
+    <tr><td class="obt">拒絕會帶造成它的規則</td><td>同上</td><td><code>ActionRefusedError.rule</code></td><td><em>"The rule that refused it, so the surface can show which one and an operator can find it."</em></td></tr>
+    <tr><td class="obt">CEL + deny 先於 allow + fail-closed</td><td><code>server/src/computer/policy.ts</code></td><td><code>ActionPolicy</code> · <code>evaluateActionPolicy</code> · <code>import {evaluate} from "cel-js"</code></td><td><code>{mode:"dry-run"|"enforce", deny:string[], allow:string[]}</code>;<code>allow: []</code> 代表全禁;壞 deny 規則拒絕、壞 allow 規則不放行</td></tr>
+    <tr><td class="obt">dry-run 的存在理由</td><td>同上</td><td><code>mode</code> 的註解</td><td><em>"A governance feature nobody dares switch on is not a governance feature."</em></td></tr>
+    <tr><td class="obt">policy 可檢查的欄位</td><td>同上</td><td><code>PolicyContext</code></td><td><code>tool.name</code> · <code>intent</code> · <code>bot.id</code> · <code>actor.id</code> · <code>page.url/host</code> · <code>element.ref/role/name/type</code> · <code>key</code> · <code>file.path/name/extension</code> · <code>mcp.server/tool/effect</code></td></tr>
+    <tr><td class="obt"><strong>「一個表單有三道門」</strong></td><td>同上</td><td><code>PolicyContext.key</code> 的註解</td><td>①只擋點擊 ⇒ Bot 改按 Enter,訂單送出;②加 <code>key</code> ⇒ 但 <code>computer_type</code> 的 <code>submit</code> flag 是第三道門;③現在兩個工具都帶 <code>key</code>,<code>.env.example</code> 的 deny 範例與 Boundaries 預設<strong>同時指名兩者</strong></td></tr>
+    <tr><td class="obt"><code>intent</code> 而非工具名的理由</td><td>同上</td><td><code>intent</code> 的註解</td><td>operator 想的是「Jira 裡什麼都不能被改」而非「不能呼叫某某工具」;例:<code>deny: intent == "run_command"</code> = 我們的 Bot 不給 shell</td></tr>
+    <tr><td class="obt">CEL 字串方法要自己補</td><td>同上</td><td>「String helpers, registered as CEL globals」</td><td><code>cel-js 0.8.2</code> 完全沒實作字串方法,<code>element.name.contains("Submit")</code> 會 raise;自己註冊大小寫不敏感的 <code>contains()</code> / <code>matches()</code></td></tr>
+    <tr><td class="obt">⚠️ 出貨預設是全允許</td><td><code>docs/architecture.md</code></td><td>「Browser action governance」節</td><td><em>"OpenBot's shipped startup default is explicit: <code>deny: []</code> and <code>allow: ["true"]</code>"</em>,除非 <code>AGENT_COMPUTER_POLICY</code> 或已存 admin policy 覆蓋。malformed policy 則<strong>停止啟動</strong></td></tr>
+    <tr><td class="obt">⚠️ 預設 single-user</td><td><code>README.md</code> · <code>.env.example</code></td><td><code>OPENBOT_SINGLE_USER</code></td><td>預設 <code>true</code>,把每個請求當同一個管理員。刪掉卻沒設 identity provider ⇒ <strong>server 拒絕啟動</strong></td></tr>
+    <tr><td class="obt"><strong>per-Bot 授權矩陣</strong></td><td><code>server/src/db/schema/plugins.ts:281</code></td><td><code>pluginGrants</code></td><td><code>primaryKey({columns:[kind, ref, agentId]})</code> + <code>grantedBy</code> / <code>grantedAt</code></td></tr>
+    <tr><td class="obt">「宣告不是授權」</td><td>同上,<code>skillTools</code></td><td>註解</td><td><em>"IT GRANTS NOTHING, AND THAT IS LOAD-BEARING RATHER THAN TIDY. Anybody signed in may write a skill, precisely because a skill adds no capability … the one surface … deliberately not an administrator's would become the way around every surface that is."</em></td></tr>
+    <tr><td class="obt">MCP 目錄的 vendor 哲學</td><td><code>README.md</code> · <code>plugins.ts</code></td><td><code>mcpServers.provenance</code></td><td><code>"first-party"</code>(策展)vs <code>"custom"</code>(admin 用 URL 加的)。<strong>未知工具與自訂 server 的工具一律當寫入</strong>;策展目錄裡 server 宣稱有但沒標為寫入的工具則歸類為讀</td></tr>
+    <tr><td class="obt">工具快取整批替換</td><td>同上,<code>mcpTools</code></td><td>註解</td><td>每次 refresh <strong>整批替換而非合併</strong> ⇒ vendor 撤掉的工具停止被提供,而不是留成「模型會呼叫、server 會拒」的名字</td></tr>
+    <tr><td class="obt">憑證是指標不是副本</td><td>同上,<code>mcpServers.credentialId</code></td><td>FK <code>onDelete:"restrict"</code></td><td>記下一次真實事故:曾是 <code>text</code> 對 <code>uuid</code> 無外鍵,DB 願意持有指向不存在憑證的指標,而它真的發生了。<em>"Nothing caught it because nothing was checking."</em></td></tr>
+    <tr><td class="obt"><strong>61 種審計事件</strong></td><td><code>server/src/audit.ts</code></td><td>事件名陣列</td><td>已計數 = <strong>61</strong>。含三態動作(<code>action_allowed</code>/<code>_refused</code>/<code>_failed</code>)、接手三事件、<code>bot.declined</code>、<code>policy_loaded</code>、<code>isolation_loaded</code>、<code>channel.routed</code> 等</td></tr>
+    <tr><td class="obt">「allowed 讀起來像 happened」</td><td>同上</td><td><code>computer.action_failed</code> 的註解</td><td><em>"Its own type because 'allowed' reads as 'happened', and a trail that cannot tell those apart misleads exactly when it matters most."</em></td></tr>
+    <tr><td class="obt">兩者都記的理由</td><td>同上</td><td><code>action_allowed/refused</code> 上方註解</td><td><em>"Both, always: a trail that records only what was permitted cannot answer <strong>whether the Bot tried</strong>."</em></td></tr>
+    <tr><td class="obt"><strong>隔離狀態要主動宣告</strong></td><td>同上</td><td><code>computer.isolation_loaded</code> 的註解</td><td><em>"The difference is invisible: the screens look identical, the trail looks identical, and a Bot acting on another Bot's session looks exactly like a Bot acting on its own. Nothing in the product distinguishes them, so nothing would."</em></td></tr>
+    <tr><td class="obt">不記未證實的聲稱</td><td>同上</td><td><code>mcp.callback_refused</code> 的註解</td><td>刻意<strong>不記</strong> Bot 與 actor,因為兩者來自剛剛驗證失敗的憑證 ⇒ 寫下來等於「把未證實的聲稱記進最該被相信的地方」</td></tr>
+    <tr><td class="obt">審計表 append-only</td><td><code>server/src/db/schema/attention.ts</code></td><td><code>attentionResolutions</code></td><td>「處理過」是<strong>放在旁邊</strong>的另一張表,原列永不被觸碰;<strong>刻意不建外鍵</strong>(對 append-only 表 cascade 會是 trigger 會拒絕的 update,且會讓處理過事情的人永遠無法刪除)</td></tr>
+  </table></div>
+
+  <h2>C · ◉ OpenBot:執行環境、協定、基礎設施</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>主張</th><th>檔案</th><th>識別名</th><th>值 / 內容</th></tr>
+    <tr><td class="obt"><strong>「邊界是詞彙,不是密碼」</strong></td><td><code>supervisor/src/index.ts</code></td><td>檔頭</td><td>四個動詞 <code>ensure</code>/<code>stop</code>/<code>reset</code>/<code>list</code>,以 Bot 表達而非 Docker;<em>"There is no passthrough … It cannot ask for anything else, because nothing else is expressible. <strong>The shared secret is not the boundary; the vocabulary is.</strong>"</em></td></tr>
+    <tr><td class="obt">Docker socket 是 root 等價</td><td>同上</td><td>檔頭</td><td><em>"root-equivalent on the host because a container can be started with the host filesystem bound into it"</em>;放進 API server 等於每個 handler bug、<strong>每個經 Bot 輸出的注入</strong>、每個依賴都離掌控主機一步之遙</td></tr>
+    <tr><td class="obt">Bot 沒有 token 就不能呼叫工具</td><td><code>README.md</code></td><td><code>AGENT_TOOL_TOKEN</code></td><td><em>"Secret a Bot presents to call a granted tool back … <strong>Without it no Bot may call tools.</strong>"</em></td></tr>
+    <tr><td class="obt">computer 綁 loopback + token</td><td><code>docker-compose.yml</code> · <code>docs/architecture.md</code></td><td><code>COMPUTER_TOKEN</code></td><td>綁 <code>127.0.0.1:4100</code>;除 <code>/health</code> 外全部需 token</td></tr>
+    <tr><td class="obt">加固選項</td><td><code>README.md</code></td><td><code>COMPUTER_RUNTIME</code> · <code>COMPUTER_SANDBOX</code></td><td><code>runsc</code> = gVisor(host 支援時)· <code>on</code> = Chromium 自身 sandbox</td></tr>
+    <tr><td class="obt">碰本機服務在 production 被拒</td><td><code>README.md</code></td><td><code>AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS</code></td><td><em>"Local only, and <strong>refused under <code>NODE_ENV=production</code></strong>."</em></td></tr>
+    <tr><td class="obt">agent 端點位址白名單</td><td><code>README.md</code> · <code>server/src/agents/endpoint.ts</code></td><td><code>AGENT_ENDPOINT_ALLOWED_HOSTS</code></td><td>精確比對,<strong>無通用字元、無後綴匹配</strong>;寫成 URL 或含 <code>*</code> 會<strong>停止啟動並指名該項</strong>;每次 redirect 都再驗一次</td></tr>
+    <tr><td class="obt">AG-UI 版本與端點</td><td><code>agent-bot/package.json</code> · <code>agent-bot/src/index.ts</code></td><td><code>@ag-ui/core</code> / <code>@ag-ui/encoder</code> <code>0.0.57</code>;server 用 <code>@ag-ui/client</code></td><td><code>POST /ag-ui</code>,body = <code>RunAgentInput</code></td></tr>
+    <tr><td class="obt"><strong>工具所有權反轉</strong></td><td><code>agent-bot/src/index.ts:11</code></td><td>檔頭</td><td><em>"It publishes <strong>no tools of its own</strong>. Every callable tool arrives in <code>input.tools</code>, forwarded by the server."</em></td></tr>
+    <tr><td class="obt">SPIFFE/SPIRE</td><td><code>spire/agent.conf</code> · <code>agent-computer/src/identity.ts</code></td><td><code>trust_domain = "openbot.local"</code> · <code>WorkloadAttestor "docker"</code></td><td>Docker attestor 選 supervisor 建 container 時設的 label;Unix attestor 不適用(每個 Bot 在自己的 runtime-created container,PID namespace 不共享)。<code>insecure_bootstrap = true</code> 註明<strong>僅本機</strong></td></tr>
+    <tr><td class="obt">compose 服務清單</td><td><code>docker-compose.yml</code></td><td>—</td><td><code>postgres</code> · <code>migrate</code> · <code>agent-computer</code> · <code>spire-init</code> · <code>spire-server</code> · <code>spire-agent</code> · <code>supervisor</code> · <code>agent-bot</code> · <code>agent-langgraph</code>。<strong><code>start.sh</code> 不啟動 SPIRE 三者</strong>(<code>docs/architecture.md</code> 明說)</td></tr>
+    <tr><td class="obt">Postgres 當佇列的理由</td><td><code>server/src/db/schema/work.ts</code></td><td>檔頭「POSTGRES, NOT A QUEUE」</td><td><code>for update skip locked</code>;<em>"no coordinator, no leader election, no single point of failure, and adding a replica adds throughput rather than contention"</em></td></tr>
+    <tr><td class="obt">為何不用 setInterval</td><td>同上</td><td>檔頭「NOT <code>setInterval</code>」</td><td><em>"Anything that spends money, calls a tool or posts a message … fired by every replica it happens N times, and <strong>on a cluster that is Tuesday</strong>."</em></td></tr>
+    <tr><td class="obt">冪等三要素</td><td>同上</td><td><code>key</code> · <code>attempts</code> · <code>finishedAt</code></td><td>key 帶「due 的那一分鐘」;<em>"A RECLAIMED ITEM IS NOT A FRESH ONE"</em>;<em>"A finished row is the collision."</em>(曾因完成即刪列而讓 07:00 的 routine 跑第二次)</td></tr>
+    <tr><td class="obt">寫了沒人讀的欄位(#82)</td><td><code>server/src/db/schema/core.ts</code></td><td><code>channels.allowedGroups</code></td><td><em>"Written by <code>synchronizeTenantPackage</code> and <strong>read by nothing</strong> … it is a control the name promises and nothing keeps."</em> —— <strong>它把這件事寫在欄位註解裡</strong></td></tr>
+    <tr><td class="obt">人在開車時 Bot 被拒絕</td><td><code>README.md</code> · <code>server/src/computer/gateway.ts</code></td><td><code>HumanHasControlError</code></td><td><em>"While a person is driving, Bot actions are <strong>refused rather than queued</strong>."</em></td></tr>
+    <tr><td class="obt">memory 不在 server 端</td><td>已 grep <code>server/src</code></td><td>—</td><td>除了 in-memory 快取的字面用法,<strong>沒有任何記憶實作</strong>。<code>docs/architecture.md</code>:CopilotKit Intelligence 負責 <em>"Durable threads, memory, and realtime gateway"</em></td></tr>
+    <tr><td class="obt">程式碼規模</td><td>—</td><td><code>find … -exec cat + | wc -l</code></td><td>TS+TSX <strong>93,619</strong> 行;server <strong>26,460</strong>;app <strong>26,988</strong></td></tr>
+  </table></div>
+
+  <h2>D · ◆ Grok Bot:本頁引用的部分</h2>
+  <p class="src">完整版(含九章逐檔證據)見 <a href="grok-bot-0.18-architecture.html#evidence">Grok Bot 0.18 架構詳解 → 🔍 逐檔證據</a>。以下只列本對照頁用到的。</p>
+  <div class="scrollwrap"><table>
+    <tr><th>主張</th><th>檔案</th><th>識別名</th><th>值</th></tr>
+    <tr><td class="gbt">1:1 私訊工具</td><td><code>source/host/agents/agent-messaging.ts</code></td><td><code>SAND_SEND_TO_AGENT_TOOL_NAME</code></td><td><code>"SendToAgent"</code></td></tr>
+    <tr><td class="gbt">訊息長度上限</td><td>同上</td><td><code>AGENT_MESSAGE_MAX_TEXT_LENGTH</code></td><td><code>8_000</code></td></tr>
+    <tr><td class="gbt">名錄上限</td><td>同上</td><td><code>AGENT_DIRECTORY_PROMPT_LIMIT</code></td><td><code>40</code></td></tr>
+    <tr><td class="gbt">兩個 wake cue</td><td>同上</td><td><code>AGENT_INBOUND_WAKE_CUE</code> · <code>ADMIN_BROADCAST_WAKE_CUE</code></td><td><code>"[agent]"</code> · <code>"[broadcast]"</code></td></tr>
+    <tr><td class="gbt">Bot 不能刪 Bot</td><td>同上</td><td><code>renderAgentDirectorySystemPrompt()</code></td><td><em>"You have no tool to delete or archive an agent … never destroy one (yourself included)."</em></td></tr>
+    <tr><td class="gbt">投遞是行程內 Map</td><td><code>…/transcript/agent-to-agent-messaging.ts</code></td><td><code>pendingAgentInbound</code></td><td><code>Map&lt;string, AgentInboundMessage[]&gt;</code>;訊息帶 <code>priority?</code>/<code>isDisplayed?</code>/<code>isRedriven?</code></td></tr>
+    <tr><td class="gbt">合併順序</td><td>同上</td><td><code>mergeAgentInboundQueue()</code></td><td><code>[新.priority, 舊.priority, 舊.rest, 新.rest]</code></td></tr>
+    <tr><td class="gbt">不准打斷使用者車道</td><td>同上</td><td><code>steerRecipientForPriorityPeer()</code></td><td><code>if (scheduler == null || scheduler.getActiveLane(agentId) === "user") return;</code></td></tr>
+    <tr><td class="gbt">fire-and-forget 的實作保證</td><td>同上</td><td><code>sendToAgent()</code> 末段</td><td><code>void this.reviveForAgentInbound(toAgentId);</code>(不 await)</td></tr>
+    <tr><td class="gbt">允許沉默</td><td>同上</td><td><code>runAgentInboundWake()</code></td><td><code>runner.run(prompt, {hidden:true, isSilenceAllowed:true})</code></td></tr>
+    <tr><td class="gbt">三車道</td><td><code>…/transcript/run-scheduler.ts</code></td><td><code>RunLane</code> · <code>pump()</code></td><td><code>"user" | "agent" | "background"</code>,依序取</td></tr>
+    <tr><td class="gbt">車道內偏好</td><td>同上</td><td><code>takeNextUserTask()</code></td><td><code>pending.findIndex(i =&gt; i.source !== "group-member")</code></td></tr>
+    <tr><td class="gbt">watchdog 三階段</td><td>同上</td><td><code>onWatchdogFired()</code> · <code>escapeWedgedRun()</code></td><td>stage <code>"trip"</code> / <code>"escape"</code> / <code>"late_settle"</code></td></tr>
+    <tr><td class="gbt">群聊四個上限</td><td><code>source/host/groups/group-chat.ts</code></td><td><code>GROUP_MAX_ROUNDS</code> · <code>GROUP_MAX_MEMBER_TURNS</code> · <code>GROUP_MAX_MESSAGES_PER_TURN</code> · <code>GROUP_PROMPT_HISTORY_LIMIT</code></td><td><strong>3</strong> · <strong>10</strong> · <strong>2</strong> · <strong>24</strong></td></tr>
+    <tr><td class="gbt">成員上限與禁嵌套</td><td><code>source/host/groups/group-store.ts</code> · <code>group-chat.ts</code></td><td><code>GROUP_MAX_MEMBERS</code> · <code>SandGroupNestingError</code></td><td><strong>6</strong>(讀寫時硬截斷)· 群組不能當群組成員</td></tr>
+    <tr><td class="gbt">編排器的四個不變式</td><td><code>…/transcript/group-chat-orchestrator.ts</code></td><td>類別 JSDoc</td><td><em>"Drives a bounded, epoch-cancellable round robin for one room turn."</em>(107 行)</td></tr>
+    <tr><td class="gbt">一輪零發言即結束</td><td>同上</td><td><code>run()</code> 迴圈末</td><td><code>if (messagesThisRound === 0) return;</code></td></tr>
+    <tr><td class="gbt"><code>(pass)</code> 判定</td><td><code>source/host/groups/group-chat.ts</code></td><td><code>isPassContent()</code> · <code>isPotentialPassPrefix()</code></td><td><code>/^\(?\s*pass\s*\)?\.?$/i</code>;streaming 前綴判斷 <code>/^\(?\s*(?:p(?:a(?:s(?:s\s*\)?\.?)?)?)?)?$/i</code></td></tr>
+    <tr><td class="gbt">成員失敗視為 pass</td><td><code>…/transcript/group-chat-glue.ts</code></td><td><code>runGroupMemberTurn()</code> catch</td><td>註解:<em>"A failed member turn is a pass, not a room-wide failure."</em></td></tr>
+    <tr><td class="gbt">跨通道干擾的語言修復</td><td><code>source/host/groups/group-chat.ts</code></td><td><code>buildGroupRedriveNote()</code></td><td>含 <em>"The room has NOT seen any reply from you for the messages above"</em></td></tr>
+    <tr><td class="gbt">唯一的授權檢查</td><td><code>…/transcript/shared-rooms.ts</code></td><td><code>postToGroup()</code></td><td><code>if (!config.memberIds.includes(fromAgentId)) return "You can only post to a group you're a member of.";</code></td></tr>
+    <tr><td class="gbt">profile 無階層欄位</td><td><code>source/host/agents/agent-profile.ts</code></td><td><code>SandAgentProfile</code></td><td>只有 <code>{name, description, title, avatarShape, avatarColor}</code></td></tr>
+    <tr><td class="gbt">org-chart 只有兩種邊</td><td><code>frontend/src/recovered/features/org-chart/workspace/model.ts</code></td><td><code>OrgChartEdgeKind</code> · <code>buildOrgChartEdges()</code></td><td><code>"membership" | "message"</code>;message 邊<strong>排序後當 key ⇒ 無向</strong></td></tr>
+    <tr><td class="gbt">布局是力導向</td><td>同上 <code>layout.ts</code></td><td><code>layoutOrgChart()</code></td><td><code>REPULSION = -900</code> · <code>LINK_DISTANCE = 160</code> · <code>CENTERING = 0.06</code></td></tr>
+    <tr><td class="gbt">Chief of Staff 是模板</td><td><code>frontend/src/recovered/features/onboarding/signed-in/suggestions.ts:18</code></td><td><code>ONBOARDING_SUGGESTION_CATALOG</code></td><td><code>{id:"chief-of-staff", name:"Chief of Staff", description:"Manages your other Bots and pulls you in for decisions", eligibility:{kind:"universal"}}</code> —— 與其他 30 個模板同構</td></tr>
+    <tr><td class="gbt">七個 auto-review 閘</td><td><code>source/host/runner/tools/turn-toolset.ts</code></td><td><code>ToolFactoryContext.autoReviewModes</code></td><td><code>hostShell</code> · <code>boxShell</code> · <code>mcp</code> · <code>computer</code> · <code>automationWrite</code> · <code>cloudAgent</code> · <code>subagentLaunch</code></td></tr>
+    <tr><td class="gbt">box vs 主機工具名分離</td><td><code>source/host/sand-activity.ts</code></td><td>六個 <code>*_TOOL_NAME</code></td><td><code>Shell</code>/<code>Read</code>/<code>AwaitShell</code> vs <code>ExternalShell</code>/<code>ExternalRead</code>/<code>ExternalAwaitShell</code></td></tr>
+    <tr><td class="gbt">記憶是 markdown</td><td><code>source/host/extensions/memory/memory-service.ts</code></td><td><code>MEMORY_DIRNAME</code> · <code>FACT_LINE</code> · <code>MEMORY_SYNTHESIS_*</code></td><td><code>memory/profile.md</code> + <code>log/</code>;<code>/^-\s+\((\d{4}-\d{2}-\d{2})\)\s+(.+?)\s*$/</code>;整併 24h / 上限 512</td></tr>
+    <tr><td class="gbt">8 種 automation trigger</td><td><code>source/host/automations/automation-trigger.ts</code></td><td><code>parseMember()</code></td><td><code>cron</code>/<code>slack</code>/<code>github</code>/<code>microsoftTeams</code>/<code>linear</code>/<code>sentry</code>/<code>pagerduty</code>/<code>group</code></td></tr>
+    <tr><td class="gbt">regex 只在平台端比對</td><td>同上</td><td><code>listenerMatchesEvent(…, {platformMatched})</code></td><td>Teams 的 <code>messageContainsIsRegex</code> 為真時 <code>return platform</code></td></tr>
+    <tr><td class="gbt">automation 上限</td><td><code>source/host/automations/automation.ts</code></td><td><code>AUTOMATION_MAX_PER_AGENT</code> · <code>AUTOMATION_MAX_RUN_HISTORY</code></td><td><strong>50</strong> · <strong>20</strong></td></tr>
+    <tr><td class="gbt">workflow 可從 URL 匯入</td><td><code>…/transcript/transcript-manager.ts</code> 路由表</td><td><code>importAgentWorkflowUrl</code></td><td>路由到 <code>workflowCommands</code></td></tr>
+    <tr><td class="gbt">coordinator 協定 v1</td><td><code>source/shared/rpc/coordinator-port.ts</code></td><td><code>COORDINATOR_PROTOCOL_VERSION</code> · <code>CoordinatorFrame</code></td><td><code>1</code>;5 種 frame</td></tr>
+    <tr><td class="gbt">Connect-RPC 版本</td><td><code>package.json</code></td><td>dependencies</td><td><code>@connectrpc/connect 1.6.1</code> · <code>@bufbuild/protobuf 1.10.1</code></td></tr>
+    <tr><td class="gbt">三種傳輸退化</td><td><code>…/proto/generated/agent/v1/agent_service_connect.ts</code></td><td><code>Run</code> · <code>RunSSE</code> · <code>RunPoll</code></td><td>BiDiStreaming → ServerStreaming → 輪詢</td></tr>
+    <tr><td class="gbt">35 個 host extension</td><td><code>source/host/extensions/extension-ids.generated.ts</code></td><td><code>HostExtensions</code></td><td>35 個鍵</td></tr>
+    <tr><td class="gbt">trace 不跨 SendToAgent</td><td><code>…/transcript/agent-to-agent-messaging.ts</code> vs <code>group-chat-glue.ts</code></td><td><code>runner.run(...)</code> 的 options</td><td>群聊成員 turn 會傳 <code>traceCtx</code>;<strong>1:1 wake 的 <code>runner.run</code> 不傳</strong> ⇒ trace 斷在這裡</td></tr>
+    <tr><td class="gbt">程式碼規模</td><td>—</td><td>—</td><td><code>source/</code> <strong>441,230</strong> 行;扣掉 <code>proto/generated</code>、<code>redacted-protos</code>、<code>*.gen.ts</code> 後 <strong>170,949</strong>;<code>frontend/src</code> <strong>52,021</strong></td></tr>
+  </table></div>
+
+  <h2>E · 不確定處與限制(誠實清單)</h2>
+  <div class="scrollwrap"><table>
+    <tr><th>不確定的事</th><th>影響到本頁哪些說法</th><th>可信度</th></tr>
+    <tr><td><strong>OpenBot 隨時可能推進</strong></td><td>所有標 <span class="pill plan">已規劃未實作</span> 的項目(bot-to-bot hops、routines)。CHANGELOG 有 112 KB,更新頻繁 —— <strong>你讀到這頁時可能已經實作了</strong>。</td><td>快照時點 <span class="pill yes">高</span> / 現況 <span class="pill part">需重驗</span></td></tr>
+    <tr><td><strong>Grok Bot 的模組命名</strong></td><td>所有「某功能在某檔案」的說法。repo 自述模組邊界可能與原廠不同。但<strong>常數值與 prompt 原文是從逐位元組相同區段還原的</strong>,所以「值是多少」比「檔案叫什麼」可信。</td><td>檔名 <span class="pill part">中</span> / 常數值 <span class="pill yes">高</span></td></tr>
+    <tr><td><strong>Grok Bot 的 renderer</strong></td><td>org-chart 邊種類與布局、onboarding 模板清單。<code>frontend/src/recovered/</code> 是部分重建。本頁只用它論證「資料契約」與「產品意圖」,且該契約與 host 端欄位對得上。</td><td><span class="pill no">低</span>(雙邊佐證後為中高)</td></tr>
+    <tr><td><strong>兩邊的雲端服務端</strong></td><td>OpenBot 的 CopilotKit Intelligence;Grok Bot 的 gateway 與 share-room 服務。只能從 client 呼叫推斷<strong>介面</strong>。</td><td>介面 <span class="pill yes">高</span> / 實作 <span class="pill no">不可見</span></td></tr>
+    <tr><td><strong>模型的實際遵從率</strong></td><td>Grok Bot 所有標 <span class="pill flag">約定</span> 的護欄。原始碼只能證明「有這樣要求」。</td><td>要求存在 <span class="pill yes">高</span> / 效果 <span class="pill no">未知</span></td></tr>
+    <tr><td><strong>「Grok Bot 1:1 沒有跳數上限」</strong></td><td>本頁據以推論「無機制阻止指數擴散」。這是<strong>缺席證據</strong>,理論上可能藏在別處。已檢查 <code>agent-to-agent-messaging.ts</code>、<code>run-scheduler.ts</code>、<code>turn-toolset.ts</code>、<code>background-wakes.ts</code> 未見。</td><td><span class="pill part">中高</span></td></tr>
+    <tr><td><strong>「獨立收斂」的推論</strong></td><td><a onclick="go('same')">🎯 一樣的設計直覺</a> 那 8 條。兩個團隊都可能讀過同一批公開討論或看過對方產品。本頁主張的是<strong>結論一致</strong>,不主張彼此不知情。</td><td>結論一致 <span class="pill yes">高</span> / 獨立性 <span class="pill part">推論</span></td></tr>
+    <tr><td><strong>移植藍圖是建議不是事實</strong></td><td><a onclick="go('blueprint')">🧱 移植藍圖</a> 整章。難度評估、「只做三件事」的排序、以及「治理難補、協作好補」的判斷,都是我基於前八章做的技術選型意見。</td><td>依據 <span class="pill yes">高</span> / 判斷 <span class="pill part">主觀</span></td></tr>
+    <tr><td><strong>沒有評估的面向</strong></td><td>效能、實際穩定度、社群活躍度、CopilotKit 的商業條件、以及<strong>從 Grok Bot 重建版取用程式碼的法律問題</strong>。這些都不是讀原始碼能回答的。</td><td>—</td></tr>
+  </table></div>
+
+  <div class="callout key"><span class="ct">如果只能覆核五件事,建議這五件</span>
+  <strong>①</strong> <code>grep -n "pinned to one coworker" server/src/routing/classify.ts</code> —— OpenBot 的 channel 綁定。<br>
+  <strong>②</strong> <code>grep -n "bot-to-bot hops later" server/src/db/schema/work.ts</code> —— 未實作的明文證據。<br>
+  <strong>③</strong> <code>grep -rn "CULL_KIND" server/src/work/</code> —— 確認只有一種 work kind。<br>
+  <strong>④</strong> <code>grep -n "vocabulary is" supervisor/src/index.ts</code> —— 本頁最重要的設計原則出處。<br>
+  <strong>⑤</strong> <code>grep -n "GROUP_MAX" source/host/groups/group-chat.ts</code>(Grok Bot 側)—— 確認 3 / 10 / 2 / 24。<br><br>
+  這五條分別對應本頁最重要的五個結論:OpenBot 的多 Bot 是路由不是協作、bot-to-bot 是規劃不是現況、地基已備但只承載一個 kind、邊界是詞彙不是密碼、以及協作必須有硬性上限。</div>
+</section>
+
+
+</main>
+
+<footer>
+  <p><strong>資料來源與性質。</strong>本文件基於兩份公開 repo 的原始碼整理:<a href="https://github.com/CopilotKit/OpenBot">CopilotKit/OpenBot</a>(MIT,<strong>官方專案,自述 alpha 且在活躍開發中</strong>)與 <a href="https://github.com/b-nnett/grok-bot-0.18-reconstructed">b-nnett/grok-bot-0.18-reconstructed</a>(<strong>閉源商業產品 Grok Bot 0.18.0 的非官方逆向重建,非 xAI / Anysphere 官方資料</strong>,該 repo 自述模組名稱與邊界可能與原廠不同,且其 <code>frontend/</code> 僅為部分重建)。</p>
+  <p><strong>這是不對稱的比較。</strong>一邊是 alpha 階段的開源專案,一邊是已出貨產品的重建,程式碼量差 2–5 倍。本頁比的是<strong>設計選擇</strong>,不是成熟度。凡屬「註解描述但尚未實作」者均標 <span class="pill plan">已規劃未實作</span>。兩份皆為單次 clone 的快照,可能與現況不符。僅供技術研究與教育交流,所有商標與智慧財產權屬各自公司。</p>
+  <p>◉◆ <strong>OpenBot vs Grok Bot Architecture Comparison</strong> · 為 Cathay DDT_MLE digital_colleague 整理 · 可與 <a href="grok-bot-0.18-architecture.html">Grok Bot 0.18 架構詳解</a> 與 <a href="../index.html">架構解說站</a> 並讀</p>
+</footer>
+
+<script>
+function go(id){
+  if(!document.getElementById(id)) return;
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===id));
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+  history.replaceState(null,'','#'+id);
+}
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.tab);});
+window.addEventListener('DOMContentLoaded',()=>{const h=location.hash.slice(1);if(h&&document.getElementById(h))go(h);});
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
-# Render Blueprint — static site for the three agent-architecture docs.
+# Render Blueprint — static site for the agent-architecture docs
+# (4 CLI/assistant frameworks + Grok Build source walkthrough + 2 multi-bot platform docs).
 # Docs: https://render.com/docs/blueprint-spec
 # These are plain self-contained HTML files (inline CSS/JS, relative links,
 # no build step, no dependencies) → deploy as a Static Site.
@@ -9,7 +10,8 @@ services:
     # No build needed; the repo root already contains the HTML files.
     buildCommand: ""
     staticPublishPath: .
-    # Pretty URLs: allow /openclaw, /hermes, /claude-code (and index fallback).
+    # Pretty URLs: allow /openclaw, /hermes, /claude-code, /grok, /grok-bot, /openbot.
+    # NOTE: staticPublishPath "." already serves grokbot/ — these are shortcuts only.
     routes:
       - type: rewrite
         source: /openclaw
@@ -23,6 +25,15 @@ services:
       - type: rewrite
         source: /grok
         destination: /grok-build-architecture.html
+      - type: rewrite
+        source: /grok-explained
+        destination: /grok-build-explained.html
+      - type: rewrite
+        source: /grok-bot
+        destination: /grokbot/grok-bot-0.18-architecture.html
+      - type: rewrite
+        source: /openbot
+        destination: /grokbot/openbot-vs-grokbot.html
     headers:
       - path: /*
         name: X-Content-Type-Options

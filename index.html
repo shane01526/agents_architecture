@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agent 框架架構詳解 · OpenClaw / Hermes / Claude Code / Grok Build</title>
-<meta name="description" content="四大 AI agent 框架(OpenClaw、Hermes、Claude Code、Grok Build)的深度架構解說與逐元件對比。">
+<title>Agent 架構詳解 · OpenClaw / Hermes / Claude Code / Grok Build / Grok Bot / OpenBot</title>
+<meta name="description" content="六份 AI agent 深度架構解說與逐元件對比:四個 CLI/助理框架(OpenClaw、Hermes、Claude Code、Grok Build)+ 兩個多 Bot 平台(Grok Bot 0.18、CopilotKit OpenBot)。">
 <style>
 :root{
   --bg:#0f1115; --bg2:#161922; --panel:#1b1f2a; --panel2:#222736;
   --ink:#e7ecf3; --ink-dim:#a4adbe; --ink-faint:#6b7488;
   --line:#2a3040; --line2:#363d50;
-  --oc:#ff7a45; --he:#e8c468; --cc:#d97757; --gk:#7ee787;
+  --oc:#ff7a45; --he:#e8c468; --cc:#d97757; --gk:#7ee787; --gb:#8ab4f8; --ob:#f78fb3;
   --green:#3fb98c; --purple:#a880f0;
   --mono:"SFMono-Regular",ui-monospace,"Cascadia Code","Consolas",monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
@@ -32,6 +32,14 @@ h1{font-size:38px;font-weight:850;letter-spacing:.5px;margin:10px 0 8px;}
 .card:hover{transform:translateY(-4px);border-color:var(--bd);box-shadow:0 14px 40px rgba(0,0,0,.35);}
 .card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--bd);}
 .card.oc{--bd:var(--oc);} .card.he{--bd:var(--he);} .card.cc{--bd:var(--cc);} .card.gk{--bd:var(--gk);}
+.card.gb{--bd:var(--gb);} .card.ob{--bd:var(--ob);}
+.secttl{font-size:13px;font-weight:800;letter-spacing:1.4px;color:var(--ink-faint);text-transform:uppercase;margin:0 0 14px;display:flex;align-items:center;gap:10px;}
+.secttl::after{content:"";flex:1;height:1px;background:var(--line);}
+.secttl .cnt{font-weight:700;letter-spacing:0;color:var(--ink-faint);text-transform:none;}
+.xtra{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 34px;}
+.xtra a{display:inline-flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:10px 15px;font-size:13.5px;color:var(--ink-dim);transition:.15s;}
+.xtra a:hover{border-color:var(--gk);color:var(--ink);}
+.xtra a b{color:var(--ink);font-weight:700;}
 .emoji{font-size:42px;line-height:1;}
 .card h2{font-size:23px;margin:14px 0 2px;font-weight:800;}
 .card .tag{font-size:12.5px;font-weight:700;color:var(--bd);letter-spacing:.3px;margin-bottom:12px;}
@@ -56,14 +64,15 @@ code{font-family:var(--mono);font-size:.85em;background:#0c0e13;border:1px solid
 <div class="wrap">
   <header>
     <div class="kicker">Agent Architecture Study</div>
-    <h1>四大 AI Agent 框架架構詳解</h1>
-    <p class="sub">深入拆解 OpenClaw、Hermes、Claude Code、Grok Build 的設計 ── runtime、記憶、工具、技能、自我學習、多代理協作,逐元件、逐步驟、附設計思維。</p>
+    <h1>AI Agent 架構詳解</h1>
+    <p class="sub">深入拆解 OpenClaw、Hermes、Claude Code、Grok Build 四個 CLI/助理框架,以及 Grok Bot 0.18、CopilotKit OpenBot 兩個「一個人養一群 Bot」的平台 ── runtime、記憶、工具、技能、自我學習、多代理協作,逐元件、逐步驟、附設計思維。</p>
   </header>
 
   <div class="lead">
-    每份文件都用<b>三條思路</b>貫穿:🚶 <b>訊息/查詢的旅程</b>(動態流程)、🏗️ <b>由下而上</b>(分層心智模型)、📚 <b>元件詳解</b>(每元件 5 段 + 逐步推演)。四份可在右上角<b>自由切換</b>,並有<b>四框架對照</b>頁。
+    每份文件都用<b>三條思路</b>貫穿:🚶 <b>訊息/查詢的旅程</b>(動態流程)、🏗️ <b>由下而上</b>(分層心智模型)、📚 <b>元件詳解</b>(每元件 5 段 + 逐步推演)。四個框架可在各自右上角<b>自由切換</b>,並有<b>四框架逐元件對照</b>頁(附<b>多 Bot 平台</b>小節)。
   </div>
 
+  <div class="secttl">CLI Agent / 助理框架 <span class="cnt">· 4 份 · 一人對一個 agent</span></div>
   <div class="cards">
     <a class="card oc" href="openclaw-architecture.html">
       <div class="emoji">🦞</div>
@@ -99,15 +108,40 @@ code{font-family:var(--mono);font-size:.85em;background:#0c0e13;border:1px solid
     </a>
   </div>
 
-  <a class="cmpbtn" href="hermes-architecture.html#compare">⚖️ 四框架逐元件對照(Claude Code vs Grok Build vs Hermes vs OpenClaw)</a>
+  <div class="xtra">
+    <a href="grok-build-explained.html">📖 <b>Grok Build 原始碼完整解說</b> · 21 節逐節走過 crate 佈局、agent 迴圈、工具系統、沙箱 <span class="arr">→</span></a>
+  </div>
+
+  <div class="secttl">桌面 · 自架多 Bot 平台 <span class="cnt">· 2 份 · 一人養一群 Bot</span></div>
+  <div class="cards">
+    <a class="card gb" href="grokbot/grok-bot-0.18-architecture.html">
+      <div class="emoji">◆</div>
+      <h2>Grok Bot 0.18</h2>
+      <div class="tag">Electron 桌面 App · 多 Bot 協作 · 非官方逆向重建</div>
+      <p>一台桌面 App 裡養一群<b>會互相講話</b>的 Bot:各有 persona、記憶、排程,可私訊、可拉群聊、可跨使用者共享房間。工作跑在叫 <code>box</code> 的容器裡。</p>
+      <ul><li>★ Bot 間 5 條通訊通道(性質全不同)</li><li>★ 群聊 round-robin + chief/member 之答</li><li>🔍 逐檔證據(<code>@evidence</code> + SHA-256)</li></ul>
+      <span class="go">進入 <span class="arr">→</span></span>
+    </a>
+    <a class="card ob" href="grokbot/openbot-vs-grokbot.html">
+      <div class="emoji">◉</div>
+      <h2>OpenBot vs Grok Bot</h2>
+      <div class="tag">CopilotKit OpenBot 對照 · 逐維度 · 移植藍圖</div>
+      <p>同一個詞、兩件事:<b>多 Bot 協作</b>(Grok Bot)vs <b>多 Bot 分工+路由</b>(OpenBot)。治理是<b>機制</b>還是 <b>prompt</b>?兩者剛好補上對方最大的缺口。</p>
+      <ul><li>★ 核心差異:兩種「多 Bot」</li><li>🛡️ 治理(CEL policy)vs 🤝 協作</li><li>🧱 自建 AI 同事平台的移植藍圖</li></ul>
+      <span class="go">進入 <span class="arr">→</span></span>
+    </a>
+  </div>
+
+  <a class="cmpbtn" href="hermes-architecture.html#compare">⚖️ 四框架逐元件對照(Claude Code vs Grok Build vs Hermes vs OpenClaw)+ 多 Bot 平台附錄</a>
 
   <div class="feat" style="margin-top:30px">
     <h3>關於這些文件</h3>
     <div class="feat-grid">
       <div>📐 <b>同一套視覺與互動</b>:深色主題、兩層導覽、流程圖、決策流、五欄步驟卡。</div>
-      <div>🔗 <b>跨檔互連</b>:每份右上角可切換另外三份;比較頁四欄並列。</div>
-      <div>📎 <b>標註來源</b>:主張皆附 repo 檔案路徑(<code>src/...</code>、<code>crates/...</code>、<code>docs/...</code>)以利查證。</div>
-      <div>⚠️ <b>研究性質</b>:OpenClaw/Hermes 基於開源 repo、Grok Build 基於公開原始碼鏡像;Claude Code 基於第三方逆向研究、非官方、可能過時。</div>
+      <div>🔗 <b>跨檔互連</b>:四個框架每份右上角可切換另外三份;比較頁四欄並列 + 多 Bot 平台附錄;多 Bot 兩份互指並可回到本頁。</div>
+      <div>📎 <b>標註來源</b>:主張皆附 repo 檔案路徑(<code>src/...</code>、<code>crates/...</code>、<code>source/...</code>、<code>docs/...</code>)以利查證。</div>
+      <div>⚠️ <b>研究性質</b>:OpenClaw/Hermes/OpenBot 基於開源 repo、Grok Build 基於公開原始碼鏡像;Claude Code 基於第三方逆向研究;<b>Grok Bot 0.18 基於社群非官方逆向重建</b>(renderer 未還原)。皆非官方資料、可能過時。</div>
+      <div>🚫 <b>別搞混</b>:<b>Grok Build</b>(xAI 的 Rust CLI coding agent)與 <b>Grok Bot 0.18</b>(Electron 桌面多 Bot App)是<b>兩個不同的東西</b>,只是名字像。</div>
     </div>
   </div>
 

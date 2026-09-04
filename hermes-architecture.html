@@ -219,6 +219,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
 .prompt-quote{background:#0a0c11;border:1px solid var(--line);border-left:3px solid var(--purple);border-radius:8px;padding:12px 15px;margin:12px 0;font-size:12.5px;color:#c9d3e3;font-style:italic;line-height:1.6;}
 .prompt-quote .pq-label{display:block;font-style:normal;font-weight:700;font-size:11px;letter-spacing:.4px;color:var(--purple);text-transform:uppercase;margin-bottom:6px;}
 .cmpcol-h{color:var(--gold2)!important;} .cmpcol-o{color:var(--accent2)!important;} .cmpcol-c{color:#e89878!important;} .cmpcol-g{color:#7ee787!important;}
+.cmpcol-b{color:#8ab4f8!important;} .cmpcol-ob{color:#f78fb3!important;}
 /* ===== header 跨框架動作 chip ===== */
 .hbtn{padding:6px 14px;border:1px solid var(--line2);border-radius:20px;background:var(--panel);color:var(--ink-dim);font-size:12.5px;font-weight:700;cursor:pointer;flex:0 0 auto;text-decoration:none;transition:.13s;}
 .hbtn:hover{color:#fff;border-color:var(--accent);text-decoration:none;}
@@ -820,7 +821,7 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
 <section class="pane" id="compare">
   <div class="page-kicker">⚖️ 對照</div>
   <h1 class="page">Hermes vs OpenClaw</h1>
-  <p class="page-sub">四者都是「會用工具的 AI agent」。<strong>Hermes</strong> 與 <strong>OpenClaw</strong> 同屬「個人助理 + 常駐 gateway + 多訊息平台」家族、高度趨同(Hermes 甚至內建 <code>hermes claw migrate</code> 從 OpenClaw 匯入);<strong>✳ Claude Code</strong> 與 <strong>𝕏 Grok Build</strong> 則是官方 CLI coding agent(寫程式、接編輯器),定位相近但實作迥異(Claude Code = TypeScript;Grok Build = Rust 無鎖 actor + 84 crate)。下表四欄並列,再用 8 張卡深比 Hermes vs OpenClaw。</p>
+  <p class="page-sub">四者都是「會用工具的 AI agent」。<strong>Hermes</strong> 與 <strong>OpenClaw</strong> 同屬「個人助理 + 常駐 gateway + 多訊息平台」家族、高度趨同(Hermes 甚至內建 <code>hermes claw migrate</code> 從 OpenClaw 匯入);<strong>✳ Claude Code</strong> 與 <strong>𝕏 Grok Build</strong> 則是官方 CLI coding agent(寫程式、接編輯器),定位相近但實作迥異(Claude Code = TypeScript;Grok Build = Rust 無鎖 actor + 84 crate)。下表四欄並列,再用 8 張卡深比 Hermes vs OpenClaw。<br>本頁末另有一個<strong>附錄小節</strong>:<strong>◆ 桌面/自架多 Bot 平台</strong>(Grok Bot 0.18 vs OpenBot)—— 那是<em>另一個類別</em>,故不併入下表四欄。⚠️ 請注意 <strong>𝕏 Grok Build</strong>(xAI 的 CLI coding agent)與 <strong>◆ Grok Bot 0.18</strong>(Electron 桌面多 Bot App)<strong>是兩個完全不同的東西</strong>,只是名字像。</p>
 
   <div class="scrollwrap"><table>
     <tr><th>面向</th><th class="cmpcol-c">✳ Claude Code</th><th class="cmpcol-g">𝕏 Grok Build</th><th class="cmpcol-h">☤ Hermes</th><th class="cmpcol-o">🦞 OpenClaw</th></tr>
@@ -970,6 +971,24 @@ footer{max-width:1180px;margin:0 auto;padding:28px 26px;border-top:1px solid var
     <tr><td>大任務拆分並行</td><td>sub-agent/swarm(claim)</td><td>subagent(task 工具,深度上限 1)</td><td>delegate(3)+ Kanban(多進程)</td><td>subagents(lane 8)</td></tr>
   </table></div>
   <div class="callout note"><span class="ct">直接回答「多人同時打同一 agent」</span><strong>OpenClaw 最直接勝任</strong>(session key 分流 + 兩層 lane,專為多人多群組設計);<strong>Hermes 類似</strong>且可用 Honcho 分使用者畫像、Kanban 分派背景工作;<strong>Claude Code 與 Grok Build 都不是為此設計</strong> ── 兩個 CLI coding agent 本質單人單終端,Grok Build 靠 leader 持多 session/多 client、工具層並行則在「一次 turn 內把很多事並行做完」。</div>
+
+  <h2 id="multibot-appendix">附錄 · ◆ 另一類:桌面/自架多 Bot 平台(Grok Bot 0.18 vs OpenBot)</h2>
+  <p>上面四欄都是<strong>一個使用者對一個 agent</strong>的框架(CLI coding agent 或 gateway 型助理)。還有一個相鄰但<strong>不同類別</strong>的形態:<strong>一個人養一群 Bot</strong>。代表作兩個 ── <strong class="cmpcol-b">◆ Grok Bot 0.18</strong>(Electron 桌面 App)與 <strong class="cmpcol-ob">◉ OpenBot</strong>(CopilotKit 的自架多人 Web 平台)。因為「Runtime 語言」「自我學習」「脈絡壓縮」這些欄位在它們身上語意對不上,所以<strong>不併進上表</strong>,改用下面這張專屬對照表。</p>
+  <div class="callout warn"><span class="ct">⚠️ 先破一個同名陷阱</span><strong class="cmpcol-g">𝕏 Grok Build</strong> = xAI 官方 <strong>CLI coding agent</strong>(Rust、84-crate、公開原始碼鏡像),就是上表那一欄。<strong class="cmpcol-b">◆ Grok Bot 0.18</strong> = 一個<strong>閉源桌面商業產品</strong>,本站內容基於社群的<strong>非官方逆向重建</strong>(<code>b-nnett/grok-bot-0.18-reconstructed</code>)。<strong>兩者除了名字像,沒有任何關係</strong> ── 語言、形態、使用者模型、通訊模型全不同,請勿互相套用結論。</div>
+  <div class="scrollwrap"><table>
+    <tr><th>面向</th><th class="cmpcol-b">◆ Grok Bot 0.18</th><th class="cmpcol-ob">◉ OpenBot (CopilotKit)</th></tr>
+    <tr><td>形態</td><td>Electron <strong>桌面 App</strong> + 工作跑在叫 <code>box</code> 的遠端/本機容器</td><td><strong>自架 Web 平台</strong>(Docker Compose 起多服務容器)</td></tr>
+    <tr><td>授權 / 成熟度</td><td>閉源商業產品(已出貨、有真實使用者);本站依據為<strong>非官方逆向重建</strong>、0.18.0 單版快照</td><td>官方開源 <strong>MIT</strong>、自述 <strong>alpha</strong></td></tr>
+    <tr><td>使用者模型</td><td><strong>單人</strong>(使用者是唯一 principal)</td><td><strong>多人</strong>:SSO / SAML / OIDC / RBAC</td></tr>
+    <tr><td>一個 Bot 實體是什麼</td><td><code>~/.grokbot/agents/&lt;id&gt;/</code> 一個資料夾 + 一顆 SQLite</td><td>Postgres 一列,<strong>或任何 AG-UI 端點</strong></td></tr>
+    <tr><td><strong>★「多 Bot」的意思</strong></td><td><strong>多 Bot 協作</strong>:Bot 之間真的會互相講話 ── 1:1 私訊會<strong>喚醒對方一個隱藏 turn</strong>;群聊有 round-robin 編排器(上限 <strong>3 輪 / 10 則</strong>、<code>@mention</code>、<code>(pass)</code>)</td><td><strong>多 Bot 分工 + 路由</strong>:一個 channel 一開就<strong>pin 到一個 coworker</strong>,「多 agent」是一個 <strong>LLM intent router</strong> 在挑該找哪個專才;bot-to-bot 在原始碼裡標 later ── <strong>已規劃未實作</strong></td></tr>
+    <tr><td>Bot 間通道</td><td><strong>5 條性質完全不同的通道</strong>(不是通用 bus):in-process 佇列私訊 / <code>postToGroup</code> 群聊 / 跨使用者房間(HTTPS+JSON relay + SSE)/ Task subagent(真父子)/ CloudAgent</td><td>無 Bot 間通道;所有動作經<strong>單一 gateway 咽喉點</strong></td></tr>
+    <tr><td><strong>★ chief / member 階層</strong></td><td><strong>runtime 層沒有</strong>。Bot 彼此是對等 teammate,沒有任何 Bot 能命令/終止/刪除另一個。有一個叫 <strong>「Chief of Staff」的 persona 模板</strong>,但那<strong>只是一段文字</strong>、拿到的工具與其他 Bot 一模一樣。硬證據:UI 上叫 <code>org-chart</code> 的畫面只有 <code>membership</code> 與 <code>message</code>(<strong>無向</strong>)兩種邊,且用<strong>力導向布局</strong>而非樹狀</td><td>連 persona 模板都沒有。階層長在<strong>人</strong>那一側:admin / member 的 <strong>RBAC</strong>、<code>/admin/people</code> 升降權、<code>revoked_access</code></td></tr>
+    <tr><td>治理是機制還是 prompt</td><td>多為 <strong>prompt 層護欄</strong>(寫得極保守,但<strong>模型可不遵守</strong>)</td><td><strong>機制</strong>:單一 gateway 決策點 + <strong>CEL policy</strong> + fail-closed + <strong>先寫審計列才動作</strong> + per-Bot 授權矩陣</td></tr>
+    <tr><td>框架綁定</td><td>綁自家 runtime(逆向重建版另加 Cursor / Claude Code / Codex / OpenRouter <strong>四後端改道</strong>,屬重建者加值、非原版行為)</td><td><strong>框架中立</strong>:LangGraph / Mastra / CrewAI / Pydantic AI / ADK / 手寫皆可</td></tr>
+    <tr><td>資料可信度分級</td><td><code>source/</code> <strong>高</strong>(多數生成檔帶 <code>@evidence</code> + region SHA-256,自兩份 artifact 逐位元組相同區段還原);模組命名/檔案位置 <strong>中</strong>;<code>frontend/src/recovered/</code> <strong>低</strong>(renderer 未還原)</td><td><strong>高</strong>(官方開源、原始碼即真相、註解密度高);不可見部分:CopilotKit Intelligence 為外部服務、只能從 client 呼叫看見介面</td></tr>
+  </table></div>
+  <div class="callout note"><span class="ct">兩者剛好互補</span><strong class="cmpcol-ob">OpenBot 補上 Grok Bot 最大的缺口</strong>:治理是<em>機制</em>而非 prompt。<strong class="cmpcol-b">Grok Bot 補上 OpenBot 最大的缺口</strong>:多 Bot 協作的完整實作、本機 markdown 記憶、事件觸發的自主性、中斷續跑路徑。<br><strong>但這不是同級對比</strong> ── 一邊是官方 alpha 開源專案、一邊是出貨商業產品的非官方逆向重建,程式碼量差 2–5 倍;所以比的是<strong>設計選擇,不是成熟度</strong>。看到「OpenBot 沒有 X」時,正確讀法是「這個 alpha 還沒做到 X」,而不是「架構不支援 X」。<br>完整解說 → <a href="grokbot/grok-bot-0.18-architecture.html">◆ Grok Bot 0.18 架構詳解</a>(Bot 間通訊協定 / 群聊編排 / chief-member 兩個 ★ 專章)· <a href="grokbot/openbot-vs-grokbot.html">◉ vs ◆ OpenBot vs Grok Bot 逐維度對照</a>(含移植藍圖)。</div>
 
   <h2>概念對映(來自 <code>hermes claw migrate</code>)</h2>
   <p>Hermes 內建從 OpenClaw 匯入的遷移工具,其 config key 對映正好揭示兩者的概念對應:<span class="src">來源:website/docs/guides/migrate-from-openclaw.md</span></p>

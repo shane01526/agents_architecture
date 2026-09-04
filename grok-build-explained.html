@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grok Build 原始碼完整解說 · xai-org/grok-build</title>
+<style>
+  :root{
+    --bg:#0e1117; --bg2:#161b22; --bg3:#1c2333; --fg:#e6edf3; --fg2:#9aa7b4;
+    --accent:#4a9eff; --accent2:#7ee787; --accent3:#ffa657; --accent4:#d2a8ff;
+    --border:#2d3644; --code-bg:#0b0f16; --pink:#ff7b9c; --warn:#f0b429;
+    --mono:"SF Mono",ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.75;font-size:16px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);background:var(--code-bg);padding:.12em .4em;border-radius:4px;font-size:.86em;color:var(--accent2);border:1px solid var(--border)}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.6}
+  pre code{background:none;border:none;padding:0;color:var(--fg)}
+  .layout{display:flex;max-width:1500px;margin:0 auto}
+  /* sidebar */
+  nav.toc{position:sticky;top:0;height:100vh;width:290px;flex-shrink:0;overflow-y:auto;background:var(--bg2);border-right:1px solid var(--border);padding:22px 14px 60px}
+  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--fg2);margin:22px 8px 8px}
+  nav.toc a{display:block;color:var(--fg2);padding:5px 10px;border-radius:6px;font-size:13.5px;border-left:2px solid transparent}
+  nav.toc a:hover{background:var(--bg3);color:var(--fg);text-decoration:none}
+  nav.toc .brand{font-weight:700;font-size:18px;color:var(--fg);padding:0 8px 8px;display:flex;align-items:center;gap:8px}
+  nav.toc .brand .logo{width:26px;height:26px;background:linear-gradient(135deg,var(--accent),var(--accent4));border-radius:6px;display:inline-block}
+  main{flex:1;min-width:0;padding:40px 56px 120px;max-width:1050px}
+  h1{font-size:34px;line-height:1.25;margin:0 0 8px;background:linear-gradient(90deg,var(--fg),var(--accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  h2{font-size:26px;margin:56px 0 16px;padding-bottom:10px;border-bottom:2px solid var(--border);scroll-margin-top:20px}
+  h2 .num{color:var(--accent);font-size:20px;margin-right:10px}
+  h3{font-size:20px;margin:34px 0 12px;color:var(--accent2);scroll-margin-top:20px}
+  h4{font-size:16.5px;margin:22px 0 8px;color:var(--accent3)}
+  p{margin:12px 0}
+  ul,ol{padding-left:24px}
+  li{margin:6px 0}
+  .lede{font-size:18px;color:var(--fg2);border-left:3px solid var(--accent);padding-left:16px;margin:20px 0}
+  /* callouts */
+  .box{border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin:18px 0;background:var(--bg2)}
+  .box.info{border-left:4px solid var(--accent)}
+  .box.warn{border-left:4px solid var(--warn);background:#241d10}
+  .box.tip{border-left:4px solid var(--accent2);background:#0f1a12}
+  .box .t{font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+  /* tables */
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14px}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--bg3);color:var(--fg);font-weight:600}
+  tr:nth-child(even) td{background:var(--bg2)}
+  td code{white-space:nowrap}
+  /* stat cards */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:24px 0}
+  .stat{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
+  .stat .v{font-size:28px;font-weight:700;color:var(--accent)}
+  .stat .l{font-size:12.5px;color:var(--fg2);margin-top:2px}
+  /* pills */
+  .pill{display:inline-block;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:2px 11px;font-size:12.5px;margin:2px;color:var(--accent4);font-family:var(--mono)}
+  .pill.g{color:var(--accent2)} .pill.o{color:var(--accent3)} .pill.b{color:var(--accent)}
+  /* diagram */
+  .diagram{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:22px;margin:22px 0;font-family:var(--mono);font-size:13px;line-height:1.5;overflow-x:auto;color:var(--fg2)}
+  .diagram .hl{color:var(--accent2)} .diagram .hl2{color:var(--accent3)} .diagram .hl3{color:var(--accent4)} .diagram .hl4{color:var(--accent)}
+  .crate{color:var(--accent2);font-family:var(--mono);font-size:.92em}
+  .kv{color:var(--pink);font-family:var(--mono);font-size:.92em}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0}
+  .footer{color:var(--fg2);font-size:13px;margin-top:60px;border-top:1px solid var(--border);padding-top:20px}
+  .tag{font-size:11px;padding:1px 7px;border-radius:4px;font-family:var(--mono);vertical-align:middle}
+  .tag.rust{background:#3a1e0f;color:#ffa657;border:1px solid #5a3a1a}
+  details{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:6px 14px;margin:10px 0}
+  summary{cursor:pointer;font-weight:600;color:var(--accent2);padding:6px 0}
+  /* capability matrix */
+  table.matrix td:not(:first-child),table.matrix th:not(:first-child){text-align:center}
+  .yes{color:var(--accent2);font-weight:700} .no{color:var(--pink);font-weight:700} .partial{color:var(--warn);font-weight:700}
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin:8px 0 20px;font-size:13px;color:var(--fg2)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend b{font-family:var(--mono);font-weight:700}
+  .lg1{color:var(--accent2)} .lg2{color:var(--accent3)} .lg3{color:var(--accent4)} .lg4{color:var(--accent)}
+  /* section intro paragraph */
+  .intro{color:var(--fg2);font-size:15px;background:var(--bg2);border-left:3px solid var(--accent4);padding:10px 16px;border-radius:0 8px 8px 0;margin:14px 0 20px}
+  .why{background:#12161f;border:1px dashed var(--border);border-radius:8px;padding:12px 16px;margin:16px 0;font-size:14.5px}
+  .why .t{color:var(--accent3);font-weight:700;margin-bottom:4px}
+  @media(max-width:1000px){nav.toc{display:none}main{padding:24px}}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc">
+  <div class="brand"><span class="logo"></span>Grok Build 解說</div>
+  <a href="index.html" style="margin:2px 0 10px;border:1px solid var(--border);border-radius:8px;text-align:center;font-weight:600" title="AI Agent 架構解說站">← 架構解說站</a>
+  <a href="grok-build-architecture.html" style="border:1px solid var(--border);border-radius:8px;text-align:center;font-weight:600" title="Grok Build 架構詳解(三條思路 / 元件詳解)">𝕏 Grok Build 架構詳解</a>
+  <h2>導覽</h2>
+  <a href="#intro">0 · 這是什麼</a>
+  <a href="#overview">1 · 專案定位與授權</a>
+  <a href="#stats">2 · 規模與技術棧</a>
+  <a href="#layout">3 · Repo 佈局</a>
+  <a href="#build">4 · 建置流程</a>
+  <a href="#modes">5 · 三種執行模式</a>
+  <a href="#dataflow">6 · 高階資料流</a>
+  <a href="#entry">7 · 進入點與模式分派</a>
+  <a href="#agentloop">8 · Agent 迴圈（核心）</a>
+  <a href="#tools">9 · 工具系統</a>
+  <a href="#workspace">10 · Workspace 與 VCS</a>
+  <a href="#tui">11 · TUI 與渲染</a>
+  <a href="#model">12 · 模型與取樣</a>
+  <a href="#mcp">13 · MCP / Hooks / Plugins</a>
+  <a href="#acp">14 · ACP 編輯器嵌入</a>
+  <a href="#config">15 · 設定與認證</a>
+  <a href="#sandbox">16 · Sandbox 沙箱</a>
+  <a href="#infra">17 · 其他基礎建設</a>
+  <a href="#features">18 · 使用者功能速查</a>
+  <a href="#index">19 · 全 crate 索引</a>
+  <a href="#glossary">20 · 名詞對照</a>
+</nav>
+
+<main>
+<h1>Grok Build 原始碼完整解說</h1>
+<p class="lede">xAI（SpaceXAI）終端機 AI coding agent <code>grok</code> 的完整架構與原始碼導讀。本文件基於實際 clone 的
+<a href="https://github.com/xai-org/grok-build" target="_blank">xai-org/grok-build</a> 原始碼撰寫，對照 monorepo commit
+<code>2ec0f0c8488842da03a71eeee3c61154957ca919</code>（記於 <code>SOURCE_REV</code>）。</p>
+
+<div class="box info">
+  <div class="t">📖 如何閱讀本文件</div>
+  前 6 章是<strong>高階總覽</strong>（是什麼、怎麼建、怎麼跑、資料怎麼流），任何人都能快速掌握全貌。
+  第 7–17 章是<strong>核心 crate 原始碼深入</strong>，附真實型別名與檔案路徑。第 18 章是<strong>使用者功能速查</strong>。
+  第 19 章是<strong>全 84 個 crate 的一句話索引</strong>。技術術語一律保留英文。
+</div>
+
+<!-- ============ 0 ============ -->
+<h2 id="intro"><span class="num">0</span>這是什麼</h2>
+<p><strong>Grok Build</strong>（CLI 名為 <code>grok</code>，建置產物名為 <code>xai-grok-pager</code>）是 xAI 開發的
+<strong>終端機 AI 編碼代理人</strong>。它以全螢幕 TUI 的形式執行，能理解你的 codebase、編輯檔案、執行 shell 指令、
+搜尋網頁、管理長時間任務——可以<strong>互動式</strong>使用、<strong>headless</strong>（供 scripting/CI）執行、
+或透過 <strong>Agent Client Protocol（ACP）</strong>嵌入編輯器。</p>
+<p>它的定位與 Claude Code、OpenAI Codex CLI、opencode 屬同一類產品——事實上原始碼中還內建了 codex 與 opencode
+兩套工具的 port（見 <a href="#tools">第 9 章</a>）。這份 repo 是從 xAI 內部 monorepo <strong>定期同步</strong>出來的
+公開鏡像，以 <strong>Apache-2.0</strong> 授權，目的是<strong>原始碼透明化與本地建置</strong>。</p>
+
+<h4>與同類產品的定位對照</h4>
+<table>
+<tr><th>產品</th><th>開發者</th><th>語言</th><th>主要介面</th><th>編輯器嵌入</th><th>原始碼</th></tr>
+<tr><td><strong>Grok Build</strong></td><td>xAI</td><td>Rust</td><td>全螢幕 TUI</td><td>ACP</td><td>公開鏡像（Apache-2.0，不收 PR）</td></tr>
+<tr><td>Claude Code</td><td>Anthropic</td><td>TypeScript</td><td>TUI + IDE 擴充</td><td>自有協定</td><td>閉源</td></tr>
+<tr><td>Codex CLI</td><td>OpenAI</td><td>Rust</td><td>TUI</td><td>—</td><td>開源</td></tr>
+<tr><td>opencode</td><td>社群 / sst</td><td>Go/TS</td><td>TUI</td><td>—</td><td>開源</td></tr>
+</table>
+
+<div class="why">
+  <div class="t">💡 為什麼用 Rust + 全螢幕 TUI？</div>
+  AI coding agent 要長時間駐留、頻繁串流大量 token、同時管理子進程與檔案系統——這對<strong>延遲</strong>與<strong>記憶體穩定性</strong>
+  很敏感。Rust 提供無 GC 停頓的可預測效能與強型別安全（整個 codebase 幾乎禁 <code>unsafe</code>）。全螢幕 TUI（相對於逐行印出的
+  CLI）則讓 scrollback、即時串流、modal、滑鼠互動、圖片內嵌成為可能——本質上是把「終端機」當成一個 GUI framebuffer 在經營。
+</div>
+
+<!-- ============ 1 ============ -->
+<h2 id="overview"><span class="num">1</span>專案定位與授權</h2>
+<p class="intro">這一章釐清「這份 GitHub repo 到底是什麼」——它不是主要開發場所，而是內部 monorepo 的<strong>唯讀公開鏡像</strong>。
+理解這個關係，才能解釋為何根 <code>Cargo.toml</code> 是自動生成的、為何不收外部 PR、以及 <code>SOURCE_REV</code> 的作用。</p>
+<table>
+<tr><th>項目</th><th>內容</th></tr>
+<tr><td>名稱</td><td>Grok Build（CLI = <code>grok</code>；二進位檔 = <code>xai-grok-pager</code>）</td></tr>
+<tr><td>開發者</td><td>SpaceXAI / xAI</td></tr>
+<tr><td>語言</td><td>Rust（edition 2024，pinned toolchain <code>1.92.0</code>）</td></tr>
+<tr><td>授權</td><td>第一方程式碼 <strong>Apache-2.0</strong>；vendored / 相依套件保留原授權</td></tr>
+<tr><td>貢獻政策</td><td><strong>不接受外部 PR 或 patch</strong>（內部開發，公開僅為透明化）</td></tr>
+<tr><td>資安通報</td><td>透過 HackerOne（<code>hackerone.com/x</code>），勿開公開 issue</td></tr>
+<tr><td>官方文件</td><td><a href="https://docs.x.ai/build/overview" target="_blank">docs.x.ai/build/overview</a>、<a href="https://x.ai/cli" target="_blank">x.ai/cli</a></td></tr>
+<tr><td>安裝</td><td><code>curl -fsSL https://x.ai/cli/install.sh | bash</code>（mac/Linux）；<code>irm https://x.ai/cli/install.ps1 | iex</code>（Windows）</td></tr>
+</table>
+<div class="box warn">
+  <div class="t">⚠️ 重要：不接受外部貢獻</div>
+  <code>CONTRIBUTING.md</code> 明確聲明本 repo <strong>does not accept external pull requests or unsolicited patches</strong>。
+  你可以閱讀、學習、本地建置，但不能貢獻回上游。根目錄的 <code>Cargo.toml</code> 是<strong>自動生成</strong>的，視為唯讀。
+</div>
+
+<h4>公開鏡像 vs 內部 monorepo</h4>
+<div class="diagram">
+  <span class="hl4">xAI 內部 monorepo</span>（真正的開發場所，含 Bazel 建置、CI、其他 x-product 服務）
+        │
+        │  <span class="hl2">定期單向同步</span>（擷取 grok CLI 的 crate closure，改寫成 cargo workspace）
+        ▼
+  <span class="hl">github.com/xai-org/grok-build</span>（本 repo，唯讀公開鏡像）
+        │
+        ├── <span class="kv">SOURCE_REV</span> = 2ec0f0c8…  ← 記錄這份 tree 對應的 monorepo commit SHA
+        └── Cargo.toml（自動生成）  ← 從 Bazel target 反推出的 workspace 成員清單
+</div>
+<p>因此：這份 tree 的「歷史」不等於 monorepo 的 commit 歷史；<code>SOURCE_REV</code> 是唯一能對回內部版本的錨點。
+也因為建置圖是從 Bazel 反推生成，根 <code>Cargo.toml</code>（成員、依賴版本、lint、profile）才會是<strong>生成產物</strong>——
+要改動應改各 crate 自己的 <code>Cargo.toml</code>。</p>
+
+<!-- ============ 2 ============ -->
+<h2 id="stats"><span class="num">2</span>規模與技術棧</h2>
+<div class="stats">
+  <div class="stat"><div class="v">~1.33M</div><div class="l">Rust 程式碼行數</div></div>
+  <div class="stat"><div class="v">2,238</div><div class="l"><code>.rs</code> 檔案數</div></div>
+  <div class="stat"><div class="v">84</div><div class="l">workspace crates</div></div>
+  <div class="stat"><div class="v">1.92.0</div><div class="l">Rust toolchain（pinned）</div></div>
+  <div class="stat"><div class="v">2024</div><div class="l">Rust edition</div></div>
+  <div class="stat"><div class="v">500K</div><div class="l">預設模型 context window</div></div>
+</div>
+<h4>行數最多的 crate（反映複雜度重心）</h4>
+<table>
+<tr><th>crate</th><th>~LOC</th><th>職責</th></tr>
+<tr><td><span class="crate">xai-grok-pager</span></td><td>420,856</td><td>TUI 本體（scrollback、prompt、modals、事件迴圈）</td></tr>
+<tr><td><span class="crate">xai-grok-shell</span></td><td>336,028</td><td>Agent runtime 與所有非 TUI 進入點</td></tr>
+<tr><td><span class="crate">xai-grok-tools</span></td><td>112,274</td><td>工具實作（bash、編輯、搜尋、web…）</td></tr>
+<tr><td><span class="crate">xai-grok-workspace</span></td><td>77,740</td><td>檔案系統 / VCS / 執行 / checkpoint</td></tr>
+<tr><td><span class="crate">xai-grok-pager-render</span></td><td>35,686</td><td>渲染基元（draw loop、主題、圖形協定）</td></tr>
+</table>
+
+<h4>核心第三方套件（依用途分類）</h4>
+<p class="intro">workspace 統一鎖定約 200+ 個相依（見根 <code>Cargo.toml</code> 的 <code>[workspace.dependencies]</code>）。
+以下依「這個套件在系統裡扮演什麼角色」分類，比按字母排序更能看出技術取向。</p>
+<table>
+<tr><th>層面</th><th>關鍵套件</th><th>用途</th></tr>
+<tr><td>Async runtime</td><td><code>tokio</code>（full）、<code>futures</code>、<code>tokio-util</code></td><td>整個 agent runtime 的非同步基礎；actor task、channel、select</td></tr>
+<tr><td>終端渲染</td><td><code>ratatui 0.29</code>、<code>crossterm 0.28</code>、<code>alacritty_terminal</code>、<code>vte</code>、<code>portable-pty</code></td><td>TUI 繪製、鍵鼠事件、PTY 模擬、ANSI 解析</td></tr>
+<tr><td>文字/語法</td><td><code>syntect</code>、<code>two-face</code>、<code>pulldown-cmark</code>、<code>textwrap</code>、<code>unicode-width</code></td><td>語法高亮、markdown 解析、終端換行</td></tr>
+<tr><td>圖表渲染</td><td><code>resvg</code>/<code>usvg</code>/<code>tiny-skia</code>、<code>fontdb</code>（+ vendored mermaid stack）</td><td>Mermaid → SVG → PNG 光柵化（無瀏覽器）</td></tr>
+<tr><td>序列化</td><td><code>serde</code>/<code>serde_json</code>、<code>toml</code>、<code>prost</code>、<code>schemars</code>、<code>ts-rs</code></td><td>設定、wire 型別、JSON Schema、protobuf、TS 型別導出</td></tr>
+<tr><td>網路/RPC</td><td><code>reqwest 0.12</code>（rustls）、<code>tonic 0.14</code>（gRPC）、<code>tokio-tungstenite</code>、<code>axum</code>、<code>eventsource-stream</code></td><td>HTTP/SSE、gRPC、WebSocket relay、leader server</td></tr>
+<tr><td>VCS</td><td><code>gix 0.83</code>、<code>git2</code>、<code>ignore</code>、<code>globset</code></td><td>git 讀寫、worktree、gitignore 過濾</td></tr>
+<tr><td>程式碼智能</td><td><code>tree-sitter</code>、<code>petgraph</code>、<code>nucleo</code>、<code>fuzzy-matcher</code></td><td>code graph、go-to-def、fuzzy 檔案/歷史搜尋</td></tr>
+<tr><td>AI / LLM</td><td><code>async-openai</code>（responses）、<code>agent-client-protocol 0.10</code>、<code>rmcp</code>、<code>jsonschema</code></td><td>取樣後端、ACP 嵌入、MCP client、工具參數驗證</td></tr>
+<tr><td>儲存</td><td><code>rusqlite</code>（FTS5 + vec0）、<code>blake3</code>、<code>zstd</code></td><td>session/memory SQLite、hybrid 搜尋、hashing、壓縮</td></tr>
+<tr><td>安全/沙箱</td><td><code>nono</code>（Landlock/Seatbelt）、<code>nix</code>、<code>ring</code>/<code>rsa</code>、<code>oauth2</code></td><td>OS 沙箱、系統呼叫、Ed25519 驗簽、OAuth</td></tr>
+<tr><td>觀測性</td><td><code>opentelemetry</code>/<code>fastrace</code>、<code>tracing</code>、<code>prometheus</code>、<code>pprof</code></td><td>遙測、分散式追蹤、metrics、profiling</td></tr>
+<tr><td>記憶體/穩定性</td><td><code>tikv-jemallocator</code>、<code>parking_lot</code>、<code>arc-swap</code>、<code>dashmap</code></td><td>jemalloc（含 arena purge）、鎖與無鎖結構</td></tr>
+</table>
+
+<div class="why">
+  <div class="t">💡 為什麼 crate 切這麼細（84 個）？</div>
+  三個動機：<strong>(1) 建置平行化</strong>——像 <code>xai-grok-shell-base</code>、<code>-session-support</code> 純粹是從巨大的 shell crate 拆出來
+  以獨立平行編譯、避免每次改 shell 就全部重編。<strong>(2) 依賴反轉</strong>——<code>xai-grok-auth</code>、<code>xai-grok-config-types</code>、
+  <code>xai-tool-types</code> 這類「型別/trait seam」讓上下層不必互相直接依賴。<strong>(3) 版本隔離</strong>——<code>xai-grok-mcp</code> 專門
+  隔離需要 <code>reqwest 0.13</code> 的 <code>rmcp</code>，<code>xai-mixpanel</code> 取代 <code>mixpanel-rs</code> 以免拉進 <code>reqwest 0.11</code>，避免同一二進位裡塞多份 HTTP stack。
+</div>
+
+<!-- ============ 3 ============ -->
+<h2 id="layout"><span class="num">3</span>Repository 佈局</h2>
+<p class="intro">整個 repo 是一個 <strong>Cargo workspace</strong>。先看目錄樹掌握全貌，再用「頂層檔案用途表」逐一了解每個根檔案的意義，
+最後理解 <code>crates/</code> 為何三分（codegen / common / build）。</p>
+<pre><code>grok-build/
+├── Cargo.toml            # 自動生成的 workspace root（唯讀）— 84 個成員
+├── Cargo.lock            # 353 KB，完整鎖定
+├── rust-toolchain.toml   # pin 到 Rust 1.92.0 + rustfmt + clippy
+├── clippy.toml           # 禁用 std::fs::canonicalize（Windows verbatim path 問題）
+├── rustfmt.toml          # use_field_init_shorthand = true
+├── SOURCE_REV            # 對應的 monorepo commit SHA
+├── README / CONTRIBUTING / SECURITY / LICENSE
+├── THIRD-PARTY-NOTICES   # 781 KB 依賴授權清單
+├── .cargo/config.toml    # 各平台 rustflags（含 RELRO/NX 硬化、jemalloc page size）
+├── bin/
+│   └── protoc            # DotSlash manifest（hermetic 下載 protoc 29.3）
+├── crates/
+│   ├── build/            # xai-proto-build（protobuf 建置）
+│   ├── codegen/          # ★ 62 個主要 crate（TUI/runtime/tools/workspace/…）
+│   └── common/           # 11 個共用 leaf crate（tool 抽象、hub、tracing…）
+├── prod/mc/
+│   └── cli-chat-proxy-types  # CLI chat proxy 的 request/response 型別
+└── third_party/          # vendored Mermaid 圖表堆疊（4 個 crate）
+</code></pre>
+
+<h4>頂層檔案用途表</h4>
+<table>
+<tr><th>檔案</th><th>用途</th></tr>
+<tr><td><code>Cargo.toml</code></td><td>自動生成的 workspace root：84 個成員、統一依賴版本、lint、build profile（<strong>唯讀</strong>）</td></tr>
+<tr><td><code>Cargo.lock</code></td><td>353 KB，鎖定整個依賴閉包的確切版本</td></tr>
+<tr><td><code>rust-toolchain.toml</code></td><td>pin 到 Rust <code>1.92.0</code>，附 rustfmt + clippy，target 含 linux gnu/musl</td></tr>
+<tr><td><code>clippy.toml</code></td><td>禁用 <code>std::fs::canonicalize</code>（Windows 回傳 <code>\\?\</code> verbatim 路徑會破壞外部工具）</td></tr>
+<tr><td><code>rustfmt.toml</code></td><td>格式化規則（<code>use_field_init_shorthand = true</code>）</td></tr>
+<tr><td><code>SOURCE_REV</code></td><td>對應的 monorepo commit SHA（唯一能對回內部版本的錨點）</td></tr>
+<tr><td><code>THIRD-PARTY-NOTICES</code></td><td>781 KB：所有 crates.io/git 依賴的授權清單 + codex/opencode port 的 §4(b) 變更聲明</td></tr>
+<tr><td><code>LICENSE</code></td><td>Apache-2.0（第一方程式碼）</td></tr>
+<tr><td><code>.cargo/config.toml</code></td><td>各平台 rustflags：Linux musl 的 RELRO/NX 硬化、Apple Silicon jemalloc page size</td></tr>
+<tr><td><code>bin/protoc</code></td><td>DotSlash manifest（依平台 hermetic 下載 protobuf 29.3）</td></tr>
+</table>
+
+<h4><code>crates/</code> 三個子群的判準</h4>
+<ul>
+  <li><span class="crate">crates/codegen/</span>（62 個）— <strong>應用主體</strong>。命名慣例 <code>xai-grok-*</code>（產品專屬）與 <code>xai-*</code>（可重用基礎工具，如 <code>xai-ratatui-*</code>、<code>ptyctl</code>）。</li>
+  <li><span class="crate">crates/common/</span>（11 個）— <strong>供應商中立的共用抽象</strong>，可被 grok 以外的 xAI 產品重用；特別是「xAI Computer Hub」工具協定與 <code>Tool</code> trait（禁 <code>unsafe</code>、避免 I/O）。</li>
+  <li><span class="crate">crates/build/</span>（1 個）— <strong>建置期工具</strong>：<code>xai-proto-build</code>，protobuf 編譯（透過 DotSlash 解析 <code>bin/protoc</code>）。</li>
+</ul>
+<p>判準大致是：<em>會不會被非 grok 的產品重用</em>（→ common）、<em>是不是只在 build 時跑</em>（→ build）、其餘皆歸 codegen。</p>
+
+<h4><code>third_party/</code>：為何 vendor Mermaid？</h4>
+<p>因為這些 crate 位於<strong>渲染「不受信任的模型輸出」</strong>的路徑上（diagram source → SVG）。vendoring 提供完整的稽核面、鎖定確切原始碼、避免 crates.io 被 yank。依賴形狀：</p>
+<pre><code>xai-grok-mermaid
+  └── mermaid-to-svg          (MIT, warpdotdev)
+        ├── dagre_rust        (Apache-2.0)   # 圖佈局演算法
+        │     ├── graphlib_rust
+        │     └── ordered_hashmap
+        └── graphlib_rust     (Apache-2.0)</code></pre>
+
+<!-- ============ 4 ============ -->
+<h2 id="build"><span class="num">4</span>建置流程</h2>
+<p class="intro">建置需要三樣東西協同：pinned Rust toolchain、DotSlash（hermetic 工具下載器）、protoc（protobuf 編譯器）。
+下圖是從零到跑起 TUI 的管線。</p>
+<div class="diagram">
+  <span class="hl4">rustup</span>            <span class="hl4">DotSlash</span>              <span class="hl">cargo</span>
+   讀 rust-           解析 bin/protoc         讀 Cargo.toml
+   toolchain.toml     （hermetic 下載          + Cargo.lock
+      │               protobuf 29.3）              │
+      ▼                    │                       ▼
+  安裝 Rust 1.92 ──────────┴──────► xai-proto-build ──► 各 crate 編譯 ──► <span class="hl2">xai-grok-pager</span>
+  + rustfmt/clippy         （protoc 供 proto codegen）   （62+ crates）    （官方安裝時改名 grok）
+</div>
+<h4>需求</h4>
+<ul>
+  <li><strong>Rust</strong> — <code>rustup</code> 依 <code>rust-toolchain.toml</code> 自動安裝 1.92.0。</li>
+  <li><strong>DotSlash</strong> — hermetic 工具管理器，讓 <code>bin/</code> 下的工具（尤其 <code>bin/protoc</code>）能下載並執行。<code>cargo install dotslash</code>。</li>
+  <li><strong>protoc</strong> — proto codegen 透過 DotSlash 解析 <code>bin/protoc</code>（protobuf 29.3），或退回 <code>PATH</code> / <code>$PROTOC</code>。</li>
+  <li>支援的建置主機：macOS 與 Linux；Windows 為 best-effort（未從此 tree 測試）。</li>
+</ul>
+<h4>指令</h4>
+<pre><code>cargo run   -p xai-grok-pager-bin            # 建置並啟動 TUI
+cargo build -p xai-grok-pager-bin --release  # release 二進位：target/release/xai-grok-pager
+cargo check -p xai-grok-pager-bin            # 快速驗證（不產生二進位）
+
+# 開發時務必指定單一 crate（full-workspace build 很慢）
+cargo check  -p &lt;crate&gt;
+cargo test   -p xai-grok-config
+cargo clippy -p &lt;crate&gt;
+cargo fmt --all</code></pre>
+<div class="box tip">
+  <div class="t">🔒 建置硬化（security）</div>
+  <code>.cargo/config.toml</code> 對 Linux musl 目標套用 <strong>Full RELRO + non-executable stack</strong>
+  （<code>-Wl,-z,relro,-z,now,-z,noexecstack</code>），防 GOT 覆寫、lazy binding 利用、stack shellcode。
+  發行 profile <code>release-dist</code> 使用 thin LTO + <code>codegen-units=1</code>；預設 <code>--release</code> 為了本地開發速度不啟用這些。
+</div>
+
+<h4>Build profile 對照</h4>
+<table>
+<tr><th>Profile</th><th>用途</th><th>特徵</th></tr>
+<tr><td><code>dev</code></td><td>本地開發</td><td><code>opt-level=0</code>、<code>codegen-units=128</code>、line-tables debug、<code>panic=abort</code></td></tr>
+<tr><td><code>release</code></td><td>一般 release build</td><td>incremental、<code>panic=abort</code>（不含 LTO，保開發速度）</td></tr>
+<tr><td><code>release-dist</code></td><td><strong>出貨給終端使用者</strong>（alpha + stable）</td><td>thin LTO、<code>codegen-units=1</code>、保留 symbol 供 CI 抽 debug sidecar</td></tr>
+<tr><td><code>x-prod</code></td><td>延遲敏感的 x-product 服務</td><td>thin LTO、<code>codegen-units=1</code>、line-tables、<code>panic=unwind</code></td></tr>
+</table>
+
+<div class="why">
+  <div class="t">⛓️ <code>panic = "abort"</code> 的連鎖影響</div>
+  出貨的 CLI（dev/release/release-dist）都用 <code>panic = "abort"</code>——panic 直接終止進程，不做 unwind。這帶來更小的二進位與
+  更快的執行，但也<strong>讓 <code>std::panic::catch_unwind</code> 形同無效</strong>。後果之一：渲染「不受信任的模型生成 Mermaid」時無法用
+  <code>catch_unwind</code> 在進程內攔截 panic，於是被迫改成<strong>子進程 re-exec + SIGKILL 隔離</strong>的設計（詳見 <a href="#tui">第 11 章</a>）。
+  這是一個「底層 build 決策向上決定了架構」的典型例子。
+</div>
+
+<!-- ============ 5 ============ -->
+<h2 id="modes"><span class="num">5</span>三種執行模式</h2>
+<table>
+<tr><th>模式</th><th>啟動方式</th><th>用途</th></tr>
+<tr><td><strong>Interactive TUI</strong></td><td><code>grok</code>（無 subcommand、無 prompt flag）</td><td>全螢幕、滑鼠互動的協作式編碼介面（預設）</td></tr>
+<tr><td><strong>Headless</strong></td><td><code>grok -p "prompt"</code>（或 <code>--prompt-json</code> / <code>--prompt-file</code>）</td><td>scripting / CI，可輸出 <code>plain</code> / <code>json</code> / <code>streaming-json</code></td></tr>
+<tr><td><strong>Embedded (ACP)</strong></td><td><code>grok agent stdio</code> / <code>serve</code> / <code>headless</code></td><td>透過 Agent Client Protocol 嵌入編輯器（Zed、Neovim、Emacs…）</td></tr>
+</table>
+<p>這三種模式共用同一套 agent runtime（<span class="crate">xai-grok-shell</span>）；差別只在<strong>進入點</strong>與<strong>前端</strong>。分派邏輯見 <a href="#entry">第 7 章</a>。</p>
+
+<h4>三模式資料路徑對照</h4>
+<div class="diagram">
+ <span class="hl4">Interactive TUI</span>          <span class="hl2">Headless</span>                <span class="hl3">Embedded (ACP)</span>
+ ────────────────         ──────────────           ────────────────
+ 鍵盤/滑鼠 events          -p / --prompt-file        編輯器 (Zed/Neovim…)
+      │                         │                         │ JSON-RPC over stdio
+      ▼                         ▼                         ▼
+ xai-grok-pager (TUI)     run_single_turn           grok agent stdio/serve
+      │                         │                         │
+      └──────────────┬──────────┴─────────────┬───────────┘
+                     ▼                         ▼
+              <span class="hl">共用 agent runtime：xai-grok-shell</span>
+                     │
+      ┌──────────────┼───────────────────────┐
+      ▼              ▼                         ▼
+  全螢幕重繪     stdout: plain/json/         session/update
+  scrollback     streaming-json(NDJSON)       通知串流回編輯器
+</div>
+<div class="legend">
+  <span><b class="lg4">TUI</b> 人在終端機前互動</span>
+  <span><b class="lg1">Headless</b> 無 UI，供 script/CI，結構化輸出</span>
+  <span><b class="lg2">ACP</b> agent 當成編輯器的後端</span>
+</div>
+
+<!-- ============ 6 ============ -->
+<h2 id="dataflow"><span class="num">6</span>高階資料流</h2>
+<p class="intro">這一章給你「一張圖看懂全系統」。一次「使用者送出訊息 → 模型回應 → 執行工具 → 再回應」的完整 turn cycle，
+跨越了 TUI、runtime、sampler、tools、workspace 五層。第 7–17 章會逐層放大。</p>
+<div class="legend">
+  <span><b class="lg4">■</b> 前端 / 使用者</span>
+  <span><b class="lg1">■</b> crate 元件</span>
+  <span><b class="lg2">■</b> runtime 核心概念</span>
+  <span><b class="lg3">■</b> 資料結構 / 流程節點</span>
+  <span><b>│▼▲</b> 資料流方向</span>
+</div>
+<div class="diagram">
+┌─────────────────────────────────────────────────────────────────────┐
+│  <span class="hl4">使用者</span> 在 TUI (<span class="hl">xai-grok-pager</span>) 輸入 → TextArea widget                     │
+└──────────────────────────────────┬──────────────────────────────────┘
+                                   │ ACP: session/prompt
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  <span class="hl2">Agent Runtime</span> (<span class="hl">xai-grok-shell</span>)                                       │
+│                                                                       │
+│   SessionCommand::Prompt → <span class="hl3">Prompt Queue</span> (VecDeque&lt;InputItem&gt;)          │
+│                              │ maybe_start_running_task                │
+│                              ▼                                          │
+│   ┌──────────────  <span class="hl3">process_conversation_turn（agentic loop）</span> ─────────┐│
+│   │  1. 檢查 auto-compact（<span class="hl">xai-grok-compaction</span>）                     ││
+│   │  2. build_request ← <span class="hl3">ChatStateActor</span>（對話狀態 actor）              ││
+│   │  3. run_turn_via_sampler ──────────────┐                          ││
+│   │  4. 迴圈直到「無 tool call」            │                          ││
+│   └────────────────────────────────────────┼──────────────────────────┘│
+└────────────────────────────────────────────┼────────────────────────────┘
+                       ┌─────────────────────┘   ▲ streamed chunks (ACP)
+                       ▼                          │
+        ┌──────────────────────────┐   ┌──────────────────────────────┐
+        │  <span class="hl">xai-grok-sampler</span>       │   │  工具呼叫 dispatch            │
+        │  HTTP streaming + retry   │   │  (<span class="hl">xai-grok-tools</span>)            │
+        │  → grok-build 模型 API    │   │  bash / edit / grep / web…    │
+        └──────────────────────────┘   └───────────────┬───────────────┘
+                                                       ▼
+                                        ┌──────────────────────────────┐
+                                        │  <span class="hl">xai-grok-workspace</span>          │
+                                        │  FS / git(gix) / worktree /   │
+                                        │  checkpoint / hunk-tracker    │
+                                        └──────────────────────────────┘
+</div>
+<p>關鍵設計：整個 runtime 採 <strong>actor 模型</strong>。<code>ChatStateActor</code>（對話狀態）與 <code>SessionActor</code>（每個 session 的 turn 引擎）各自擁有一個 tokio task，透過 channel 溝通，<strong>熱路徑上沒有鎖</strong>。</p>
+<div class="why">
+  <div class="t">💡 actor 模型如何避免鎖？</div>
+  傳統做法是把共享狀態包在 <code>Arc&lt;Mutex&lt;State&gt;&gt;</code>，每個要讀寫的 task 先搶鎖——高併發下容易競爭、死鎖、或在串流熱路徑上卡頓。
+  actor 模型反過來：<strong>狀態只被單一 task 擁有</strong>，其他人不直接碰狀態，而是把「命令」（如 <code>push_assistant_response</code>）
+  透過 <code>mpsc</code> channel 送給那個 task，需要回覆時附一個 <code>oneshot</code> sender。於是所有變更天然序列化、無鎖、可單元測試。
+  Grok Build 有兩個這樣的 actor（chat state、session），彼此也只透過 handle + channel 溝通。
+</div>
+
+<!-- ============ 7 ============ -->
+<h2 id="entry"><span class="num">7</span>進入點與模式分派</h2>
+<p>二進位的進入點是 <code>fn main()</code>（同步，非 <code>#[tokio::main]</code>），位於
+<code>crates/codegen/xai-grok-pager-bin/src/main.rs</code>（約 3,077 行）。</p>
+<p>這個 crate 是<strong>組合根（composition root）</strong>——之所以獨立存在，是為了同時 link
+<span class="crate">xai-grok-pager</span> 與可選的 <span class="crate">xai-grok-pager-minimal</span> 渲染模式（避免 cargo cycle），
+並在啟動時安裝 IoC hooks（jemalloc allocator 統計、heap-profile hooks）。<code>#[global_allocator]</code>（jemalloc）、
+rustls、混淆相依都住在這裡，讓 <span class="crate">xai-grok-pager</span> lib 本體保持乾淨。</p>
+
+<h4>啟動序列</h4>
+<ol>
+  <li><strong>Pre-runtime IoC install</strong>：<code>xai_grok_pager_minimal::install()</code>、jemalloc hooks、<code>maybe_run_render_subprocess()</code>（Mermaid worker 短路）、<code>raise_fd_limit()</code>、<code>validate_requirements()</code>、Sentry、crash-handler。</li>
+  <li><strong>手動建構 tokio runtime</strong>：<code>new_multi_thread().enable_all()</code>，再 <code>run_and_shutdown(rt, async_main(), grace=2s)</code>——用 <code>block_on</code> + <code>shutdown_timeout</code> 讓卡住的 blocking task 無法拖住結束。</li>
+  <li><strong><code>async_main()</code></strong>：安裝 rustls provider → <code>PagerArgs::parse_and_apply_cwd()</code>（clap <code>Parser</code>）→ 依 flag 設環境變數、解析並套用 sandbox profile。</li>
+  <li><strong>模式分派</strong>（見下）。</li>
+</ol>
+
+<h4>分派決策樹</h4>
+<pre><code>is_interactive = command.is_none()
+             &amp;&amp; single.is_none() &amp;&amp; prompt_json.is_none() &amp;&amp; prompt_file.is_none()
+
+match command {
+  // CLI 子命令：Version / Inspect / Setup / Mcp / Plugin / Models /
+  //            Leader / Worktree / Workspace / Sessions / Export /
+  //            Trace / Memory / Update / Login / Logout / Dashboard …
+  Command::Agent(args) => run_agent_command(args)   // ← headless/stdio/leader/serve
+  None if 有 --single/--prompt-json/--prompt-file
+       => xai_grok_pager::headless::run_single_turn(...)   // 一次性 headless
+  None  => xai_grok_pager::app::run(args, ...)             // 互動式 TUI
+}</code></pre>
+<p><code>run_agent_command()</code> 再依 <code>AgentCmd</code>（<code>Stdio</code> / <code>Headless</code> / <code>Serve</code> / <code>Leader</code>）分派，並透過
+<code>resolve_use_leader(...)</code> 決定是否進入 <strong>leader 模式</strong>。</p>
+
+<div class="box info">
+  <div class="t">🏛️ Leader / Follower 架構</div>
+  一台機器只跑<strong>一個 leader</strong> 進程，持有真正的 <code>MvpAgent</code>；各 client（TUI stdio、IDE stdio、headless WebSocket）
+  透過 <strong>Unix-domain socket</strong> 以 ACP 連上。此時 client 進程只是<strong>薄橋接</strong>。
+  <code>LeaderReconnector</code> + <code>StdioReplayState</code> 提供崩潰重連——重放快取的 <code>initialize</code> 與每個開啟的
+  <code>session/load</code>（見 <code>replay_acp_state_after_reconnect</code>）。這讓 TUI 崩潰後 agent 仍在背景存活、可無縫接回。
+</div>
+
+<div class="diagram">
+                       ┌───────────────────────────────────────────┐
+                       │   <span class="hl2">Leader 進程</span>（一機一個，常駐）           │
+                       │   持有真正的 <span class="hl">MvpAgent</span> + 所有 SessionActor  │
+                       └───────────────────────────────────────────┘
+                            ▲            ▲            ▲
+          Unix-domain socket│（ACP）     │            │
+              ┌─────────────┘     ┌──────┘      ┌─────┘
+      ┌───────┴───────┐   ┌───────┴───────┐   ┌─┴─────────────────┐
+      │ <span class="hl4">TUI client</span>     │   │ <span class="hl4">IDE client</span>     │   │ <span class="hl4">headless client</span>   │
+      │ (grok)        │   │ (grok agent   │   │ (grok agent       │
+      │ 薄橋接        │   │  stdio)       │   │  headless, WS)    │
+      └───────────────┘   └───────────────┘   └───────────────────┘
+        崩潰後可重連 → LeaderReconnector 重放 initialize + session/load
+</div>
+<div class="why">
+  <div class="t">💡 為什麼要有 leader 模式？</div>
+  agent 的一個 turn 可能跑數分鐘（長編碼任務、多輪工具呼叫）。若 agent 狀態綁在 TUI 進程裡，TUI 一崩潰（或使用者關掉終端）
+  任務就沒了。把 agent 抽到常駐 leader，front-end 只是<strong>可拋棄的薄橋接</strong>：TUI 崩潰、重開、甚至換一個 IDE client，
+  都能重連回同一個仍在背景推進的 session。這也讓「同機多個 front-end 共用 agent」與 dashboard 統一管理成為可能。
+</div>
+
+<!-- ============ 8 ============ -->
+<h2 id="agentloop"><span class="num">8</span>Agent 迴圈（核心機制）</h2>
+<p class="intro">這是整個系統的心臟，也是本文件最值得細讀的一章。以下用三張圖拆解：<strong>(A) actor/channel 拓撲</strong>（誰擁有狀態、誰跟誰講話）、
+<strong>(B) turn cycle 迴圈</strong>（一個回合內部的 7 步與分岔）、<strong>(C) 工具 dispatch</strong>（並行與同檔序列化）。</p>
+<p>Agent 被實作為一個<strong>執行於 <code>tokio::task::LocalSet</code> 的單執行緒 actor</strong>
+（因為 <code>SessionActor</code> 與 <code>MvpAgent</code> 是 <code>!Send</code>，使用 <code>LocalRef</code> 原始指標別名餵給 <code>spawn_local</code> 閉包）。</p>
+
+<h4>圖 A：actor / channel 拓撲</h4>
+<div class="diagram">
+   ACP JSON-RPC
+       │ session/prompt
+       ▼
+  ┌─────────────┐   SessionCommand    ┌──────────────────────────────┐
+  │  <span class="hl">MvpAgent</span>   │ ──(mpsc)──────────► │  <span class="hl">SessionActor</span>（每 session 一個）│
+  │ 實作 ACP    │                     │  run_session(): biased select │
+  │ Agent trait │ ◄─(ACP updates)──── │  擁有 pending_inputs 佇列      │
+  └─────────────┘                     └──────────────────────────────┘
+       持有 subagent                       │  ▲            │  ▲
+       coordinator                  cmd/   │  │ oneshot    │  │ completion
+                                    query  ▼  │ reply      ▼  │ (prompt_id, result)
+                              ┌──────────────────┐   ┌──────────────────────┐
+                              │  <span class="hl2">ChatStateActor</span>  │   │  turn task           │
+                              │ 對話狀態擁有者   │   │ (spawn_local run_task)│
+                              │ 自己的 tokio task│   │  → handle_prompt()   │
+                              │ 只透過 Handle 存取│  └───────────┬──────────┘
+                              └──────────────────┘              │ 呼叫
+                                                                ▼
+                                        <span class="hl">xai-grok-sampler</span> / <span class="hl">xai-grok-tools</span>
+</div>
+<div class="legend">
+  <span><b>mpsc</b> 多生產者單消費者命令通道</span>
+  <span><b>oneshot</b> 單次請求-回覆</span>
+  <span><b>biased select</b> 有優先序的 tokio::select!</span>
+</div>
+
+<h4>兩個 actor + 命令迴圈</h4>
+<ul>
+  <li><strong><code>MvpAgent</code></strong>（<code>agent/mvp_agent/</code>）— 實作 ACP <code>Agent</code> trait，持有 session map 與 subagent coordinator，把 ACP JSON-RPC 翻成 <code>SessionCommand</code>。</li>
+  <li><strong><code>SessionActor</code></strong>（<code>session/acp_session.rs</code>）— 每個 session 一個 actor。主迴圈 <code>run_session()</code> 是個 <code>biased</code> 的 <code>tokio::select!</code>，監聽：completion（turn 完成）、cmd（<code>SessionCommand</code>）、chat-state 事件、內部 <code>SessionEvent</code>、memory 計時器等。</li>
+  <li><strong><code>ChatStateActor</code></strong>（<code>xai-chat-state</code>）— 對話狀態擁有者，在<strong>自己的</strong>（Send 的）tokio task 上跑，只能透過 <code>ChatStateHandle</code> 存取。</li>
+</ul>
+
+<h4>圖 B：turn cycle 迴圈</h4>
+<div class="diagram">
+   使用者 prompt ──► <span class="hl3">pending_inputs 佇列</span> ──► maybe_start_running_task
+                                                     │
+                                                     ▼
+   ┌───────────────►  <span class="hl2">process_conversation_turn: loop</span>  ◄────────────┐
+   │                          │                                        │
+   │   ①drain interjection/reminder                                    │
+   │   ②check_auto_compact  ──(超過85%)──► run_compact_only            │
+   │   ③組 effective_tools（必要時加 StructuredOutput 工具）           │
+   │   ④build_request ◄── <span class="hl2">ChatStateActor</span>                            │
+   │   ⑤run_turn_via_sampler ──► <span class="hl">sampler</span>（串流 chunk → ACP）        │
+   │        │       └─(CompactAndResubmit / RefreshAuth)──► continue ──┘
+   │   ⑥record token usage，回應推回 chat state
+   │   ⑦取出 tool_calls
+   │        ├─ <span class="hl4">有 tool call</span> ─► dispatch（圖 C）─► 結果進 chat state ─┐
+   │        │                                    檢查 max_turns          │
+   │        └─ <span class="hl4">無 tool call</span> ─► TodoGate 檢查                        │
+   │                    ├─ 還有未完成 todo ─► 注入 nudge reminder ──────┘
+   │                    └─ 完成 ─► finalize + 驗證 structured output
+   │                                        │
+   └────────────────────────────────────────┘
+                                            ▼
+                              <span class="hl2">TurnOutcome::Completed</span> → 回 client
+</div>
+<div class="why">
+  <div class="t">💡 為什麼「無 tool call」不代表結束？</div>
+  模型可能只是還沒開始動工就先回話。<strong>TodoGate</strong> 會檢查 todo 清單：若還有未完成項目，注入一則
+  <code>&lt;system-reminder&gt;</code> 提醒模型繼續，並讓迴圈再跑一圈（上限 <code>max_fires_per_prompt</code> 次，避免無限迴圈）。
+  只有當「無 tool call 且 todo 都完成」才真正結束回合。這是把「代理人自我督促」內建進迴圈的機制。
+</div>
+
+<h4>Turn cycle 逐步（對應圖 B 的 ①–⑦）</h4>
+<p>核心迴圈在 <code>session/acp_session_impl/turn.rs</code> 的 <code>process_conversation_turn</code>（約 line 1693，內含 <code>loop {…}</code>）。每一圈：</p>
+<ol>
+  <li>drain 待處理的 interjections / skill reminders / monitor events；注入首回合 memory + MCP reminder。</li>
+  <li><code>check_auto_compact_needed()</code>——若超過 threshold（預設 85%）先 <code>run_compact_only()</code>。</li>
+  <li>組出 <code>effective_tools</code>（若需要 JSON schema 但 backend 無法原生約束，會合成一個 <code>StructuredOutput</code> 工具；backend search 開啟時移除 <code>web_search</code>）。</li>
+  <li><strong><code>chat_state_handle.build_request()</code></strong>——向 <code>ChatStateActor</code> 要一份 <code>ConversationRequest</code>，蓋上 <code>x-grok-*</code> headers（session/turn/agent/deployment id）。</li>
+  <li><strong><code>run_turn_via_sampler(request)</code></strong>——auth refresh + config push，然後 <code>sampler_handle.submit_and_collect()</code>。串流 chunk 即時以 ACP <code>AgentMessageChunk</code> 送出。可能回傳控制流變體 <code>CompactAndResubmit</code> / <code>RefreshAuthAndResubmit</code>（<code>continue</code> 迴圈）。</li>
+  <li>記錄 token usage，把回應項目推回 chat state。</li>
+  <li>取出 <code>tool_calls</code>：
+    <ul>
+      <li><strong>空</strong> → turn-end 路徑：跑 <strong>TodoGate</strong>（若還有未完成 todo，注入 <code>&lt;system-reminder&gt;</code> nudge 並續跑，上限 <code>max_fires_per_prompt</code>）、最終 interjection drain、驗證 structured output → 回傳 <code>TurnOutcome::Completed</code>。</li>
+      <li><strong>有</strong> → dispatch 工具（見下），檢查 <code>max_turns</code>，再迴圈（工具結果已在 chat state，下一次 <code>build_request</code> 會帶上）。</li>
+    </ul>
+  </li>
+</ol>
+
+<h4>圖 C：工具呼叫 dispatch（<code>tool_calls.rs</code>）</h4>
+<p>每個 tool call 先過 <strong>pre-flight</strong>：MCP 解析、arg 解析、<code>PreToolUse</code> hooks、<strong>permission</strong>（除非 yolo/auto；auto 模式用 LLM classifier）。</p>
+<div class="diagram">
+  模型回傳多個 tool_calls
+        │
+        ▼  對每個 call
+  ┌──────────────── <span class="hl2">pre-flight</span> ────────────────┐
+  │  MCP 解析 → arg 解析 → PreToolUse hook → 權限   │
+  │       │ deny/reject                             │
+  │       └──────► 略過此 call（回報拒絕原因）      │
+  └───────────────────┬─────────────────────────────┘
+                      │ 核准的 calls
+                      ▼
+      <span class="hl3">FuturesUnordered</span>（全部並行送出）
+        │        │         │
+        ▼        ▼         ▼
+     call A    call B    call C ...
+        │        │         │   ← 觸及同一檔案的 call 共用 per-file Mutex
+        │        │         │     （依模型送出順序序列化，其餘全平行）
+        └────────┴────┬────┘
+                      ▼  背景 drainer 依 index 折回
+              結果依原順序組回 → 進 chat state
+              成功: PostToolUse hook · 失敗: PostToolUseFailure
+                      │
+                      ▼  實際執行
+        <span class="hl">xai_grok_workspace::WorkspaceOps::call_tool()</span>
+</div>
+<div class="box tip">
+  <div class="t">⚡ 平行執行 + 同檔序列化</div>
+  已核准的呼叫以 <code>futures::stream::FuturesUnordered</code> <strong>並行</strong>執行。但觸及<strong>同一檔案路徑</strong>的呼叫
+  （<code>lock_path_for_args</code> 取 <code>file_path</code>/<code>path</code>/<code>target_file</code>）共用一個 per-file <code>Mutex</code>，
+  讓同檔編輯依模型送出順序序列化，其餘完全平行。背景 drainer 依 index 把結果確定性地折回。
+  實際執行落到 <code>xai_grok_workspace::WorkspaceOps::call_tool(...)</code>。
+</div>
+
+<h4>值得一提的工程細節</h4>
+<ul>
+  <li><strong>Auth retry schedule</strong>：硬編 1s/2s/4s 指數退避（有測試釘住），註解記載這是為了避開曾造成「11.6 天 sleep」的 <code>from_millis(1000)</code> 陷阱；每次成功回應就重置（一個長 turn 可能跨越多次每小時 token 輪替）。</li>
+  <li><strong>Compaction 兩段預燒（two-pass prefire）</strong>：在低於 threshold 約 10% 時就背景跑 pass-1 摘要，pass-2 命中時很便宜；<code>fingerprint_prefix</code> 守護 cache 在編輯/rewind 後的有效性。Grok Build 用 <strong>full-replace</strong> 風格（整個 session 摘要替換）。</li>
+  <li><strong>Subagents</strong>：由 <code>task</code> 工具觸發，spawn 一個隱藏的子 <code>SessionActor</code>（<code>SessionThread</code>），共享父的 hunk tracker、FS、terminal、MCP pool；深度上限為 1（子代理不能再生子代理）。spec 由 <span class="crate">xai-grok-subagent-resolution</span> 以「override &gt; role &gt; persona &gt; parent」優先序解析。</li>
+  <li><strong>Interjection</strong>：<span class="crate">xai-interjection-core</span> 提供 mid-turn 插話緩衝，drain 時每則包成一個獨立的合成 user message，不合併。</li>
+</ul>
+
+<!-- ============ 9 ============ -->
+<h2 id="tools"><span class="num">9</span>工具系統</h2>
+<p class="intro">「工具」是 agent 能對外界產生作用的唯一手段（讀寫檔案、跑指令、搜尋…）。這一章拆解它的三層架構、核心 <code>Tool</code> trait 的
+生命週期，以及實際出貨的工具清單。</p>
+<h4>三層架構</h4>
+<div class="diagram">
+ ┌─────────────────────────────────────────────────────────────┐
+ │ <span class="hl4">L1 抽象層</span>  crates/common/xai-tool-*                        │
+ │   Tool trait · ToolDispatch · wire protocol · 參數型別       │
+ │   （供應商中立、禁 unsafe、避免 I/O）                        │
+ └───────────────────────────┬─────────────────────────────────┘
+                             │ 實作
+ ┌───────────────────────────▼─────────────────────────────────┐
+ │ <span class="hl">L2 實作層</span>  xai-grok-tools / xai-grok-tools-api            │
+ │   具體工具（bash/edit/grep/web…）· registry · protobuf API   │
+ │   從 Resources DI 容器取得依賴                               │
+ └───────────────────────────┬─────────────────────────────────┘
+                             │ 落地執行
+ ┌───────────────────────────▼─────────────────────────────────┐
+ │ <span class="hl2">L3 宿主層</span>  xai-grok-workspace 等                          │
+ │   FS · git · checkpoint · worktree · 檔案監看 · code 索引    │
+ └─────────────────────────────────────────────────────────────┘
+</div>
+<ol>
+  <li><span class="crate">crates/common/xai-tool-*</span> — 供應商中立抽象（「xAI Computer Hub」）：<code>Tool</code> trait、wire protocol、標準參數型別。禁 <code>unsafe</code>、避免 I/O。</li>
+  <li><span class="crate">xai-grok-tools</span> / <span class="crate">xai-grok-tools-api</span> — 具體工具實作、registry、protobuf API 面。</li>
+  <li><span class="crate">xai-grok-workspace</span> 等 — 宿主端：FS、git、checkpoint、worktree、檔案監看、code 索引。</li>
+</ol>
+
+<h4>核心 trait：<code>Tool</code></h4>
+<p>定義於 <code>crates/common/xai-tool-runtime/src/tool.rs</code>：</p>
+<pre><code>pub trait Tool: Send + Sync {
+    type Args:   for&lt;'de&gt; Deserialize&lt;'de&gt; + JsonSchema + Send + 'static;
+    type Output: Serialize + ToolOutput + Send + 'static;
+    fn id(&amp;self) -&gt; ToolId;
+    fn description(&amp;self, ctx: &amp;ListToolsContext) -&gt; ToolDescription;
+    fn capabilities(&amp;self) -&gt; ToolCapabilities { ... }
+    fn should_list(&amp;self, ctx: &amp;ListToolsContext) -&gt; bool { true }
+    fn execute(&amp;self, ctx, args) -&gt; impl Future&lt;Output = ToolStream&lt;Self::Output&gt;&gt;;
+    fn run(&amp;self, ctx, args)     -&gt; impl Future&lt;Output = Result&lt;Self::Output, ToolError&gt;&gt;;
+}</code></pre>
+<ul>
+  <li><strong>Schema</strong>：由關聯型別 <code>Args</code> 宣告（須實作 <code>serde::Deserialize</code> + <code>schemars::JsonSchema</code>），JSON Schema 透過 <code>description()</code> 回傳的 <code>ToolDescription.arguments_schema</code> 暴露給模型 API。</li>
+  <li><strong>回傳</strong>：<code>ToolStream&lt;Output&gt;</code>，不變式為 <code>[Progress(_)*, Terminal(Result)]</code>——任意多個 progress，結尾恰一個 terminal。</li>
+  <li><strong>型別抹除</strong>：<code>Tool</code> 因有關聯型別而非 object-safe，靠 blanket <code>impl&lt;T: Tool&gt; ToolDyn for T</code> 產生 object-safe 的 <code>ToolDyn</code>（<code>ArcTool = Arc&lt;dyn ToolDyn&gt;</code>）。</li>
+  <li><strong>路由</strong>：<code>ToolDispatch::call(tool_id, args, ctx)</code>。</li>
+  <li><strong>依賴注入</strong>：<span class="crate">xai-grok-tools</span> 內的工具從 <code>Resources</code>（TypeId-keyed 異質容器）讀取 <code>Terminal</code>/<code>Cwd</code>/<code>FileSystem</code>/<code>Params&lt;T&gt;</code>/<code>State&lt;T&gt;</code> 等，而非透過函式參數。</li>
+</ul>
+<div class="diagram">
+  <span class="hl2">一個 Tool 從定義到執行的生命週期</span>
+
+  型別 Args (Deserialize+JsonSchema)         型別 Output (Serialize+ToolOutput)
+        │ 自動導出                                        ▲
+        ▼                                                │
+   JSON Schema ──► description() ──► 模型 API（工具清單）  │
+                                          │ 模型選擇呼叫    │
+                                          ▼                │
+   JSON args ──► <span class="hl3">ToolDyn::execute</span>（反序列化成 Args）        │
+                     │ 呼叫具體 Tool::execute/run          │
+                     ▼                                     │
+              <span class="hl">ToolStream&lt;Output&gt;</span>：[Progress*, Terminal] ──► 序列化回 JSON
+                     │                                     │
+                     └──► ToolDispatch::call 路由 ─► 回傳給 turn 迴圈
+</div>
+<div class="why">
+  <div class="t">💡 為什麼要 <code>ToolDyn</code> 這層抹除？</div>
+  <code>Tool</code> trait 有關聯型別（<code>Args</code>/<code>Output</code>），所以<strong>不是 object-safe</strong>，無法放進 <code>Vec&lt;Box&lt;dyn Tool&gt;&gt;</code>。
+  靠一個 blanket <code>impl&lt;T: Tool&gt; ToolDyn for T</code> 產生 object-safe 的 <code>ToolDyn</code>（其 <code>execute</code> 收發 <code>serde_json::Value</code>），
+  就能把所有異質工具統一存進 registry、以 <code>ArcTool = Arc&lt;dyn ToolDyn&gt;</code> 動態 dispatch，同時保留具體工具端的強型別。
+</div>
+
+<h4>五個工具 namespace</h4>
+<p>工具身分是冒號命名的字串，如 <code>GrokBuild:grep</code>。為何要有多個 namespace？因為不同的模型/情境對「同一件事」偏好不同的
+工具介面呈現（詳盡 vs 精簡、行號定址方式），甚至相容其他 agent 的既有工具格式。</p>
+<table>
+<tr><th>Namespace</th><th>定位</th><th>特點</th></tr>
+<tr><td><code>grok_build</code></td><td><strong>主要</strong>工具集</td><td>預設，功能最完整（bash/edit/read/grep/web/task…）</td></tr>
+<tr><td><code>grok_build_concise</code></td><td>精簡呈現</td><td>同工具、較短的描述/輸出，省 context token</td></tr>
+<tr><td><code>grok_build_hashline</code></td><td>hash 行定址</td><td>編輯採 anchor/scheme/hash-based 行定址</td></tr>
+<tr><td><code>codex</code></td><td>OpenAI Codex port</td><td><code>apply_patch</code> 格式、<code>L{n}:</code> 讀檔格式</td></tr>
+<tr><td><code>opencode</code></td><td>opencode port</td><td>相容 opencode 的 bash/edit/glob/grep/write 介面</td></tr>
+</table>
+<p>再加上 <strong>MCP</strong>（外部工具，見 <a href="#mcp">第 13 章</a>）。以下列出主要 <code>grok_build</code> namespace 的工具。</p>
+<table>
+<tr><th>工具</th><th>模型看到的名稱</th><th>功能</th></tr>
+<tr><td><code>BashTool</code></td><td><code>run_terminal_cmd</code></td><td>持久 shell session 執行 bash，前景或背景（回傳 <code>task_id</code>），timeout + 輸出上限</td></tr>
+<tr><td><code>SearchReplaceTool</code></td><td><code>search_replace</code></td><td>精確字串取代、<code>replace_all</code>、建新檔（空 <code>old_string</code>）；發 <code>FileWritten</code></td></tr>
+<tr><td><code>ReadFileTool</code></td><td><code>read_file</code></td><td>讀檔（offset/limit、image/PDF/PPTX 處理）</td></tr>
+<tr><td><code>ListDirTool</code></td><td><code>list_dir</code></td><td>目錄列表，尊重 <code>.gitignore</code></td></tr>
+<tr><td><code>GrepTool</code></td><td><code>grep</code></td><td>ripgrep 內容搜尋</td></tr>
+<tr><td><code>WebFetchTool</code></td><td><code>web_fetch</code></td><td>reqwest 抓 URL、HTML→markdown（htmd）、SSRF 保護、快取、網域過濾</td></tr>
+<tr><td><code>WebSearchTool</code></td><td><code>web_search</code></td><td>透過 Responses API 網頁搜尋</td></tr>
+<tr><td><code>TodoWriteTool</code></td><td><code>todo_write</code></td><td>管理 agent todo 清單</td></tr>
+<tr><td><code>TaskTool</code></td><td><code>spawn_subagent</code></td><td>啟動子代理（委派給注入的 <code>SubagentBackend</code>）</td></tr>
+<tr><td><code>TaskOutput / WaitTasks / KillTask</code></td><td>—</td><td>取得 / 等待 / 終止背景任務輸出</td></tr>
+<tr><td><code>EnterPlanMode / ExitPlanMode</code></td><td>—</td><td>進入 / 離開計畫模式（exit 讀取磁碟 plan 檔供核准）</td></tr>
+<tr><td><code>AskUserQuestionTool</code></td><td><code>ask_user_question</code></td><td>結構化互動問答 / plan-mode 訪談</td></tr>
+<tr><td><code>MonitorTool</code></td><td><code>monitor</code></td><td>事件監看（rate limiter）</td></tr>
+<tr><td><code>LspTool</code></td><td><code>lsp</code></td><td>透過 language server 的程式碼智能</td></tr>
+<tr><td><code>Scheduler{Create,Delete,List}</code></td><td>—</td><td>建立 / 刪除 / 列出排程（loop）任務</td></tr>
+<tr><td><code>ImageGen / ImageEdit / *ToVideo</code></td><td>—</td><td>透過 xAI Imagine / Video API 生圖生片</td></tr>
+<tr><td><code>SearchTool / UseTool</code></td><td><code>search_tool</code> / <code>use_tool</code></td><td>用 BM25 搜尋 MCP 工具 / dispatch 到發現的 MCP 工具</td></tr>
+<tr><td><code>MemorySearch / MemoryGet</code></td><td><code>memory_search</code> / <code>memory_get</code></td><td>搜尋跨 session 記憶 / 依路徑讀記憶檔</td></tr>
+</table>
+<p><strong>Codex port</strong>：<code>ApplyPatchTool</code>（codex apply-patch 格式）、<code>CodexGrepFilesTool</code>、<code>CodexListDirTool</code>、<code>CodexReadFileTool</code>（<code>L{n}: {content}</code> 格式）。<br>
+<strong>OpenCode port</strong>：<code>OpenCodeBashTool</code>、<code>OpenCodeEditTool</code>、<code>OpenCodeGlobTool</code>、<code>OpenCodeGrepTool</code>、<code>OpenCodeReadTool</code>、<code>OpenCodeWriteTool</code> 等。</p>
+<p><code>ToolConfig</code> 支援 per-tool 的 <code>name_override</code>、<code>params_name_overrides</code>、<code>description_override</code> 與 behavior-version override——這是 concise/hashline/legacy 變體與 container-vs-host 描述的機制。</p>
+
+<!-- ============ 10 ============ -->
+<h2 id="workspace"><span class="num">10</span>Workspace 與 VCS 抽象</h2>
+<p><span class="crate">xai-grok-workspace</span> 是宿主端核心庫：FS、VCS、權限、tool config、session 生命週期、hub server。所有工具的檔案讀寫都經過它。</p>
+
+<p class="intro">workspace 是「agent 的手」實際碰到真實世界的地方。它的關鍵設計是<strong>把所有檔案存取抽象成一個 trait</strong>，
+於是同一套工具程式碼可以無差別地跑在本機、ACP 編輯器託管、或遠端 proxied 的檔案系統上。</p>
+
+<h4>檔案系統：一個 trait、多個後端</h4>
+<p>核心 trait 是 <code>AsyncFileSystem</code>（<code>src/file_system/fs.rs</code>）：<code>root()</code>、<code>read_file</code>、<code>write_file</code>、<code>delete_file</code>。</p>
+<div class="diagram">
+   工具（SearchReplaceTool / ReadFileTool / OpenCodeWrite…）
+                    │ 只認識 trait，不管背後是誰
+                    ▼
+        ┌──────── <span class="hl2">AsyncFileSystem trait</span> ────────┐
+        ▼                    ▼                     ▼
+   <span class="hl">LocalFs</span>              <span class="hl">AcpSessionFs</span>          <span class="hl">MockFs</span>
+   宿主真實 FS          ACP 編輯器託管 FS       測試用假 FS
+   （直接讀寫）        （轉發給編輯器）       （記憶體）
+</div>
+<p>工具的編輯/讀寫都走這個 trait，workspace 再路由到正確後端。這也是為何 agent 嵌入 Zed/Neovim 時，
+「寫檔」其實是請編輯器去寫（享有編輯器的 undo、未存檔緩衝等）。</p>
+
+<h4>VCS / git：讀寫雙軌</h4>
+<p>為何不統一用一套 git 函式庫？因為 <code>git2</code>（libgit2 綁定）擅長讀出結構化資料，而某些寫入操作用 git CLI 更穩、更貼近使用者預期；
+worktree 與快速 index 讀取則 <code>gix</code>（純 Rust）最快。於是三者各司其職：</p>
+<table>
+<tr><th>函式庫</th><th>負責</th><th>操作</th></tr>
+<tr><td><code>git2</code>（libgit2）</td><td><strong>讀</strong>結構化資料</td><td>status、diff</td></tr>
+<tr><td>git <strong>CLI</strong></td><td><strong>寫</strong>變動</td><td>stage、commit、push</td></tr>
+<tr><td><code>gix</code>（純 Rust）</td><td>worktree + 快速讀</td><td>worktree 建立、status/index 讀取</td></tr>
+</table>
+<p>另也支援 <code>jj</code>（Jujutsu）作為 git 的替代 VCS。</p>
+
+<h4>Checkpoint / rewind：三領域一起回捲</h4>
+<p>統一入口 <code>WorkspaceHandle::on_turn_boundary</code>，由 <code>TurnBoundary</code> enum 驅動。一個 checkpoint 以 <code>prompt_index</code> 為鍵，
+把三個領域的狀態綁在一起，rewind 時一起回復——這樣「回到某個 prompt 之前」才會是一致的整體狀態，而非只還原檔案卻留下髒 git index。</p>
+<div class="diagram">
+   rewind checkpoint（key = <span class="hl3">prompt_index</span>）
+        ├── <span class="hl">檔案</span>       RewindPoint（檔案內容快照）
+        ├── <span class="hl">hunk</span>       HunkTurnDelta（該回合的 diff 歸屬）
+        └── <span class="hl">git</span>        HEAD / index 狀態
+   RPC: begin_prompt ─► end_prompt ─► rewind_to（一次回捲三領域）
+</div>
+
+<h4>支援 crate</h4>
+<table>
+<tr><th>crate</th><th>職責</th></tr>
+<tr><td><span class="crate">xai-fast-worktree</span></td><td>高效能 git worktree 建立（CoW clone、BTRFS O(1) snapshot、worktree pool、SQLite metadata）</td></tr>
+<tr><td><span class="crate">xai-gix-status</span></td><td>共用 gix status helper；限制執行緒數避免 <code>panic=abort</code> + 緊 <code>RLIMIT_NPROC</code> 下 abort</td></tr>
+<tr><td><span class="crate">xai-fsnotify</span></td><td>本地檔案事件來源（notify 8 + debouncer），發出單一因果 <code>FsEvent</code> 串流</td></tr>
+<tr><td><span class="crate">xai-codebase-graph</span></td><td>tree-sitter 查詢的高效能 code graph（go-to-definition / references、增量索引、rayon 平行）</td></tr>
+<tr><td><span class="crate">xai-hunk-tracker</span></td><td>追蹤 per-file hunk（diff）與來源歸屬（Agent vs External），actor pattern；供 UI 逐 hunk accept/reject 與 checkpoint</td></tr>
+</table>
+
+<!-- ============ 11 ============ -->
+<h2 id="tui"><span class="num">11</span>TUI 與渲染</h2>
+<p class="intro">在終端機裡做出流暢、不閃爍、能內嵌圖片、能串流 markdown 的 UI，其實非常困難——這一章是整個 repo 裡工程巧思最密集的區域。
+Grok 為此甚至 fork 了 ratatui 的核心型別。以下用分層表 + 渲染管線圖說明。</p>
+<p>TUI 堆疊由下而上分層，底層甚至<strong>fork 了 ratatui 的 <code>Terminal</code> 型別本身</strong>。</p>
+<table>
+<tr><th>crate</th><th>職責</th></tr>
+<tr><td><span class="crate">xai-tty-utils</span></td><td>process/TTY 安全基元：detach 子進程使其無法把 escape code 噴到活的 TUI</td></tr>
+<tr><td><span class="crate">xai-ratatui-inline</span></td><td>ratatui <code>Terminal</code> 的 fork：inline/scrollback-native viewport + OSC 8 超連結 diff</td></tr>
+<tr><td><span class="crate">xai-ratatui-textarea</span></td><td>從頭寫的多行文字輸入 widget（prompt box）</td></tr>
+<tr><td><span class="crate">xai-grok-markdown(-core)</span></td><td>串流式 markdown → ratatui <code>Line</code></td></tr>
+<tr><td><span class="crate">xai-grok-mermaid</span></td><td>Mermaid source → PNG，engine 可換，out-of-process</td></tr>
+<tr><td><span class="crate">xai-grok-pager-render</span></td><td>渲染基元層（draw loop、終端偵測、圖形協定、主題、syntax）</td></tr>
+<tr><td><span class="crate">xai-grok-pager</span></td><td>TUI 本體：Elm 式 Action/Effect/dispatch、scrollback、modals、事件迴圈</td></tr>
+<tr><td><span class="crate">xai-grok-pager-minimal</span></td><td><code>grok --minimal</code> 的 scrollback-native 模式（透過 fn-pointer 接縫掛入）</td></tr>
+<tr><td><span class="crate">ptyctl / -cli</span></td><td>基於 alacritty_terminal 的 headless PTY 控制器（供 e2e/benchmark）</td></tr>
+</table>
+
+<h4>Elm 式單向資料流</h4>
+<p><code>Action → dispatch（純同步、sans-IO、回傳 <code>Vec&lt;Effect&gt;</code>）→ effects（spawn async task）→ TaskResult → 再 dispatch</code>。
+事件迴圈（<code>app/event_loop.rs</code> 的 <code>run()</code>）是單一 <code>biased</code> 的 <code>tokio::select!</code>，只做 IO 管線。dispatch 刻意保持無 IO、可單元測試。</p>
+
+<h4><code>draw_frame</code> 渲染管線</h4>
+<p>Grok <strong>不用</strong> ratatui 內建的 <code>Terminal::draw</code>，而是自訂 <code>draw_frame</code>，把每一幀包在「同步更新」區塊裡，並精算游標指令與差異：</p>
+<div class="diagram">
+  <span class="hl2">BeginSynchronizedUpdate</span>（DEC 2026，告訴終端「先別畫，我一次給」）
+        │
+        ▼
+  autoresize → get_frame → 執行 render 閉包（填 buffer + 收集 LinkSpan）
+        │
+        ▼
+  set_frame_links → <span class="hl3">flush_with_links</span>（diff_large：只重寫變動的 cell）
+        │
+        ▼
+  <span class="hl">CursorState::action()</span> 去重：
+        ├─ 這幀無變化且游標同位 ─► 送 <span class="hl4">0 bytes</span>（保留游標閃爍）
+        ├─ cell 變了 ─► MoveTo
+        └─ 顯示切換 ─► Show / Hide
+        │
+        ▼
+  PostFlush escapes（如 Kitty 圖片資料）
+        │
+        ▼
+  <span class="hl2">EndSynchronizedUpdate</span> → flush 到專屬 writer thread（經 mpsc，不卡 tokio）
+</div>
+
+<h4>關鍵渲染工程</h4>
+<ul>
+  <li><strong>繞過 ratatui 的 <code>Terminal::draw</code></strong>：因為它每 frame 都無條件送 <code>Show</code>+<code>MoveTo</code>，會重置游標閃爍計時器（30fps 下游標看起來變實心）。自訂 <code>draw_frame</code> 用 <code>CursorState::action()</code> 去重，<strong>idle frame 送出零 bytes</strong>（保留閃爍）。</li>
+  <li><strong>Synchronized output（DEC 2026）</strong>：每 frame 包在 <code>BeginSynchronizedUpdate</code>/<code>End</code> 內，tmux/zellij 下不閃爍/撕裂。</li>
+  <li><strong>非同步 writer thread</strong>：frame bytes 經 mpsc 送到專屬寫入執行緒，PTY 反壓只卡那條執行緒、不卡 tokio 迴圈。</li>
+  <li><strong><code>diff_large</code></strong>：修掉 ratatui 上游把 cell index 轉 <code>u16</code> 導致 &gt;65,535 cells 時 UI 擠到角落的 bug（420×160 = 67,200 cells）。</li>
+  <li><strong>虛擬化 scrollback</strong>：以累計 <code>virtual_y</code> 高度做 O(1) 增量捲動；可重用 scratch buffer。</li>
+  <li><strong>串流/checkpoint markdown</strong>：凍結已定案前綴、只重繪尾端，把 naive O(N²) 串流重繪降到約 O(N)；開放的 code fence 用 resumable syntect 增量高亮。</li>
+</ul>
+
+<div class="box warn">
+  <div class="t">🛡️ Mermaid 的 out-of-process 渲染</div>
+  完整 PNG 由 pager <strong>re-exec 自己</strong>成 <code>xai-grok-pager __mermaid-render</code> 子進程 <strong>惰性、跨進程</strong>渲染，
+  <strong>從不 inline 畫</strong>——而是開系統圖片檢視器。原因：出貨 CLI 以 <code>panic = "abort"</code> 建置，使得 crate 內的
+  <code>catch_unwind</code> 形同無效；不受信任的模型生成 Mermaid 可能 abort 整個 pager。子進程 panic/timeout/非零退出會被
+  <code>run_with_timeout</code>（真 SIGKILL 收 process group）隔離並退回 code block。inline 顯示的則是自製的 Unicode box-drawing 文字藝術。
+</div>
+
+<h4>Inline 圖片</h4>
+<p>透過 <strong>Kitty graphics protocol</strong>（Ghostty/WezTerm/Warp 亦支援）；iTerm2 對映為 <code>None</code>（缺 placement-id/z-index/source-crop 基元，無法讓圖片隨文字格捲動）。</p>
+
+<!-- ============ 12 ============ -->
+<h2 id="model"><span class="num">12</span>模型與取樣</h2>
+<p class="intro">「取樣（sampling）」指的是向 LLM API 送出請求並接收串流回應。Grok 把這件事做成一個獨立的三層 actor，
+與 shell 解耦，因此可以支援自訂模型、多種 API 後端、以及穩健的 retry。</p>
+<h4>模型選擇</h4>
+<p>預設值來自 <span class="crate">xai-grok-models</span>，載自編譯期內嵌的 <code>default_models.json</code>。實際 runtime 解析優先序為
+<strong>CLI flag &gt; ENV &gt; config.toml &gt; remote settings &gt; 內建預設</strong>。出貨的預設檔：</p>
+<pre><code>{
+  "default":       "grok-build",
+  "web_search":    "grok-4.20-multi-agent",
+  "models": [{ "model": "grok-build", "name": "Grok Build",
+               "context_window": 500000, "temperature": 0.7,
+               "top_p": 0.95, "api_backend": "responses" }]
+}</code></pre>
+
+<h4>Sampler 三層（<span class="crate">xai-grok-sampler</span>）</h4>
+<div class="diagram">
+  ┌─────────────────────────────────────────────────────────┐
+  │ <span class="hl2">L3 SamplerActor / SamplerHandle</span>                          │
+  │   並行請求管理 · retry · 取消 · doom-loop 偵測            │
+  └───────────────────────────┬─────────────────────────────┘
+                              ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │ <span class="hl">L2 stream 轉換</span>                                          │
+  │   stream_chat_completions / stream_responses /            │
+  │   stream_messages（依 backend 選一）                      │
+  └───────────────────────────┬─────────────────────────────┘
+                              ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │ <span class="hl4">L1 SamplingClient</span>                                        │
+  │   持有 reqwest client · SSE 原始 chunk 串流               │
+  └───────────────────────────┬─────────────────────────────┘
+                              ▼   HTTPS + x-grok-* headers
+                    grok-build 模型 API（cli-chat-proxy.grok.com/v1）
+</div>
+<h4>三種 API backend</h4>
+<table>
+<tr><th>Backend</th><th>端點</th><th>用途</th></tr>
+<tr><td><code>responses</code></td><td><code>/responses</code></td><td>xAI Responses API，<strong>預設 grok-build 用這個</strong></td></tr>
+<tr><td><code>chat_completions</code></td><td><code>/chat/completions</code></td><td>OpenAI 相容格式（Ollama、Together、本地相容端點）</td></tr>
+<tr><td><code>messages</code></td><td><code>/messages</code></td><td>Anthropic Messages 格式（接 Claude 時用，配 <code>x-api-key</code>）</td></tr>
+</table>
+<ul>
+  <li>Auth scheme：<code>Bearer</code>（<code>XAI_API_KEY</code>）或 <code>XApiKey</code>。base URL 預設 <code>cli-chat-proxy.grok.com/v1</code>。</li>
+  <li>SSE 串流經 <code>eventsource_stream</code>；retry 用 <code>retry_backoff_with_jitter</code>（<code>Retry-After</code> 上限 120s）；可選的 doom-loop 偵測。</li>
+</ul>
+<div class="why">
+  <div class="t">💡 為什麼 token 估算只用 <code>bytes/4</code>？</div>
+  精確 tokenize 需要載入模型的 tokenizer、耗 CPU，且不同 backend 的 tokenizer 還不一樣。Grok 選擇 <strong>粗估</strong>：<code>bytes/4</code>、
+  每張圖固定 765 tokens。它<strong>不用來計費或硬限制</strong>，只用來驅動「該不該 auto-compact」「context 顯示大概幾成滿」這類決策——
+  這些決策容忍誤差，換來的是零成本、即時、跨 backend 一致。這是「夠好即可」的務實取捨。
+</div>
+<h4>Token 估算（<span class="crate">xai-token-estimation</span>）</h4>
+<p>純 <code>bytes/4</code> 啟發式（<code>BYTES_PER_TOKEN = 4</code>，每張圖 <code>IMAGE_TOKEN_ESTIMATE = 765</code>）。驅動 <code>/context</code>、auto-compact 閘、preflight overflow。<code>context_window</code> 只是資訊用途，sampler 不強制，由 session 用來做 compaction 決策。</p>
+
+<!-- ============ 13 ============ -->
+<h2 id="mcp"><span class="num">13</span>MCP / Hooks / Plugins</h2>
+<p class="intro">這一章談 Grok 的三大擴充機制：<strong>MCP</strong>（接外部工具/資料源）、<strong>Hooks</strong>（在生命週期事件插入自訂邏輯）、
+<strong>Plugins</strong>（把 skills/commands/agents/hooks/MCP 打包分發）。三者共同構成「不改原始碼就能擴充 agent」的能力。</p>
+<h4>MCP 連線流程（<span class="crate">xai-grok-mcp</span>）</h4>
+<p>此 crate 有兩個任務：(1) <strong>隔離</strong> <code>rmcp</code> 2.1 + <code>reqwest</code> 0.13（workspace 其餘用 reqwest 0.12）；(2) 擁有 MCP transport/client 生命週期。連線與工具暴露流程如下：</p>
+<div class="diagram">
+  config（[mcp_servers.*] / .mcp.json / .claude.json / .cursor/mcp.json）
+        │
+        ▼  依 transport 分流
+   ┌────────────────┐         ┌────────────────────────────┐
+   │ <span class="hl4">stdio</span>          │         │ <span class="hl4">HTTP / SSE</span>                 │
+   │ SafeTokioChild │         │ 無 Authorization → OAuth    │
+   │ Process        │         │ discovery                   │
+   │ (kill_on_drop, │         │                             │
+   │  stderr→log)   │         │                             │
+   └───────┬────────┘         └──────────────┬──────────────┘
+           └──────────────┬──────────────────┘
+                          ▼
+             <span class="hl2">ensure_initialized</span>（handshake，單飛）
+                          ▼
+                    list_tools（分頁）
+                          ▼
+        每個工具 ─► <span class="hl">McpErasedTool</span>（實作 Tool trait）
+                    id = "server__tool"（分隔符 __，避免同名衝突）
+                          ▼
+                  併入本地 tool registry，agent 即可呼叫
+</div>
+<h4>Hooks 生命週期事件（<span class="crate">xai-grok-hooks</span>）</h4>
+<p>在 agent 生命週期的特定時點執行 shell 指令或 HTTP endpoint。只有 <code>PreToolUse</code> 能<strong>阻擋</strong>（deny）工具執行，其餘皆為通知性質：</p>
+<table class="matrix">
+<tr><th>事件</th><th>時機</th><th>可 deny?</th><th>典型用途</th></tr>
+<tr><td><code>SessionStart</code> / <code>SessionEnd</code></td><td>session 開始 / 結束</td><td><span class="no">✗</span></td><td>初始化環境、清理、記錄</td></tr>
+<tr><td><code>UserPromptSubmit</code></td><td>使用者送出 prompt</td><td><span class="no">✗</span></td><td>注入 context、稽核</td></tr>
+<tr><td><code>PreToolUse</code></td><td>工具執行<strong>前</strong></td><td><span class="yes">✓</span></td><td><strong>政策把關</strong>（擋危險指令）</td></tr>
+<tr><td><code>PostToolUse</code> / <code>PostToolUseFailure</code></td><td>工具成功 / 失敗後</td><td><span class="no">✗</span></td><td>格式化、通知、重試邏輯</td></tr>
+<tr><td><code>PermissionDenied</code></td><td>權限被拒</td><td><span class="no">✗</span></td><td>提示、稽核</td></tr>
+<tr><td><code>Stop</code> / <code>StopFailure</code></td><td>回合停止</td><td><span class="no">✗</span></td><td>通知完成</td></tr>
+<tr><td><code>Notification</code></td><td>需使用者注意</td><td><span class="no">✗</span></td><td>桌面通知、響鈴</td></tr>
+<tr><td><code>SubagentStart</code> / <code>SubagentStop</code></td><td>子代理起訖</td><td><span class="no">✗</span></td><td>追蹤子代理</td></tr>
+<tr><td><code>PreCompact</code> / <code>PostCompact</code></td><td>壓縮前 / 後</td><td><span class="no">✗</span></td><td>備份對話、記錄</td></tr>
+</table>
+<ul>
+  <li>相容 <code>~/.claude/settings.json</code> 格式（抽出 <code>hooks</code> key）；來源 <code>~/.grok/hooks/</code>、專案 <code>.grok/hooks/</code>（需 trust）、plugin-bundled。</li>
+  <li><code>PreToolUse</code> 可回 <code>{"decision":"deny","reason":...}</code> 阻擋工具（exit 2 亦可）。</li>
+</ul>
+<div class="why">
+  <div class="t">🛡️ 為什麼 hook 採 fail-open（失敗不阻擋）？</div>
+  hook 崩潰、超時、輸出格式錯誤時，Grok 選擇<strong>只記錄、不阻擋</strong>工具執行。威脅模型的前提是「使用者在自己受信任的環境裡執行」——
+  一個寫壞的 hook 不該讓整個 agent 卡死。這與 sandbox（見 <a href="#sandbox">第 16 章</a>）的 fail-<em>closed</em> 恰成對比：sandbox 面對的是
+  不受信任的模型輸出，寧可擋錯也不放過。<strong>同一產品裡兩種相反的失敗傾向，取決於威脅來源不同。</strong>
+</div>
+<h4>Plugins &amp; Marketplace（<span class="crate">xai-grok-plugin-marketplace</span>）</h4>
+<p>一個 plugin 就是一個目錄，可打包以下六類元件的任意組合——本質上是「把前面所有擴充機制綁成一包分發」：</p>
+<table>
+<tr><th>元件</th><th>放哪</th><th>作用</th></tr>
+<tr><td>skills</td><td><code>skills/</code></td><td>模型可自動觸發的技能（<code>SKILL.md</code>）</td></tr>
+<tr><td>commands</td><td><code>commands/</code></td><td>slash 指令（<code>*.md</code>）</td></tr>
+<tr><td>agents</td><td><code>agents/</code></td><td>子代理定義 / persona</td></tr>
+<tr><td>hooks</td><td><code>hooks/hooks.json</code></td><td>生命週期 hook</td></tr>
+<tr><td>MCP servers</td><td><code>.mcp.json</code></td><td>外部工具伺服器</td></tr>
+<tr><td>LSP servers</td><td><code>.lsp.json</code></td><td>語言伺服器</td></tr>
+</table>
+<p>官方 marketplace 是 <code>xai-org/plugin-marketplace</code>（git repo）。安全上：<code>MarketplaceRelativePath</code> 強制 plugin 路徑不能逃出
+marketplace root（防路徑穿越）；catalog 字串會被 sanitize（去控制字元、unicode 詐騙 bidi/ZWSP，防終端 escape 注入）。</p>
+
+<!-- ============ 14 ============ -->
+<h2 id="acp"><span class="num">14</span>ACP 編輯器嵌入</h2>
+<p class="intro">ACP（Agent Client Protocol）是一套標準協定，讓任何編輯器都能把 Grok 當成「AI 後端」來驅動，而不必為 Grok 寫專屬整合。
+這也是 Zed、Neovim、Emacs 能共用同一個 agent 的原因。</p>
+<p>Grok 以 ACP agent 的身分嵌入編輯器。<span class="crate">xai-acp-lib</span> 建於外部 <code>agent-client-protocol</code> crate 之上，提供型別化的 message/channel/gateway 層。協定是 <strong>JSON-RPC over stdio</strong>。</p>
+<div class="diagram">
+   <span class="hl4">編輯器（Client）</span>                          <span class="hl">Grok（Agent）</span>
+        │                                          │
+        │ ──── initialize ──────────────────────► │  能力協商
+        │ ──── authenticate ────────────────────► │
+        │ ──── session/new ─────────────────────► │  建立 session
+        │ ──── session/prompt ──────────────────► │  送出使用者訊息
+        │                                          │  ┌─ turn 迴圈 ─┐
+        │ ◄─── session/update (串流) ──────────── │  │ 邊跑邊回報   │
+        │       agent_message_chunk               │  │             │
+        │       agent_thought_chunk               │  └─────────────┘
+        │       tool_call / tool_call_update      │
+        │       plan                              │
+        │ ◄─── fs/* · terminal/*（反向請求）───── │  請編輯器代為讀寫/執行
+</div>
+<h4>方法與 sessionUpdate 對照</h4>
+<table>
+<tr><th>類別</th><th>成員</th></tr>
+<tr><td>核心方法</td><td><code>initialize</code>、<code>authenticate</code>、<code>session/new</code>、<code>session/prompt</code></td></tr>
+<tr><td>反向請求（agent→client）</td><td><code>fs/*</code>（讀寫檔）、<code>terminal/*</code>（執行）</td></tr>
+<tr><td>xAI 擴充</td><td><code>x.ai/hooks/*</code>、<code>x.ai/plugins/*</code>、<code>x.ai/mcp/*</code>、<code>x.ai/marketplace/*</code></td></tr>
+<tr><td><code>sessionUpdate</code> 值</td><td><code>agent_message_chunk</code>、<code>agent_thought_chunk</code>、<code>tool_call</code>、<code>tool_call_update</code>、<code>plan</code></td></tr>
+</table>
+<ul>
+  <li>啟動：<code>grok agent stdio</code>（編輯器）、<code>grok agent serve --bind 127.0.0.1:2419 --secret ...</code>（server）、<code>grok agent headless --grok-ws-url wss://...</code>（WebSocket relay）。</li>
+  <li>客戶端：Zed、Neovim、Emacs、marimo（JetBrains 即將支援）。SDK：TypeScript <code>@agentclientprotocol/sdk</code>、Rust <code>agent-client-protocol</code>、Python、Go、Kotlin。</li>
+</ul>
+<div class="why">
+  <div class="t">💡 為什麼是 JSON-RPC over stdio？</div>
+  stdio（標準輸入/輸出）是<strong>最通用、最無依賴</strong>的進程間通訊方式——任何語言、任何平台都能 spawn 一個子進程並讀寫它的
+  stdin/stdout，不需要 socket 權限、port 協商或網路堆疊。JSON-RPC 則是輕量、人可讀、有明確 request/response/notification 語意的協定。
+  兩者相加，讓「編輯器 spawn <code>grok agent stdio</code> 就能對話」變得極其簡單。<code>normalize_json_line</code> 還特別繞過 Foundation/Xcode
+  把 <code>/</code> escape 成 <code>\/</code> 的相容性問題。
+</div>
+
+<!-- ============ 15 ============ -->
+<h2 id="config"><span class="num">15</span>設定與認證</h2>
+<p class="intro">設定系統要同時服務兩種需求：<strong>個人使用者</strong>想自訂喜好，<strong>企業 IT</strong>想強制政策（且使用者不能覆寫）。
+Grok 用「分層合併 + 上層覆蓋下層」+「簽章的 requirements 層」來兼顧兩者。</p>
+<h4>設定合併順序（<span class="crate">xai-grok-config</span>）</h4>
+<div class="diagram">
+  高優先（覆蓋下層）
+    ▲  ┌────────────────────────────────────────────────┐
+    │  │ ⑥ macOS MDM managed preferences (ai.x.grok)     │ 企業強制（僅 macOS）
+    │  ├────────────────────────────────────────────────┤
+    │  │ ⑤ /etc/grok/requirements.toml                   │ 企業強制
+    │  ├────────────────────────────────────────────────┤
+    │  │ ④ $GROK_HOME/requirements.toml (Ed25519 簽章)   │ 雲端政策快取
+    │  ├────────────────────────────────────────────────┤
+    │  │ ③ $GROK_HOME/config.toml  ← 主要使用者設定       │ <span class="hl2">個人喜好</span>
+    │  ├────────────────────────────────────────────────┤
+    │  │ ② $GROK_HOME/managed_config.toml                │
+    │  ├────────────────────────────────────────────────┤
+    │  │ ① /etc/grok/managed_config.toml                 │ 系統預設
+    │  └────────────────────────────────────────────────┘
+    │  另外：CLI flag &gt; 環境變數 &gt; 以上所有檔案
+  低優先（被覆蓋）
+</div>
+<p><code>grok_home()</code> = <code>$GROK_HOME</code> 否則 <code>~/.grok</code>（dunce-canonicalized）。<code>deep_merge_toml</code> 合併各層，<code>expand_env_vars_in_toml</code> 做環境變數替換。</p>
+<div class="why">
+  <div class="t">🔐 requirements 層為何要 Ed25519 簽章 + fail-closed？</div>
+  <code>requirements.toml</code> 承載企業政策（例如「禁止 always-approve 模式」）。若它只是普通檔案，使用者可自行竄改繞過。因此它<strong>靜態簽章</strong>，
+  Grok 啟動時驗簽；驗證失敗可設定成 <strong>fail-closed</strong>（直接拒絕啟動），確保政策無法被本機使用者掏空。這是 B2B 部署的信任根基。
+</div>
+
+<h4>認證優先序（<span class="crate">xai-grok-auth</span>）</h4>
+<div class="diagram">
+  找 token 的順序（先找到先用）：
+   per-model api_key / env_key   ─►   現行 session token   ─►   XAI_API_KEY
+   （設定檔指定）                     （瀏覽器登入取得）        （環境變數）
+</div>
+<ul>
+  <li>首次啟動開瀏覽器登入 grok.com，憑證存 <code>~/.grok/auth.json</code>。<code>grok login</code>（OAuth）/ <code>--device-auth</code> / <code>grok logout</code>。</li>
+  <li>非瀏覽器環境：<code>export XAI_API_KEY="xai-..."</code>。</li>
+  <li>企業 OIDC/SSO（Okta/Azure AD/Auth0）：<code>[grok_com_config.oidc]</code>（<code>issuer</code>/<code>client_id</code>，PKCE 無 secret）。</li>
+  <li>外部 auth provider：<code>[auth] auth_provider_command</code>（stdout=token，stderr=URL/狀態，exit 0=成功）。</li>
+</ul>
+<h4>設定型別 crate 家族</h4>
+<p><span class="crate">xai-grok-config-types</span>（leaf 值型別）、<span class="crate">xai-grok-secrets</span>（regex 出站資料清洗）、<span class="crate">xai-grok-env</span>（endpoint 預設）、<span class="crate">xai-grok-paths</span>（型別安全路徑）、<span class="crate">xai-grok-http</span>（共用 reqwest client）、<span class="crate">xai-grok-memory</span>（跨 session 記憶，SQLite FTS5 + vec0 hybrid search）。</p>
+
+<!-- ============ 16 ============ -->
+<h2 id="sandbox"><span class="num">16</span>Sandbox 沙箱</h2>
+<p class="intro">沙箱的目的：限制 agent（尤其它跑的 shell 指令）能碰的檔案與網路，把「模型犯錯或被惡意 prompt 誘導」的損害範圍框起來。
+預設關閉，但對不信任的任務強烈建議開啟。</p>
+<p><span class="crate">xai-grok-sandbox</span> 在進程啟動時套用 OS 層沙箱，基於 <code>nono</code> crate（包裝 <strong>Linux Landlock</strong> 與 <strong>macOS Seatbelt</strong>）。子進程網路以 <strong>seccomp</strong> 阻擋（Linux）。</p>
+<h4>Profile 能力矩陣</h4>
+<table class="matrix">
+<tr><th>Profile</th><th>讀取</th><th>寫入範圍</th><th>網路</th><th>定位</th></tr>
+<tr><td><code>off</code></td><td><span class="yes">全部</span></td><td><span class="yes">全部</span></td><td><span class="yes">允許</span></td><td>不沙箱（預設）</td></tr>
+<tr><td><code>workspace</code></td><td><span class="yes">全部</span></td><td>CWD + <code>~/.grok/</code> + temp</td><td><span class="yes">允許</span></td><td>一般建議預設</td></tr>
+<tr><td><code>devbox</code></td><td><span class="yes">全部</span></td><td>除 <code>/data</code> 外 top-level</td><td><span class="yes">允許</span></td><td>開發箱寬鬆模式</td></tr>
+<tr><td><code>read-only</code></td><td><span class="yes">全部</span></td><td><code>~/.grok/</code> + temp</td><td><span class="partial">限制</span></td><td>唯讀分析</td></tr>
+<tr><td><code>strict</code></td><td><span class="partial">CWD+系統</span></td><td>最小</td><td><span class="no">封鎖</span></td><td>最嚴，跑不信任任務</td></tr>
+</table>
+<h4>Linux 強制機制（三管齊下）</h4>
+<div class="diagram">
+   ┌─ <span class="hl2">Landlock</span>（kernel LSM）  路徑讀寫白名單
+   │      │ 但 Landlock 沒有「deny 特定路徑」原語
+   │      ▼
+   ├─ <span class="hl3">bubblewrap (bwrap) re-exec</span>  補 deny：
+   │      --ro-bind（寫拒絕）· bind-over chmod-000（讀拒絕）· devbox 的 /data
+   │
+   └─ <span class="hl4">seccomp</span>  阻擋子進程網路（restrict_network 時）
+</div>
+<p>（macOS 則由 <strong>Seatbelt</strong> 一套 profile 語言涵蓋讀/寫/網路/deny。）</p>
+<ul>
+  <li>啟用：<code>--sandbox &lt;profile&gt;</code>、<code>GROK_SANDBOX</code>、<code>[sandbox] profile</code>。自訂 profile 於 <code>~/.grok/sandbox.toml</code>（<code>extends</code>/<code>read_only</code>/<code>read_write</code>/<code>deny</code>）。</li>
+  <li><strong>Linux deny/</strong><code>/data</code>：Landlock 無 deny-path 基元，故以 <strong>bubblewrap（bwrap）</strong>re-exec 強制（<code>--ro-bind</code> 寫拒絕、bind-over chmod-000 讀拒絕）。</li>
+  <li>專案設定只能<strong>新增</strong> profile、不能重定義全域 profile（防惡意 workspace 掏空企業 profile）。事件記於 <code>~/.grok/sandbox-events.jsonl</code>。</li>
+</ul>
+<div class="why">
+  <div class="t">🛡️ 為什麼「專案只能加、不能改」？</div>
+  沙箱設定可放在專案的 <code>.grok/sandbox.toml</code>。但如果專案能<strong>重定義</strong>全域 profile，一個惡意 repo 只要附上一份把 <code>strict</code>
+  改成「全開」的設定，就能在你 clone 它、跑 agent 的瞬間掏空你的企業沙箱政策。因此專案層只能<strong>新增</strong>自訂 profile，
+  不能覆蓋全域既有 profile——這是對「不受信任的 workspace」的縱深防禦。
+</div>
+
+<!-- ============ 17 ============ -->
+<h2 id="infra"><span class="num">17</span>其他基礎建設</h2>
+<p class="intro">這一章收錄「不屬於前面任何主線、但撐起產品穩定性」的 crate。它們大多是為了解決某個<strong>真實踩過的坑</strong>而存在——
+下方每個都附上「它擋掉了什麼故障」。</p>
+<h4>xAI Computer Hub（<span class="crate">crates/common</span>）</h4>
+<p>工具路由/執行的 fabric，讓工具呼叫可<strong>本地（in-process）或遠端（over WebSocket）</strong>透明服務——呼叫端不必知道工具實際在哪跑。</p>
+<div class="diagram">
+                        工具呼叫（tool_id, args）
+                              │
+                              ▼
+                   <span class="hl2">CompoundResolver</span>（local 遮蔽 remote）
+                     ┌────────┴─────────┐
+              找得到本地?              否則
+                     ▼                  ▼
+             <span class="hl">LocalTransport</span>       <span class="hl">RemoteTransport</span>
+             in-process 執行      over WebSocket → 遠端 hub server
+                     │                  │
+                     └────────┬─────────┘
+                              ▼
+                 三 crate 分工：
+                 <span class="hl4">core</span>（抽象 Transport/Registry）·
+                 <span class="hl4">sdk</span>（連線池/透明重連/harness）·
+                 <span class="hl4">mcp-adapter</span>（MCP server → hub 原生工具）
+</div>
+<h4>可靠性與遙測（附「擋掉什麼故障」）</h4>
+<table>
+<tr><th>crate</th><th>職責</th><th>解決的真實問題</th></tr>
+<tr><td><span class="crate">xai-crash-handler</span></td><td>跨平台崩潰處理（Unix signal + Windows SEH）</td><td>崩潰後留下可診斷資訊、偵測 startup crash 迴圈</td></tr>
+<tr><td><span class="crate">xai-grok-telemetry</span></td><td>product events + Mixpanel + Sentry + OTLP</td><td>了解真實使用、錯誤回報（可 opt-out）</td></tr>
+<tr><td><span class="crate">xai-grok-secrets</span></td><td>出站資料 regex 清洗</td><td>防 API key/路徑/email 隨遙測外洩</td></tr>
+<tr><td><span class="crate">xai-sqlite-journal</span></td><td>檔案系統感知的 SQLite journal mode</td><td><strong>NFS 上 WAL 的 mmap -shm 會 SIGBUS</strong>；網路掛載改用 rollback journal</td></tr>
+<tr><td><span class="crate">xai-circuit-breaker</span></td><td>HTTP circuit breaker（滑動視窗 + 最小樣本）</td><td>後端連續失敗時快速失敗，不用一直重試打爆對方</td></tr>
+<tr><td><span class="crate">xai-system-power</span></td><td>跨平台 sleep/wake 通知</td><td><strong>避免在筆電睡眠前一刻啟動 OIDC token refresh</strong>（醒來已過期）</td></tr>
+<tr><td><span class="crate">xai-gix-status</span></td><td>gix status 執行緒預算</td><td><code>panic=abort</code> + 緊 <code>RLIMIT_NPROC</code> 下，spawn worker 失敗會 abort 整個進程</td></tr>
+<tr><td><span class="crate">xai-grok-update</span></td><td>自動更新 + 最低版本強制</td><td>推送修復、淘汰有已知問題的舊版</td></tr>
+<tr><td><span class="crate">xai-grok-voice</span></td><td>語音聽寫（streaming STT → prompt box）</td><td>免打字輸入 prompt</td></tr>
+</table>
+<div class="why">
+  <div class="t">💡 這些 crate 的共同啟示</div>
+  它們看似瑣碎，卻透露出一個成熟 CLI 產品的真相：<strong>大部分工程量花在「邊緣情況」而非主功能</strong>——NFS 的怪癖、筆電睡眠、
+  <code>panic=abort</code> 與 <code>RLIMIT_NPROC</code> 的交互、Windows 的 verbatim 路徑…。這也呼應第 4 章 <code>panic=abort</code> 與第 11 章
+  Mermaid 隔離：一個底層決策往往在整個 codebase 掀起連鎖的防禦性設計。
+</div>
+
+<!-- ============ 18 ============ -->
+<h2 id="features"><span class="num">18</span>使用者功能速查</h2>
+<p class="intro">前面章節談的是「內部怎麼運作」；這一章是「使用者實際會用到什麼」——CLI flag、檔案引用語法、快捷鍵、slash 指令、
+設定檔位置、主題。適合當作日常操作的速查表。</p>
+<p>隨 <span class="crate">xai-grok-pager</span> 出貨的完整 user guide 在
+<code>crates/codegen/xai-grok-pager/docs/user-guide/</code>（25 個 md 檔）。以下是重點提取。</p>
+
+<h4>常用 CLI flag</h4>
+<pre><code>grok                          # 互動 TUI
+grok "prompt"                 # 帶初始 prompt
+grok -p "prompt"              # headless（單回合）
+grok -c                       # 繼續最近 session
+grok --resume &lt;id&gt;            # 恢復指定 session
+grok -m grok-build            # 指定模型
+grok --worktree=feat "..."    # 在 git worktree 執行
+grok --yolo                   # 略過所有權限確認
+grok --minimal / --fullscreen # 螢幕模式（sticky）
+grok --sandbox workspace      # 啟用沙箱
+grok --cwd &lt;dir&gt; / --rules ".." </code></pre>
+
+<h4>檔案引用語法</h4>
+<p><code>@src/main.rs</code>、<code>@src/main.rs:10-50</code>（行範圍）、<code>@src/</code>（目錄）、<code>@!.env</code>（隱藏檔）。fuzzy picker 預設尊重 <code>.gitignore</code>。</p>
+
+<h4>關鍵鍵盤快捷（部分）</h4>
+<table>
+<tr><th>按鍵</th><th>動作</th></tr>
+<tr><td><code>Tab</code></td><td>prompt ↔ scrollback 焦點切換</td></tr>
+<tr><td><code>Ctrl+C</code></td><td>取消當前 turn（<code>Esc</code> mid-turn 是 no-op）</td></tr>
+<tr><td><code>Ctrl+P</code> / <code>?</code></td><td>命令面板</td></tr>
+<tr><td><code>Ctrl+M</code></td><td>模型選擇器</td></tr>
+<tr><td><code>Ctrl+O</code></td><td>切換 always-approve / YOLO</td></tr>
+<tr><td><code>Shift+Tab</code></td><td>循環模式（Normal → Plan → Always-approve）</td></tr>
+<tr><td><code>Ctrl+G</code> / <code>Ctrl+B</code> / <code>Ctrl+T</code></td><td>送任務至背景 / tasks 面板 / todos 面板</td></tr>
+<tr><td><code>Ctrl+S</code> / <code>Ctrl+N</code></td><td>session 選擇器 / 新 session（雙擊）</td></tr>
+<tr><td><code>Ctrl+\</code></td><td>dashboard</td></tr>
+</table>
+
+<h4>Slash 指令（節選）</h4>
+<p><strong>Session</strong>：<span class="pill">/new</span><span class="pill">/resume</span><span class="pill">/compact</span><span class="pill">/context</span><span class="pill">/fork</span><span class="pill">/rewind</span><span class="pill">/export</span><br>
+<strong>模型/模式</strong>：<span class="pill">/model</span><span class="pill">/effort</span><span class="pill">/plan</span><span class="pill">/always-approve</span><span class="pill">/vim-mode</span><span class="pill">/minimal</span><br>
+<strong>Memory</strong>：<span class="pill">/memory</span><span class="pill">/remember</span><span class="pill">/flush</span><span class="pill">/dream</span><br>
+<strong>擴充</strong>：<span class="pill">/hooks</span><span class="pill">/plugins</span><span class="pill">/marketplace</span><span class="pill">/skills</span><span class="pill">/mcps</span><br>
+<strong>其他</strong>：<span class="pill">/theme</span><span class="pill">/loop</span><span class="pill">/imagine</span><span class="pill">/usage</span><span class="pill">/settings</span><span class="pill">/terminal-setup</span><span class="pill">/docs</span></p>
+
+<h4>Headless JSON 輸出</h4>
+<p><code>--output-format json</code> 回傳 <code>text</code>、<code>stopReason</code>、<code>sessionId</code>、<code>requestId</code>、<code>num_turns</code>、<code>usage</code>、<code>total_cost_usd</code> 等。<code>streaming-json</code> 為 NDJSON。退出碼：0 成功、1 錯誤、130 SIGINT、143 SIGTERM。</p>
+
+<h4>主要檔案位置（<code>~/.grok/</code>）</h4>
+<p><code>config.toml</code>、<code>pager.toml</code>（外觀）、<code>auth.json</code>、<code>sessions/</code>、<code>memory/</code>、<code>skills/</code>、<code>plugins/</code>、<code>agents/</code>、<code>hooks/</code>、<code>lsp.json</code>、<code>sandbox.toml</code>、<code>logs/</code>。專案層則在 <code>.grok/</code> 下鏡像。專案規則放 <code>AGENTS.md</code>（也讀 <code>CLAUDE.md</code>）。</p>
+
+<h4>5 個內建主題</h4>
+<p><span class="pill b">GrokNight（預設）</span><span class="pill">GrokDay</span><span class="pill">TokyoNight</span><span class="pill">RosePineMoon</span><span class="pill">OscuraMidnight</span> + <code>auto</code>（跟隨系統）。</p>
+
+<!-- ============ 19 ============ -->
+<h2 id="index"><span class="num">19</span>全 crate 索引（84 個）</h2>
+<p class="intro">完整 84 個 workspace 成員的一句話索引，按目錄分三組收合。想快速定位某個功能住在哪個 crate 時查這裡。</p>
+<details open><summary>crates/codegen/（62 個 — 應用主體）</summary>
+<p style="font-size:13.5px;color:var(--fg2);margin:4px 0 0">產品主體：TUI、runtime、tools、workspace、模型、擴充、設定、基礎工具都在此。</p>
+<table>
+<tr><th>crate</th><th>一句話職責</th></tr>
+<tr><td><span class="crate">xai-grok-pager-bin</span></td><td>組合根二進位，產出 <code>xai-grok-pager</code></td></tr>
+<tr><td><span class="crate">xai-grok-pager</span></td><td>TUI 本體：scrollback、prompt、modals、渲染</td></tr>
+<tr><td><span class="crate">xai-grok-pager-render</span></td><td>渲染基元（draw loop、主題、圖形協定）</td></tr>
+<tr><td><span class="crate">xai-grok-pager-minimal</span></td><td><code>--minimal</code> scrollback-native 模式</td></tr>
+<tr><td><span class="crate">xai-grok-pager-pty-harness</span></td><td>PTY harness + 情境庫（e2e/benchmark）</td></tr>
+<tr><td><span class="crate">xai-grok-shell</span></td><td>Agent runtime + leader/stdio/headless 進入點</td></tr>
+<tr><td><span class="crate">xai-grok-shell-base</span></td><td>shell 家族基礎模組（env、CPU profiling、util）</td></tr>
+<tr><td><span class="crate">xai-grok-shell-session-support</span></td><td>session 支援（managed MCP 快取、檔案存取追蹤）</td></tr>
+<tr><td><span class="crate">xai-grok-agent</span></td><td>Agent builder、定義解析、system prompt 組裝</td></tr>
+<tr><td><span class="crate">xai-agent-lifecycle</span></td><td>宿主無關的 turn/session 生命週期 hooks</td></tr>
+<tr><td><span class="crate">xai-chat-state</span></td><td>actor-based 對話狀態管理</td></tr>
+<tr><td><span class="crate">xai-prompt-queue</span></td><td>prompt queue wire types</td></tr>
+<tr><td><span class="crate">xai-grok-subagent-resolution</span></td><td>subagent 設定解析（persona/role/override 合併）</td></tr>
+<tr><td><span class="crate">xai-grok-tools</span></td><td>工具實作庫</td></tr>
+<tr><td><span class="crate">xai-grok-tools-api</span></td><td>Grok 工具的 protobuf API 定義</td></tr>
+<tr><td><span class="crate">xai-grok-workspace</span></td><td>宿主本地 workspace 庫（FS/VCS/執行/discovery）</td></tr>
+<tr><td><span class="crate">xai-grok-workspace-client</span></td><td>hub-proxied <code>workspace.*</code> RPC 的型別化 client</td></tr>
+<tr><td><span class="crate">xai-grok-workspace-types</span></td><td>workspace API wire types</td></tr>
+<tr><td><span class="crate">xai-codebase-graph</span></td><td>tree-sitter code graph（go-to-def/references）</td></tr>
+<tr><td><span class="crate">xai-hunk-tracker</span></td><td>追蹤 file hunk 與 agent/external 歸屬</td></tr>
+<tr><td><span class="crate">xai-fast-worktree</span></td><td>CoW clone 的高效能 git worktree</td></tr>
+<tr><td><span class="crate">xai-gix-status</span></td><td>共用 gix status helper（執行緒預算）</td></tr>
+<tr><td><span class="crate">xai-fsnotify</span></td><td>本地檔案事件來源（單一因果 FsEvent 串流）</td></tr>
+<tr><td><span class="crate">xai-file-utils</span></td><td>本地資料收集：per-turn 事件追蹤 + 上傳</td></tr>
+<tr><td><span class="crate">xai-grok-mcp</span></td><td>MCP 整合（隔離 rmcp、憑證/OAuth）</td></tr>
+<tr><td><span class="crate">xai-grok-hooks</span></td><td>runtime hook 系統（發現、執行、政策）</td></tr>
+<tr><td><span class="crate">xai-hooks-plugins-types</span></td><td>hooks/plugins ACP 擴充 DTO</td></tr>
+<tr><td><span class="crate">xai-grok-plugin-marketplace</span></td><td>plugin marketplace（發現、安裝）</td></tr>
+<tr><td><span class="crate">xai-acp-lib</span></td><td>ACP channel/gateway 型別化管線</td></tr>
+<tr><td><span class="crate">xai-grok-voice</span></td><td>語音聽寫（streaming STT）</td></tr>
+<tr><td><span class="crate">xai-grok-models</span></td><td>預設模型 ID（內嵌 default_models.json）</td></tr>
+<tr><td><span class="crate">xai-grok-sampler</span></td><td>actor-based 取樣/推論層（HTTP 串流 + retry）</td></tr>
+<tr><td><span class="crate">xai-grok-sampling-types</span></td><td>取樣/chat-completion API 的純資料型別</td></tr>
+<tr><td><span class="crate">xai-token-estimation</span></td><td>純 token 估算基元</td></tr>
+<tr><td><span class="crate">xai-grok-config</span></td><td>設定載入（grok_home、多層合併）</td></tr>
+<tr><td><span class="crate">xai-grok-config-types</span></td><td>leaf 設定值型別</td></tr>
+<tr><td><span class="crate">xai-grok-auth</span></td><td>auth 依賴反轉 seam（HttpAuth + provider trait）</td></tr>
+<tr><td><span class="crate">xai-grok-secrets</span></td><td>出站資料 regex 清洗</td></tr>
+<tr><td><span class="crate">xai-grok-env</span></td><td>backend endpoint 預設</td></tr>
+<tr><td><span class="crate">xai-grok-paths</span></td><td>型別安全的 abs/rel UTF-8 路徑封裝</td></tr>
+<tr><td><span class="crate">xai-grok-http</span></td><td>共用 reqwest client 與 User-Agent</td></tr>
+<tr><td><span class="crate">xai-grok-memory</span></td><td>跨 session markdown 記憶（FTS5+vec0 hybrid）</td></tr>
+<tr><td><span class="crate">xai-grok-sandbox</span></td><td>OS 層沙箱（Landlock/Seatbelt via nono）</td></tr>
+<tr><td><span class="crate">xai-grok-markdown</span></td><td>終端串流式 markdown 渲染器</td></tr>
+<tr><td><span class="crate">xai-grok-markdown-core</span></td><td>headless markdown 分析（共用 pulldown-cmark 設定）</td></tr>
+<tr><td><span class="crate">xai-grok-mermaid</span></td><td>Mermaid → PNG（可換 engine）</td></tr>
+<tr><td><span class="crate">xai-grok-telemetry</span></td><td>遙測引擎（product events + Mixpanel + Sentry）</td></tr>
+<tr><td><span class="crate">xai-mixpanel</span></td><td>輕量 Mixpanel HTTP client</td></tr>
+<tr><td><span class="crate">xai-crash-handler</span></td><td>跨平台崩潰處理</td></tr>
+<tr><td><span class="crate">xai-sqlite-journal</span></td><td>檔案系統感知 SQLite journal mode 選擇</td></tr>
+<tr><td><span class="crate">xai-grok-update</span></td><td>自動更新 + 最低版本強制</td></tr>
+<tr><td><span class="crate">xai-grok-version</span></td><td>lockstep 的 CLI 版本</td></tr>
+<tr><td><span class="crate">xai-grok-announcements</span></td><td>公告型別、持久化、格式化</td></tr>
+<tr><td><span class="crate">xai-system-power</span></td><td>跨平台 sleep/wake 通知</td></tr>
+<tr><td><span class="crate">xai-grok-shared</span></td><td>shell 上游共用工具（clipboard、session…）</td></tr>
+<tr><td><span class="crate">xai-grok-test-support</span></td><td>共用測試支援（mock inference server 等）</td></tr>
+<tr><td><span class="crate">xai-ratatui-inline</span></td><td>ratatui Terminal fork（inline viewport + OSC8）</td></tr>
+<tr><td><span class="crate">xai-ratatui-textarea</span></td><td>多行文字輸入 widget</td></tr>
+<tr><td><span class="crate">xai-tty-utils</span></td><td>TTY 安全的 process 生成工具</td></tr>
+<tr><td><span class="crate">xai-tracing-macros</span></td><td>tracing 巨集（時間戳記日誌、計時）</td></tr>
+<tr><td><span class="crate">ptyctl</span></td><td>基於 alacritty_terminal 的 headless PTY 控制器</td></tr>
+<tr><td><span class="crate">ptyctl-cli</span></td><td>ptyctl 的 CLI</td></tr>
+</table>
+</details>
+<details><summary>crates/common/（11 個 — 共用抽象）</summary>
+<p style="font-size:13.5px;color:var(--fg2);margin:4px 0 0">可被非 grok 產品重用的中立抽象：Tool trait、Computer Hub、compaction、tracing。</p>
+<table>
+<tr><th>crate</th><th>一句話職責</th></tr>
+<tr><td><span class="crate">xai-tool-runtime</span></td><td>統一 <code>Tool</code> trait、dispatch、error taxonomy、search index</td></tr>
+<tr><td><span class="crate">xai-tool-protocol</span></td><td>Computer Hub 的 wire-protocol 型別</td></tr>
+<tr><td><span class="crate">xai-tool-types</span></td><td>xAI 平台標準 tool-description 型別</td></tr>
+<tr><td><span class="crate">xai-computer-hub-core</span></td><td>Hub 的 Transport/ToolRegistry/resolver 抽象</td></tr>
+<tr><td><span class="crate">xai-computer-hub-sdk</span></td><td>Hub SDK（連線池、透明重連、tool harness）</td></tr>
+<tr><td><span class="crate">xai-computer-hub-mcp-adapter</span></td><td>MCP server ↔ Hub 橋接</td></tr>
+<tr><td><span class="crate">xai-grok-compaction</span></td><td>傳輸無關的 compaction 引擎</td></tr>
+<tr><td><span class="crate">xai-interjection-core</span></td><td>mid-turn 插話緩衝與格式化</td></tr>
+<tr><td><span class="crate">xai-circuit-breaker</span></td><td>共用 HTTP circuit breaker</td></tr>
+<tr><td><span class="crate">xai-tracing</span></td><td>tracing/fastrace dispatch、span 匯出</td></tr>
+<tr><td><span class="crate">xai-test-utils</span></td><td>共用測試工具（hermetic git 等）</td></tr>
+</table>
+</details>
+<details><summary>crates/build/、prod/mc/、third_party/（11 個）</summary>
+<table>
+<tr><th>crate</th><th>一句話職責</th></tr>
+<tr><td><span class="crate">xai-proto-build</span></td><td>protobuf 建置</td></tr>
+<tr><td><span class="crate">prod-mc-cli-chat-proxy-types</span></td><td>cli-chat-proxy API 的輕量請求/回應型別</td></tr>
+<tr><td><span class="crate">mermaid-to-svg</span></td><td>vendored：Mermaid → SVG（MIT, warpdotdev）</td></tr>
+<tr><td><span class="crate">dagre_rust</span></td><td>vendored：圖佈局演算法（Apache-2.0）</td></tr>
+<tr><td><span class="crate">graphlib_rust</span></td><td>vendored：圖資料結構（Apache-2.0）</td></tr>
+<tr><td><span class="crate">ordered_hashmap</span></td><td>vendored：有序 hashmap（Apache-2.0）</td></tr>
+</table>
+</details>
+
+<!-- ============ 20 ============ -->
+<h2 id="glossary"><span class="num">20</span>名詞對照</h2>
+<table>
+<tr><th>術語</th><th>說明</th></tr>
+<tr><td><strong>TUI</strong></td><td>Terminal User Interface，全螢幕終端機介面</td></tr>
+<tr><td><strong>ACP</strong></td><td>Agent Client Protocol，JSON-RPC over stdio，用於把 agent 嵌入編輯器</td></tr>
+<tr><td><strong>MCP</strong></td><td>Model Context Protocol，外部工具/資料源接入標準</td></tr>
+<tr><td><strong>headless</strong></td><td>無互動 UI、供 scripting/CI 的執行模式（<code>grok -p</code>）</td></tr>
+<tr><td><strong>leader</strong></td><td>一機一個的常駐 agent 進程，client 透過 Unix socket 連上</td></tr>
+<tr><td><strong>turn / turn cycle</strong></td><td>一次「使用者 → 模型 → 工具 → 模型」的完整回合</td></tr>
+<tr><td><strong>compaction</strong></td><td>context 過長時的對話壓縮/摘要（Grok Build 用 full-replace）</td></tr>
+<tr><td><strong>subagent</strong></td><td>由 <code>task</code> 工具生成的隱藏子代理（深度上限 1）</td></tr>
+<tr><td><strong>hunk</strong></td><td>檔案 diff 的一個區塊，可逐個 accept/reject</td></tr>
+<tr><td><strong>worktree</strong></td><td>git 工作樹；Grok 用 CoW clone 快速建立以隔離變更</td></tr>
+<tr><td><strong>actor 模型</strong></td><td>由專屬 task 擁有狀態、透過 channel 溝通、熱路徑無鎖</td></tr>
+<tr><td><strong>DotSlash</strong></td><td>hermetic 工具管理器，依 manifest 下載並執行工具（如 protoc）</td></tr>
+<tr><td><strong>Landlock / Seatbelt</strong></td><td>Linux / macOS 的 kernel-level 沙箱基元</td></tr>
+<tr><td><strong>YOLO 模式</strong></td><td>略過所有工具權限確認（<code>--yolo</code> / <code>Ctrl+O</code>）</td></tr>
+<tr><td><strong>LocalSet</strong></td><td>tokio 的單執行緒任務集合，可跑 <code>!Send</code> 的 future（Grok 的 SessionActor 用它）</td></tr>
+<tr><td><strong><code>!Send</code></strong></td><td>Rust 標記：型別不能跨執行緒搬移；迫使相關程式碼留在同一執行緒</td></tr>
+<tr><td><strong>FuturesUnordered</strong></td><td>同時 poll 多個 future、誰先完成先產出的集合（用於工具並行）</td></tr>
+<tr><td><strong>fail-open / fail-closed</strong></td><td>出錯時「放行」vs「擋下」；hook fail-open、sandbox/requirements fail-closed</td></tr>
+<tr><td><strong>CoW（Copy-on-Write）</strong></td><td>寫時複製；worktree 建立時共享底層資料塊、寫入才分岔，極快</td></tr>
+<tr><td><strong>mpsc / oneshot</strong></td><td>tokio channel：多生產者單消費者 / 單次請求-回覆（actor 溝通用）</td></tr>
+<tr><td><strong>DEC 2026 (synchronized output)</strong></td><td>終端控制序列：一次原子呈現整幀，避免閃爍/撕裂</td></tr>
+</table>
+
+<hr>
+<div class="footer">
+  <p>📄 本文件為 <a href="https://github.com/xai-org/grok-build" target="_blank">xai-org/grok-build</a> 的第三方技術解說，非 xAI 官方文件。基於實際 clone 的原始碼（monorepo commit <code>2ec0f0c8</code>）撰寫。</p>
+  <p>原始碼授權：Apache-2.0（第一方）。官方文件見 <a href="https://docs.x.ai/build/overview" target="_blank">docs.x.ai/build/overview</a>。</p>
+  <p>由 Claude Code 生成 · 產出日期 2026-07-17（增訂版：加入 20+ 圖表與逐章設計動機說明）· <span class="tag rust">Rust</span> · 84 crates · ~1.33M LOC</p>
+</div>
+
+</main>
+</div>
+</body>
+</html>
